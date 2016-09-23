@@ -14,6 +14,7 @@ Python 3.5
 
 import re
 import string
+import numpy as np
 from nltk import FreqDist
 from langdetect import detect
 from nltk.corpus import stopwords
@@ -21,6 +22,8 @@ from supplementary_fns import cln
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import RegexpTokenizer
 
+# Initialize NLTK's WordNetLemmatizer
+lmr = WordNetLemmatizer()
 
 def abstract_en(abstract):
     """
@@ -57,26 +60,20 @@ def word_vector_clean(str_vector):
     :return:
     """
 
-    # Initialize NLTK's WordNetLemmatizer
-    lmr = WordNetLemmatizer()
-
     # Make all chars lower case
-    str_vector = " ".join([i.lower() for i in str_vector])
+    joined_str_vector = " ".join([i.lower() for i in str_vector])
 
     # Tokenize to remove unimportant chars.
-    str_vector = RegexpTokenizer(r'\w+').tokenize(str_vector)
+    joined_str_vector = RegexpTokenizer(r'\w+').tokenize(joined_str_vector)
 
     # Remove stop words
-    if len(str_vector) > 0:
-        str_vector = list(set(str_vector) - set(stopwords.words('english')))
+    if len(joined_str_vector) > 0:
+        joined_str_vector = list(set(joined_str_vector) - set(stopwords.words('english')))
     else:
         return list()
 
-    # Remove common suffixes, like s
-    cleaned_vector = [lmr.lemmatize(i) for i in str_vector]
-
-    # Make all words present tense
-    cleaned_vector = [lmr.lemmatize(i, 'v') for i in cleaned_vector]
+    # Remove common suffixes, like s; Make all words present tense
+    cleaned_vector = [lmr.lemmatize(lmr.lemmatize(i), 'v') for i in joined_str_vector]
 
     return cleaned_vector
 
@@ -88,6 +85,9 @@ def common_words(input_str, n = 10):
     :return:
     """
 
+    if str(input_str) == 'nan':
+        return [np.NaN]
+
     if not isinstance(n, int):
         raise ValueError("n must be an int")
 
@@ -97,16 +97,23 @@ def common_words(input_str, n = 10):
     if len(input_str) == 0:
         return list(), list()
 
-    # Remove white space
-    input_str = cln(input_str).split(" ")
+    # Split the input
+    split_input = cln(input_str).split(" ")
 
-    # Clean the unput with the word_vector_clean() method
-    cleaned_input = word_vector_clean(input_str)
+    # Remove white space and clean
+    cleaned_input = word_vector_clean(split_input)
+
+    to_count = [i for i in cleaned_input if not str(i).strip().isdigit()] +\
+               [i for i in split_input if len(re.findall(r'[0-9]-.*', i)) != 0]
+
+    # Return on an empty to_count list
+    if len(to_count) == 0:
+        return [np.NaN]
 
     # Compute the most common words (note: doesn't handle ties)
-    top_common_words = dict(FreqDist(cleaned_input).most_common(n))
+    top_common_words = np.array(FreqDist(to_count).most_common(n))
 
-    return list(top_common_words.keys()), list(top_common_words.values())
+    return list(top_common_words[:,0]), list(top_common_words[:,1])
 
 
 

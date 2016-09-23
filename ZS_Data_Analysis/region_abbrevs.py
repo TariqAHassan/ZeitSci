@@ -12,6 +12,7 @@ US_states = {
         'CT': 'Connecticut',
         'DC': 'District of Columbia',
         'DE': 'Delaware',
+        'FM': 'Federated States of Micronesia',
         'FL': 'Florida',
         'GA': 'Georgia',
         'GU': 'Guam',
@@ -23,6 +24,7 @@ US_states = {
         'KS': 'Kansas',
         'KY': 'Kentucky',
         'LA': 'Louisiana',
+        'MH': 'Marshall Islands',
         'MA': 'Massachusetts',
         'MD': 'Maryland',
         'ME': 'Maine',
@@ -140,9 +142,45 @@ Australia_Inist_Cities = {
  }
 
 
-
-
-
+European_Countries = {
+          'AL': 'Albania'
+        , 'AT': 'Austria'
+        , 'BE': 'Belgium'
+        , 'BG': 'Bulgaria'
+        , 'HR': 'Croatia'
+        , 'CY': 'Cyprus'
+        , 'CZ': 'Czech Republic'
+        , 'DK': 'Denmark'
+        , 'EE': 'Estonia'
+        , 'FI': 'Finland'
+        , 'FR': 'France'
+        , 'DE': 'Germany'
+        , 'EL': 'Greece'
+        , 'HU': 'Hungary'
+        , 'IS': 'Iceland'
+        , 'IE': 'Ireland'
+        , 'IT': 'Italy'
+        , 'LV': 'Latvia'
+        , 'LI': 'Liechtenstein'
+        , 'LT': 'Lithuania'
+        , 'LU': 'Luxembourg'
+        , 'MD': 'Macedoni'
+        , 'MT': 'Malta'
+        , 'ME': 'Montenegro'
+        , 'NL': 'Netherlands'
+        , 'NO': 'Norway'
+        , 'PL': 'Poland'
+        , 'PT': 'Portugal'
+        , 'RO': 'Romania'
+        , 'RS': 'Serbia'
+        , 'SK': 'Slovakia'
+        , 'SI': 'Slovenia'
+        , 'ES': 'Spain'
+        , 'SE': 'Sweden'
+        , 'CH': 'Switzerland'
+        , 'TR': 'Turkey'
+        , 'UK': 'United Kingdom'
+}
 
 
 
