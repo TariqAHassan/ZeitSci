@@ -13,46 +13,19 @@ Python 3.5
 
 import re
 import os
-import sys
 import time
 import glob2
 import string
-import datetime
-import pycountry
-import unicodedata
 import numpy as np
 import pandas as pd
-from copy import deepcopy
-from collections import defaultdict
 
 from abstract_analysis import *
 from funding_database_tools import MAIN_FOLDER
 from funding_database_tools import multi_readin
 
-from region_abbrevs import US_states, European_Countries
-
-from supplementary_fns import cln
-from supplementary_fns import lprint
-from supplementary_fns import insen_replace
-from supplementary_fns import partial_match
-from supplementary_fns import pandas_col_shift
-from supplementary_fns import partial_list_match
-from supplementary_fns import items_present_test
-
-# ZeitSci Classes
-from zeitsci_wiki_api import WikiUniversities, wiki_complete_get
-from open_cage_functionality import ZeitOpenCage
-
-from nltk.corpus import stopwords
-
-from region_abbrevs import Australian_states
-from region_abbrevs import Australia_Inist_Cities
-from open_cage_functionality import ZeitOpenCage
-from my_keys import OPENCAGE_KEY
 
 from easymoney.money import EasyPeasy
 from easymoney.easy_pandas import strlist_to_list, twoD_nested_dict
-ep = EasyPeasy()
 
 
 # Goal:
@@ -317,10 +290,14 @@ df['InstitutionType'] = endowment_type[:,1]
 # QS does publish the data as a .xlsx, but usage rights are currently unknown.
 
 
+# ------------------------------------------------------------------------- #
+#                                    Save                                   #
+# ------------------------------------------------------------------------- #
+
 os.chdir(MAIN_FOLDER + "/Data/MasterDatabase")
 
 # Save
-df.to_pickle('MasterDatabaseRC1')
+df.to_pickle('MasterDatabaseRC1.p')
 
 
 
