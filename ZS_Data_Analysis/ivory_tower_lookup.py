@@ -1,9 +1,9 @@
 '''
 
-This Script Structures the Data post Extraction
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    This Script Structures the Data Following Extraction from Wikipedia
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Python 3.5
+    Python 3.5
 
 # see :
 #   https://github.com/endSly/world-universities-csv
@@ -69,7 +69,7 @@ wldc = pd.read_csv("worldcities.csv")
 wldc = wldc.rename(columns = {wldc.columns[0] : "CountryCode", wldc.columns[6]: "City"})
 
 # Import the university database
-wdb = pd.read_csv("world_universities.csv", keep_default_na = False) # prevent NA --> nan
+wdb = pd.read_csv("world_universities.csv", keep_default_na=False) # prevent NA --> nan
 
 # Import currency codes
 # see wiki: https://en.wikipedia.org/wiki/Template:Most_traded_currencies

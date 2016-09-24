@@ -7,11 +7,7 @@
 
 """
 
-
-# ---------------- #
-#  Import Modules  #
-# ---------------- #
-
+# Modules
 import os
 import glob2
 import string
@@ -48,7 +44,7 @@ from funding_database_tools import MAIN_FOLDER
 
 
 # ------------------------------------------------------------------------- #
-#                      Read In Cached  Database                   #
+#                           Read In Cached Database                         #
 # ------------------------------------------------------------------------- #
 
 os.chdir(MAIN_FOLDER + "/Data/MasterDatabase")

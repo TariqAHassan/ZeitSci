@@ -1,11 +1,11 @@
-'''
+"""
 
-Builds Journal database from Scimagojr.com
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Builds Journal database from Scimagojr.com
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Python 3.5
+    Python 3.5
 
-'''
+"""
 
 import re
 import os
