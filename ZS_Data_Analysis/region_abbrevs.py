@@ -48,6 +48,7 @@ US_states = {
         'OR': 'Oregon',
         'PA': 'Pennsylvania',
         'PR': 'Puerto Rico',
+        'PW': 'Palau',
         'RI': 'Rhode Island',
         'SC': 'South Carolina',
         'SD': 'South Dakota',
@@ -164,7 +165,8 @@ European_Countries = {
         , 'LI': 'Liechtenstein'
         , 'LT': 'Lithuania'
         , 'LU': 'Luxembourg'
-        , 'MD': 'Macedoni'
+        , 'MD': 'Moldova'
+        , 'MK': 'Macedonia'
         , 'MT': 'Malta'
         , 'ME': 'Montenegro'
         , 'NL': 'Netherlands'

@@ -227,6 +227,34 @@ def remove_accents(input_str):
     nkfd_form = unicodedata.normalize('NFKD', input_str)
     return ("".join([c for c in nkfd_form if not unicodedata.combining(c)]))
 
+def multi_readin(files_to_readin, lower_cols=True, unnammed_drop=False, encoding = None):
+    """
+
+    Read in multiple csv files.
+
+    :param files_to_readin:
+    :param lower_cols:
+    :return:
+    """
+    to_concat = list()
+    for f in files_to_readin:
+        if encoding != None:
+            temp_df = pd.read_csv(f, encoding=encoding)
+        else:
+            temp_df = pd.read_csv(f)
+        if lower_cols:
+            temp_df.columns = [cln(c.lower(), 2) for c in temp_df.columns.tolist()]
+        to_concat.append(temp_df)
+
+    df = pd.concat(to_concat)
+
+    to_drop = [i for i in df.columns if 'unnamed' in str(i).lower()]
+    if unnammed_drop and len(to_drop) > 0:
+        for td in to_drop:
+            df.drop(td, axis=1, inplace=True)
+
+    return df.reset_index(drop=True, inplace=False)
+
 # Create ISO country Dict.
 two_iso_country_dict = dict()
 for country in list(pycountry.countries):

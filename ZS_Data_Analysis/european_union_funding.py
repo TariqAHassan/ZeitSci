@@ -301,8 +301,7 @@ new_col_names = [ "OrganizationName"
                 , "Researcher"
                 , "FundCurrency"
                 , "Funder"
-                , "OrganizationBlock"
-]
+                , "OrganizationBlock"]
 
 # Rename Columns
 eu_df.columns = new_col_names

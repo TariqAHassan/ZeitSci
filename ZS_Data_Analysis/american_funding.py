@@ -27,26 +27,30 @@ from funding_database_tools import column_drop
 from funding_database_tools import string_match_list
 from funding_database_tools import year_columns
 from funding_database_tools import two_iso_country_dict
+from funding_database_tools import multi_readin
 
 # ------------------------------------------------------------------------------------------------------------ #
 #                                            United States of America                                          #
 # ------------------------------------------------------------------------------------------------------------ #
 
+# NOTEs:
+#   1. this code will merge fy_total_cost and fy_total_cost_sub_projects
+#   2. AE is in the OrganizationState column (not a US State).
 
 os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/USA")
 
 us_files = [i for i in os.listdir() if i != ".DS_Store" and "~" not in i and ".R" not in i][0:]
 
-to_concat = []
-for f in us_files:
-    temp_df = pd.read_csv(f, encoding = "ISO-8859-1")
-    temp_df.columns = [cln(c.lower(), 2) for c in temp_df.columns.tolist()]
-    to_concat.append(temp_df)
+# to_concat = []
+# for f in us_files:
+#     temp_df = pd.read_csv(f, encoding="ISO-8859-1")
+#     temp_df.columns = [cln(c.lower(), 2) for c in temp_df.columns.tolist()]
+#     to_concat.append(temp_df)
+#
+# us_df = pd.concat(to_concat)
+# us_df.index = range(us_df.shape[0])
 
-us_df = pd.concat(to_concat)
-us_df.index = range(us_df.shape[0])
-
-# Note: this analysis will merge fy_total_cost and fy_total_cost_sub_projects
+us_df = multi_readin(us_files, encoding="ISO-8859-1")
 
 def total_merge(fy_total, fy_total_sub):
     if str(fy_total) != 'nan':
@@ -171,6 +175,9 @@ us_df = us_df[pd.notnull(us_df["Lat"])]
 us_df.columns = [c.lower() for c in us_df.columns]
 us_df.index = range(us_df.shape[0])
 
+
+
+
 # deploy comma_reverse()
 us_df['contact_pi_project_leader'] = [comma_reverse(i) for i in us_df['contact_pi_project_leader'].tolist()]
 
@@ -206,7 +213,7 @@ new_col_names = [  "Researcher"
 ]
 us_df.columns = new_col_names
 
-# Remove individual reserchers
+# Remove individual researchers
 # us_df = us_df[~us_df.OrganizationName.map(lambda x: "".join(x.lower().split())).str.contains(",phd")]
 # us_df = us_df[~us_df.OrganizationName.map(lambda x: "".join(x.lower().split())).str.contains(",md")]
 
@@ -215,8 +222,8 @@ us_df.columns = new_col_names
 # Add Currency Column
 us_df["FundCurrency"] = "USD"
 
-# Correct Block Name
-us_df.OrganizationBlock = us_df['OrganizationBlock'].str.title()
+# Correct Block Name to invariably be 'United States'.
+us_df['OrganizationBlock'] = "United States"
 
 # Correct OrganizationState
 us_df['OrganizationState'] = us_df['OrganizationState'].replace(US_states)
@@ -224,6 +231,10 @@ us_df['OrganizationState'] = us_df['OrganizationState'].replace(US_states)
 # Convert GrantYear and Amount to Floats
 us_df['GrantYear'] = us_df['GrantYear'].astype(float)
 us_df['Amount'] = us_df['Amount'].astype(float)
+
+
+# Correct weird case of negative grants.
+# us_df['Amount'] = us_df['Amount'].map(lambda x: x if str(x) == 'nan' or x > 0 else x*-1)
 
 # Refresh index
 us_df.reset_index(drop=True, inplace=True)

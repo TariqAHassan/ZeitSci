@@ -42,7 +42,7 @@ os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/Canada/Funding_by_Reg
 ca_data_file_names = list(set([i.replace("~$", "") for i in glob2.glob('*/*.xlsx')]))
 ca_df = df_combine(ca_data_file_names, skip=3, file_types='excel', file_name_add = True)
 
-# Get State (Provience) and University Information
+# Get State (Province) and University Information
 ca_df['state'] = ca_df.file_name.map(lambda x: x.split("/")[0].replace("_", " "))
 ca_df['university'] = ca_df.file_name.map(lambda x: x.split("/")[1].split(".")[0])
 
@@ -162,8 +162,7 @@ new_col_names = [  "Amount"
                  , "FundCurrency"
                  , "Funder"
                  , "OrganizationBlock"
-                 , "StartDate"
-]
+                 , "StartDate"]
 
 # Rename columns
 ca_df.columns = new_col_names
