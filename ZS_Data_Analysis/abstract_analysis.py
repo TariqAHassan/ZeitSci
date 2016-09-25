@@ -24,6 +24,7 @@ from nltk.tokenize import RegexpTokenizer
 
 # Initialize NLTK's WordNetLemmatizer
 lmr = WordNetLemmatizer()
+RTokenizer = RegexpTokenizer(r'\w+')
 
 def abstract_en(abstract):
     """
@@ -47,7 +48,7 @@ def abstract_en(abstract):
     # Otherwise
     return "non_en"
 
-def word_vector_clean(str_vector):
+def word_vector_clean(input_str, RTokenizer=RTokenizer):
     """
 
     Gets the most common words in a string
@@ -61,59 +62,68 @@ def word_vector_clean(str_vector):
     """
 
     # Make all chars lower case
-    joined_str_vector = " ".join([i.lower() for i in str_vector])
+    lower_input_str = input_str.lower()
 
     # Tokenize to remove unimportant chars.
-    joined_str_vector = RegexpTokenizer(r'\w+').tokenize(joined_str_vector)
+    lower_input_str = RTokenizer.tokenize(lower_input_str)
 
     # Remove stop words
-    if len(joined_str_vector) > 0:
-        joined_str_vector = list(set(joined_str_vector) - set(stopwords.words('english')))
+    if len(lower_input_str) > 0:
+        lower_input_str = list(set(lower_input_str) - set(stopwords.words('english')))
     else:
         return list()
 
     # Remove common suffixes, like s; Make all words present tense
-    cleaned_vector = [lmr.lemmatize(lmr.lemmatize(i), 'v') for i in joined_str_vector]
+    cleaned_vector = [lmr.lemmatize(lmr.lemmatize(i), 'v') for i in lower_input_str]
 
     return cleaned_vector
 
-def common_words(input_str, n = 10):
+def common_words(input_str, n = 10, return_rank = True, digit_check = True, wrap_nans=True):
     """
 
     :param input_str: an abstract
     :param n: number of most common words
-    :return:
+    :param return_rank:
+    :param digit_check: block digits from being included
+    :param wrap_nans:
+    :return: a list of common words in the input_str (note: single letters are blocked)
+    :rtpe: list
     """
+    # Initialize
+    to_count = list()
 
     if str(input_str) == 'nan':
-        return [np.NaN]
+        return [np.NaN] if wrap_nans else np.NaN
 
     if not isinstance(n, int):
         raise ValueError("n must be an int")
 
-    # Input Checks
+    # Input Checks -- CHANGE TO NANs (but check usage first).
     if not isinstance(input_str, str):
         return list(), list()
     if len(input_str) == 0:
         return list(), list()
 
-    # Split the input
-    split_input = cln(input_str).split(" ")
+    # Remove extra white space and clean
+    cleaned_input = word_vector_clean(cln(input_str))
 
-    # Remove white space and clean
-    cleaned_input = word_vector_clean(split_input)
-
-    to_count = [i for i in cleaned_input if not str(i).strip().isdigit()] +\
-               [i for i in split_input if len(re.findall(r'[0-9]-.*', i)) != 0]
+    if digit_check:
+        to_count = [i for i in cleaned_input if not str(i).strip().isdigit() and len(str(i)) > 1] +\
+                   [i for i in cln(input_str).split() if len(re.findall(r'[0-9]-.*', i)) != 0 and len(str(i)) > 1]
+    else:
+        to_count = cleaned_input
 
     # Return on an empty to_count list
     if len(to_count) == 0:
-        return [np.NaN]
+        return [np.NaN] if wrap_nans else np.NaN
 
     # Compute the most common words (note: doesn't handle ties)
     top_common_words = np.array(FreqDist(to_count).most_common(n))
 
-    return list(top_common_words[:,0]), list(top_common_words[:,1])
+    if return_rank:
+        return list(top_common_words[:,0]), list(top_common_words[:,1])
+    else:
+        return list(top_common_words[:,0])
 
 
 
