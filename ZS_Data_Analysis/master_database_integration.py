@@ -1,18 +1,19 @@
 """
 
-    Integrate Databases with Journal Publication Information
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Integrate Funding with Pubmed Data
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     Python 3.5
 
 """
 
-# Modules
 import os
 import glob2
 import string
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
+from supplementary_fns import cln, fast_flatten
 from easymoney.money import EasyPeasy
 from funding_database_tools import MAIN_FOLDER
 
@@ -47,340 +48,39 @@ from funding_database_tools import MAIN_FOLDER
 #                           Read In Cached Database                         #
 # ------------------------------------------------------------------------- #
 
-os.chdir(MAIN_FOLDER + "/Data/MasterDatabase")
+# Read in Pubmed Data
+os.chdir(MAIN_FOLDER + "/Data/NCBI_DATA")
+pubmed = pd.read_csv("Pubmed2000_to_2015.csv"
+                          , dtype={'author': np.str, 'grants': np.str, 'keywords': np.str, 'journal': np.str, 'pmid': np.str, 'title': np.str, 'mesh_terms': np.str, 'pubdate': np.str, 'affiliation': np.str, 'journal_iso': np.str}
+                          , error_bad_lines=False
+                          , nrows=10000000)
 
-# Read in
-df = pd.read_pickle('MasterDatabaseRC1.p')
+# Read in Funding Data
+funding = pd.read_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + 'MasterDatabaseRC1.p')
+
+# Start tqdm
+tqdm.pandas(desc="status")
 
 # ------------------------------------------------------------------------- #
-#               Integrate Funding Data from around the World                #
+#                  Group by Researcher and OrganizationName                 #
 # ------------------------------------------------------------------------- #
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+def researcher_name_cln(researcher):
+    cleaned_name = cln(researcher.strip())
+    split_name = cleaned_name.split(" ")
+
+    if len(split_name) == 2:
+        return split_name[0][0] + " " + split_name[-1]
+    elif len(split_name) == 3:
+        return split_name[0][0] + split_name[1][0] + " " + split_name[2]
+    else:
+        return cleaned_name if cleaned_name != '' else np.NaN
+
+funding['ResearcherAbrev'] = funding['Researcher'].progress_map(researcher_name_cln, na_action='ignore')
+
+# ------------------------------------------------------------------------- #
+#                  Group by Researcher and OrganizationName                 #
+# ------------------------------------------------------------------------- #
 
 
 

@@ -2,6 +2,7 @@
 
 import re
 import time
+from itertools import chain
 
 def pprint(string, n = 80):
     """
@@ -170,7 +171,8 @@ def items_present_test(input_list, clist):
     return any(x in input_list for x in clist)
 
 
-
+def fast_flatten(input_list):
+    return list(chain.from_iterable(input_list))
 
 
 

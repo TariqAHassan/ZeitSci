@@ -1,16 +1,12 @@
 '''
 
-Develop a Database of Science Funding
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Develop a Database of Science Funding
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Python 3.5
 
 '''
 
-# ---------------- #
-#  Import Modules  #
-# ---------------- #
-
+# Modules
 import re
 import os
 import time
@@ -32,24 +28,24 @@ from easymoney.easy_pandas import strlist_to_list, twoD_nested_dict
 # A dataframe with the following columns:
 
 #   Researcher
-#   Fields                        X  -- use journal ranking dataframe
-#   ResearcherSubfields           X  -- use journal ranking dataframe
-#   ResearchAreas (sub-subfield)  X  -- use journal ranking dataframe
-#   Amount
-#   NormalizedAmount                 -- the grant in 2015 USD (2016 not handled properly...fix)
-#   Currency
-#   YearOfGrant
-#   FundingSource
-#   Collaborators                 X  -- based on pubmed 2000-2016 download
-#   keywords
-#   Institution
-#   Endowment                        -- use wikipedia universties database
-#   InstitutionType                  -- use wikipedia universties database (i.e., public or private)
-#   InstitutionRanking            X  -- Ranking of the institution (read: uni). QS Data avaliable; usage rights unkown.
-#   InstutionCountry
-#   City/NearestCity
-#   lng
-#   lat
+#       Fields                        X  -- use journal ranking dataframe
+#       ResearcherSubfields           X  -- use journal ranking dataframe
+#       ResearchAreas (sub-subfield)  X  -- use journal ranking dataframe
+#       Amount
+#       NormalizedAmount                 -- the grant in 2015 USD (2016 not handled properly...fix)
+#       Currency
+#       YearOfGrant
+#       FundingSource
+#       Collaborators                 X  -- based on pubmed 2000-2016 download
+#       keywords
+#       Institution
+#       Endowment                        -- use wikipedia universties database
+#       InstitutionType                  -- use wikipedia universties database (i.e., public or private)
+#       InstitutionRanking            X  -- Ranking of the institution (read: uni). QS Data avaliable; usage rights unkown.
+#       InstutionCountry
+#       City/NearestCity
+#       lng
+#       lat
 
 # X = to do (when all country's data are assembled)
 
@@ -118,7 +114,6 @@ def zeitsci_normalize(amount
     :param exchange_date:
     :return:
     """
-
     # Set the Currency (and handle Europe properly).
     currency = org_state if org_block == 'Europe' else org_block
 
@@ -281,6 +276,9 @@ df['Endowment'] = endowment_type[:,0]
 # Add InstitutionType information to the DF
 df['InstitutionType'] = endowment_type[:,1]
 
+# Researcher Abreviation
+df
+
 
 # ------------------------------------------------------------------------- #
 #                         Integrate University Ranking                      #
@@ -294,10 +292,8 @@ df['InstitutionType'] = endowment_type[:,1]
 #                                    Save                                   #
 # ------------------------------------------------------------------------- #
 
-os.chdir(MAIN_FOLDER + "/Data/MasterDatabase")
-
 # Save
-df.to_pickle('MasterDatabaseRC1.p')
+df.to_pickle(MAIN_FOLDER + "/Data/MasterDatabase" + 'MasterDatabaseRC1.p')
 
 
 
