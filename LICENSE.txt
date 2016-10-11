@@ -1,4 +1,4 @@
-EasyMoney
+ZeitSci
 Copyright (c) 2016, Tariq A. Hassan
 All rights reserved.
 
