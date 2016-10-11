@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>D3 World Map Template | TechSlides</title>
+<style>
+
+.text{
+  font-size:10px;
+  text-transform:capitalize;
+}
+#container {
+  margin:10px 10%;
+  border:2px solid #000;
+  border-radius: 5px;
+  height:100%;
+  overflow:hidden;
+  background: #F0F8FF;
+}
+.hidden {
+  display: none;
+}
+
+div.tooltip {
+    position: absolute;
+    text-align: center;
+    width: auto;
+    height: auto;
+    padding: 5px;
+    font: 12px sans-serif;
+    background: lightsteelblue;
+    border: 0px;
+    border-radius: 8px;
+    pointer-events: none;
+}
+    .tooltip-inner {
+        white-space: pre-wrap;
+    }
+
+</style>
+</head>
+<body>
+
+  <p><br><br></p>
+  <div id="container"></div>
+
+<script src="libraries/accounting/accounting.min.js"></script>
+<script src="data/starter_kit/js/d3.min.js"></script>
+<script src="data/starter_kit/js/topojson.v1.min.js"></script>
+<script>
+
+  d3.select(window).on("resize", throttle);
+
+  var zoomExtent = [1, 100];
+
+  var zoom = d3.behavior.zoom()
+              .scaleExtent(zoomExtent)
+              .on("zoom", zoomer);
+
+  var width = 1440//document.getElementById('container').offsetWidth;
+  var height = 900//width / 2;
+
+  // Define the div for the tooltip
+  var div = d3.select("body").append("div")
+                            .attr("class", "tooltip")
+                            .style("opacity", 0);
+
+  var topo, projection, path, svg, g;
+
+  setup(width, height);
+
+  function setup(width, height){
+    projection = d3.geo.mercator()
+      .translate([(width/2), (height/2)])
+      .scale(width / 2 / Math.PI);
+
+    path = d3.geo.path().projection(projection);
+
+    svg = d3.select("#container").append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .call(zoom)
+            .on("click", click)
+            .append("g");
+
+    g = svg.append("g");
+
+  }
+
+  d3.json("data/starter_kit/data/world-topo-min.json", function(error, world) {
+        var countries = topojson.feature(world, world.objects.countries).features;
+        topo = countries;
+        draw(topo);
+  });
+
+  function draw(topo) {
+    var country = g.selectAll(".country").data(topo);
+    country.enter().insert("path")
+        .attr("class", "country")
+        .attr("d", path)
+        .style("fill", "gray");
+
+    //Add funding information
+    d3.csv("data/science_funding.csv", function(err, grants) {
+      grants.forEach(function(i){
+          addFunding(i['lng'], i['lat'], i['NormalizedAmount'], i['OrganizationName']);
+      });
+    });
+  }
+
+  function dotColor(amount){
+      if (parseFloat(amount) < 10000000){
+          return 'darkred'
+      } else if (parseFloat(amount) >  10000000 && parseFloat(amount)  < 100000000){
+          return 'red'
+      } else if (parseFloat(amount) >= 100000000 && parseFloat(amount) < 500000000){
+          return 'yellow'
+      } else if (parseFloat(amount) >= 500000000 && parseFloat(amount) < 1000000000){
+          return 'lightgreen'
+      } else if (parseFloat(amount) >= 1000000000){
+          return 'green'
+      }
+  }
+
+  //function to add points and text to the map (used in plotting grants)
+  function addFunding(lat, lon, amount, name) {
+
+    var gpoint = g.append("g").attr("class", "gpoint");
+
+    var location = projection([lat, lon]);
+    var x = location[0];
+    var y = location[1];
+
+    var amountInitalScale = Math.sqrt(parseFloat(amount) * 0.000000009);
+
+    gpoint.append("svg:circle")
+          .attr("cx", x)
+          .attr("cy", y)
+          .attr("class","point")
+          .style("fill", dotColor(parseFloat(amount)))
+          .style("opacity", 0.55)
+          .attr("id", amountInitalScale)
+          .attr("r", amountInitalScale)
+            .on("mouseover", function(){
+                div.transition()
+                    .duration(500)
+                    .style("opacity", .85);
+                div.html(name + "<br/>" + "Total Grants: " + accounting.formatMoney(parseFloat(amount)) + " USD")
+                    .style("left", (d3.event.pageX) + "px")
+                    .style("top", (d3.event.pageY - 28) + "px");
+                    })
+            .on("mouseout", function(d){
+                div.transition()
+                    .duration(500)
+                    .style("opacity", 0);
+            });
+  }
+
+  function redraw() {
+        width = document.getElementById('container').offsetWidth;
+        height = width / 2;
+        d3.select('svg').remove();
+        setup(width, height);
+        draw(topo);
+  }
+
+  function pointScale(amount, zoomScale){
+        var sizeFloor = 0.12;
+        var size = amount * (100/zoomScale*0.05);
+
+        if (size > amount){
+            return amount;
+        } else if (size < sizeFloor){
+            return sizeFloor * amount;
+        } else {
+            return size;
+        }
+   }
+
+  function zoomer() {
+    var t = d3.event.translate;
+    var s = d3.event.scale;
+    var h = height/4;
+
+    t[0] = Math.min(
+      (width/height)  * (s - 1),
+       Math.max(width * (1 - s), t[0])
+    );
+
+    t[1] = Math.min(
+      h * (s - 1) + h * s,
+      Math.max(height  * (1 - s) - h * s, t[1])
+    );
+
+    g.attr("transform", "translate(" + t + ")scale(" + s + ")");
+
+    //circle size based on zoom level
+    d3.selectAll('circle').attr('r', function (d, i){
+//        TO DO: only scale points in view
+//        console.log(d3.geo.bounds(topo[0]))
+//        var x = d3.select(this).attr('cx');
+//        var y = d3.select(this).attr('cy');
+        var amount = d3.select(this).attr('id');
+        return pointScale(amount, s);
+    });
+  }
+  var throttleTimer;
+  function throttle() {
+    window.clearTimeout(throttleTimer);
+      throttleTimer = window.setTimeout(function() {
+        redraw();
+      }, 200);
+  }
+
+  //geo translation on mouse click in map
+  function click() {
+    var latlon = projection.invert(d3.mouse(this));
+    console.log(latlon);
+  }
+
+//  function addAgency(lat, lon, name){
+//
+//  }
+
+</script>
+</body>
+</html>

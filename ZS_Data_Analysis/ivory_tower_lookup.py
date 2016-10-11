@@ -5,10 +5,10 @@
 
     Python 3.5
 
-# see :
-#   https://github.com/endSly/world-universities-csv
-#   https://en.wikipedia.org/wiki/List_of_colloquial_names_for_universities_and_colleges_in_the_United_States
-#   Kaggle Data
+see :
+  https://github.com/endSly/world-universities-csv
+  https://en.wikipedia.org/wiki/List_of_colloquial_names_for_universities_and_colleges_in_the_United_States
+  Kaggle Data
 
 
 '''
@@ -16,7 +16,6 @@
 # ---------------- #
 #  Import Modules  #
 # ---------------- #
-
 
 import os
 import time
@@ -35,7 +34,7 @@ from supplementary_fns import items_present_test
 
 # ZeitSci Classes
 from zeitsci_wiki_api import WikiUniversities
-from open_cage_functwionality import ZeitOpenCage
+# from open_cage_functwionality import ZeitOpenCage
 
 # TO DO: Remove website col.
 
@@ -182,9 +181,9 @@ pref_col_order = ["University", "Country", "Continent", "Website"]
 
 wdb = wdb.reindex_axis(pref_col_order, axis = 1)
 
-# ---------------------------------------------------------------- #
-#                            Restrict DB                           #
-# ---------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------------- #
+#                                                        Restrict DB                                                   #
+# -------------------------------------------------------------------------------------------------------------------- #
 
 
 # # # Limit to North America for now
@@ -210,12 +209,11 @@ wdb = wdb.reindex_axis(pref_col_order, axis = 1)
 
 # Limit to North America
 
-allowed_continents = ["Europe"]
-wdb = wdb[wdb.Continent.apply(items_present_test, args = [allowed_continents,])]
-wdb.index = range(wdb.shape[0])
+# wdb = wdb[wdb['Country'].apply(items_present_test, args = [allowed_continents,])].reset_index(drop=True)
+wdb = wdb[wdb['Country'] == 'Canada'].reset_index(drop=True)
 
 # Move to Correct folder
-os.chdir(MAIN_FOLDER + "/Data/WikiPull/Europe")
+os.chdir(MAIN_FOLDER + "/Data/WikiPull/North_America")
 
 # ---------------------------------------------------------------- #
 #                                                                  #
@@ -235,8 +233,10 @@ wdb['InstitutionType'] = ""
 
 # Geo Information
 wdb['Address'] = ""  # will have to use reverse lookup for this
+
 wdb['lng'] = ""
 wdb['lat'] = ""
+# These should be flipped...
 
 wdb['DataSource'] = ""
 
@@ -250,10 +250,13 @@ wikiuni = WikiUniversities(iso_currencies = iso_currencies)
 # Get the current dir
 current_dir = os.getcwd()
 
-start = 944
+start = 0
 fail_count = []
-for row in range(start, wdb.shape[0]):
 
+# file_name = 'uni_pull'
+file_name = 'canada_uni_pull'
+
+for row in range(start, wdb.shape[0]):
     # Breaks
     if start != 0 and row % 1000 == 0:
         print("Breaking for 3 mins")
@@ -266,7 +269,7 @@ for row in range(start, wdb.shape[0]):
     # Look up info on wikipedia
     try:
         lookup_rslt = None
-        lookup_rslt = wikiuni.university_information(wiki_page_title = wdb['University'][row], region =  wdb['Country'][row])
+        lookup_rslt = wikiuni.university_information(wiki_page_title=wdb['University'][row], region=wdb['Country'][row])
 
         # Check that processing is going as desired
         if lookup_rslt == None:
@@ -291,12 +294,12 @@ for row in range(start, wdb.shape[0]):
         print("problem here:", row)
 
     # Save to disk every 100 rows
-    if row % 50 == 0:
+    if row != 0 and row % 50 == 0:
         print(" ------------ Saving ------------ ")
-        csv_name = "uni_pull" + str(time.time()).replace(".", "_") + ".csv"
+        csv_name = file_name + str(time.time()).replace(".", "_") + ".csv"
         wdb.to_csv(csv_name, sep = ",")
     if row == (wdb.shape[0]-1):
-        wdb.to_csv("uni_pull_pcomplete_raw.csv", sep = ",")
+        wdb.to_csv(file_name+"_pcomplete_raw.csv", sep = ",")
 
 
 # ---------------------------------------------------------------- #
@@ -398,7 +401,7 @@ class ResearchInstitutions():
 
         if isinstance(country, str):
 
-            # Again, hadle special case
+            # Again, handle special case
             if country.lower().rstrip().lstrip() in ["united states of america", "united states", "america", "usa"]:
                 country = "United States of America"
 

@@ -41,7 +41,7 @@ from easymoney.easy_pandas import strlist_to_list, twoD_nested_dict
 #       Institution
 #       Endowment                        -- use wikipedia universties database
 #       InstitutionType                  -- use wikipedia universties database (i.e., public or private)
-#       InstitutionRanking            X  -- Ranking of the institution (read: uni). QS Data avaliable; usage rights unkown.
+#       InstitutionRanking            V  -- Ranking of the institution (read: uni). QS Data avaliable; usage rights unkown.
 #       InstutionCountry
 #       City/NearestCity
 #       lng
@@ -143,7 +143,11 @@ for grant in zip(*[df['Amount'], df['OrganizationBlock'], df['OrganizationState'
 # bottlednecked by easymoney. This way progress can be monitored.
 df['NormalizedAmount'] = normalize_grant_list
 
-# df.to_pickle("FundingDatabase.p")
+# ------------------------------------------------------------------------- #
+#                      Write Integrated Database to Disk                    #
+# ------------------------------------------------------------------------- #
+
+df.to_pickle("FundingDatabase.p")
 # df.to_csv('FundingDatabase.csv', index=False)
 
 # ------------------------------------------------------------------------- #
@@ -276,8 +280,6 @@ df['Endowment'] = endowment_type[:,0]
 # Add InstitutionType information to the DF
 df['InstitutionType'] = endowment_type[:,1]
 
-# Researcher Abreviation
-df
 
 
 # ------------------------------------------------------------------------- #
@@ -293,8 +295,7 @@ df
 # ------------------------------------------------------------------------- #
 
 # Save
-df.to_pickle(MAIN_FOLDER + "/Data/MasterDatabase" + 'MasterDatabaseRC1.p')
-
+df.to_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + 'MasterDatabaseRC3.p')
 
 
 

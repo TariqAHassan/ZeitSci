@@ -69,7 +69,7 @@ ca_df.year = ca_df.year.map(lambda x: x.split("-")[0])
 os.chdir(MAIN_FOLDER + "/Data/WikiPull/North_America")
 
 # Import
-can_uni_geo = pd.read_csv("NorthAmericaUnis.csv")
+can_uni_geo = pd.read_csv("NorthAmericaUnivertitiesComplete.csv")
 del can_uni_geo["Unnamed: 0"]
 
 # Limit to canada

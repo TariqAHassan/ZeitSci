@@ -51,12 +51,14 @@ from funding_database_tools import MAIN_FOLDER
 # Read in Pubmed Data
 os.chdir(MAIN_FOLDER + "/Data/NCBI_DATA")
 pubmed = pd.read_csv("Pubmed2000_to_2015.csv"
-                          , dtype={'author': np.str, 'grants': np.str, 'keywords': np.str, 'journal': np.str, 'pmid': np.str, 'title': np.str, 'mesh_terms': np.str, 'pubdate': np.str, 'affiliation': np.str, 'journal_iso': np.str}
+                          , dtype={'author': np.str, 'grants': np.str, 'keywords': np.str, 'journal': np.str,
+                                   'pmid': np.str, 'title': np.str, 'mesh_terms': np.str, 'pubdate': np.str,
+                                   'affiliation': np.str, 'journal_iso': np.str}
                           , error_bad_lines=False
                           , nrows=10000000)
 
 # Read in Funding Data
-funding = pd.read_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + 'MasterDatabaseRC1.p')
+funding = pd.read_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + 'MasterDatabaseRC2.p')
 
 # Start tqdm
 tqdm.pandas(desc="status")
