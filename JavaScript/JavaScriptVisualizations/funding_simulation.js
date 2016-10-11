@@ -49,6 +49,44 @@ function setup(width, height){
 
 //----------------------------------------------------------------------------------------//
 
+//DateBox
+
+function dateBoxBox(text){
+    var bbox = text.node().getBBox();
+    var rect = svg.append("rect")
+        .attr("x", bbox.x)
+        .attr("y", bbox.y)
+        .attr("width", bbox.width)
+        .attr("height", bbox.height)
+        .style("fill", "#ccc")
+        .style("fill-opacity", ".3")
+        .style("stroke", "#666")
+        .style("stroke-width", "0px");
+}
+
+function dateBox() {
+    var text = svg.append("text")
+                    .attr("x", 900)
+                    .attr("y", 550)
+                    // .attr("dy", ".35em")
+                    .attr("text-anchor", "middle")
+                    .style("font", "300 50px Helvetica Neue")
+                    .text("Date:");
+
+    dateBoxBox(text)
+}
+
+//----------------------------------------------------------------------------------------//
+
+//Simulation Machinery
+
+
+function sleeper(sleepPeroid){
+    var startTime = new Date().getTime() / 1000;
+    while (new Date() < startTime * sleepPeroid){}
+    return true;
+}
+
 function transition(plane, route) {
     var l = route.node().getTotalLength();
     plane.transition()
@@ -91,7 +129,6 @@ function fly(origin, destination) {
 
     var plane = g.append("path")
                     .attr("class", "plane")
-                    .attr("id", [30, 30])
                     .attr("d", "m25.21488,3.93375c-0.44355,0 -0.84275,0.18332 -1.17933,0.51592c-0.33397,0.33267 -0.61055," +
                             "0.80884 -0.84275,1.40377c-0.45922,1.18911 -0.74362,2.85964 -0.89755,4.86085c-0.15655," +
                             "1.99729 -0.18263,4.32223 -0.11741,6.81118c-5.51835,2.26427 -16.7116,6.93857 -17.60916," +
@@ -114,11 +151,16 @@ function flyMaster(inputData, movementRate){
         var i = 0;
         setInterval(function() {
             if (i > inputData.length - 1) {
+                console.log("Complete")
                 i = 0;
-                console.log("loop complete")
             }
             var od = inputData[i];
             fly(od[0], od[1]);
+            console.log(od[2])
+            //Add Date Edit
+            // d3.selectAll('text').text("Simulation Complete");
+            // setTimeout(function(){1}, 3000);
+            d3.selectAll('text').text(od[2]);
             i++;
         }, movementRate);
 }
@@ -149,16 +191,19 @@ function drawMain(simulationSpeed) {
 
                     var fromPoint = [i['lng'], i['lat']];
                     var toPoint = [i['lngFunder'], i['latFunder']];
-                    routesToDraw.push(fromPoint);
-                    routesToDraw.push(toPoint);
+                    routesToDraw.push(fromPoint); // must be left
+                    routesToDraw.push(toPoint);   // as strings
 
                     //Add Org
                     fundsDict[i['OrganizationName']] = [i['lng'], i['lat']].map(parseFloat);
 
                     //Add Movement of Fund
-                    grantMovements.push([i['FunderNameFull'], i['OrganizationName']]);
+                    grantMovements.push([i['FunderNameFull'], i['OrganizationName'], i['StartDate']]);
 
                 })
+
+                //Add DateBox
+                dateBox();
 
                 // ***Run the Simulation*** ///
                 flyMaster(grantMovements, simulationSpeed);
@@ -169,7 +214,7 @@ function drawMain(simulationSpeed) {
 }
 
 // Execute Draw
-drawMain(simulationSpeed = 0.25)
+drawMain(simulationSpeed = 0.01)
 
 function dotColor(amount){
   if (parseFloat(amount) < 10000000){
@@ -281,10 +326,10 @@ function zoomer() {
         return pointScale(amount, s);
     });
 
-//    d3.selectAll('plane').attr('', function (d, i){
-//        var amount = d3.select(this).attr('id');
-//        return pointScale(amount, s);
-//    });
+   // d3.selectAll('plane').attr('', function (d, i){
+   //     var amount = d3.select(this).attr('id');
+   //     return pointScale(amount, s);
+   // });
 
     //Correct the routes for zooming and panning
     g.selectAll(".route")
@@ -305,7 +350,6 @@ function click() {
 //    console.log(projection(d3.mouse(this)));
     console.log(projection.invert(d3.mouse(this)));
 }
-
 
 
 
