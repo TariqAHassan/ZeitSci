@@ -11,12 +11,8 @@
 
 d3.select(window).on("resize", throttle);
 
-// Execute Draw
-drawMain(simulationSpeed = 0.01) //smaller = faster.
-
-var zoomExtent = [1, 5000];
 var zoom = d3.behavior.zoom()
-                      .scaleExtent(zoomExtent)
+                      .scaleExtent([1, 5000])
                       .on("zoom", zoomer);
 
 var width = document.getElementById('container').offsetWidth;
@@ -59,71 +55,39 @@ function setup(width, height){
 //DateBox
 
 function addDate() {
+    var startingWidth = document.getElementById('container').offsetWidth
     var text = svg.append("text")
-        .attr("x", 2000)
-        .attr("y", 1050)
-        .attr("dy", ".35em")
-        .attr("text-anchor", "middle")
-        .style("font", "300 100px Helvetica Neue")
-        .text("Starting");
+                    .attr("x", startingWidth - 300)
+                    .attr("y", (startingWidth / 2) - 80)
+                    .attr("dy", ".35em")
+                    .attr("text-anchor", "middle")
+                    .style("font", "300 100px Helvetica Neue")
+                    .text("Starting");
 }
 
 //----------------------------------------------------------------------------------------//
 
 //Simulation Machinery
 
+function logistic_fn(x, minValue, maxValue, curveSteepness){
+    // Algorithm to scale points using a Logistic Function.
 
+    // See: https://en.wikipedia.org/wiki/Logistic_function
+    // Notes:
+    //     (a) x *must* be >= 0.
+    //     (b) x_0 is left as 0 to center the function about x = 0.
+    //     (c) '-L/2' was added to center the function about y = 0.
+    //     (d) curveSteepness should be set to be ~= 1.
 
-function transition(grantMovement, route, dest, newAmountRaw, doDraw) {
-    var l = route.node().getTotalLength();
-    grantMovement.transition()
-        .duration(l * 40)
-        .attrTween("transform", delta(grantMovement, route.node()))
-        .each("end", function() {
-            console.log("try")
-            if (doDraw == true) {
-                console.log("win")
+    // maxAmount (Order of Magitude) / 10
+    var maxOrderOfMag = Math.pow(10, parseInt(Math.log10(maxValue)) - 1);
+    var scaleBy = maxOrderOfMag * 2
 
-                var institution = g.append("g").attr("class", "institution");
-                var location = projection(fundsDict[dest]);
-                var trueSize;
-                var trueSizeScale = 0.000000001;
+    var k = curveSteepness;
+    var L = maxValue/scaleBy;
+    var denominator = 1 + Math.pow(Math.E, -1 * k * (x/scaleBy));
 
-                institution.append("svg:circle")
-                    .attr("cx", location[0])
-                    .attr("cy", location[1])
-                    .attr("class", "point")
-                    .style("fill", "white")
-                    .style("opacity", 0.05)
-                    .attr("r", function (d, i) {
-                        var oldAmount = d3.select(this).attr('id');
-                        trueSize = (oldAmount + newAmountRaw);
-                        if (trueSize * trueSizeScale < 0.5) {
-                            return 0.5;
-                        } else {
-                            return trueSize * trueSizeScale;
-                        }
-                    })
-                    .attr("id", newAmountRaw)
-                    .on("mouseover", function () {
-                        div.transition()
-                            .duration(500)
-                            .style("opacity", .85); //opacity of the tooltip
-                        div.html(dest + "</br>" + "Total Funding to Date: " + accounting.formatMoney(trueSize) + " USD")
-                            .style("left", (d3.event.pageX) + "px")
-                            .style("top", (d3.event.pageY - 28) + "px");
-                    })
-                    .on("mouseout", function (d) {
-                        div.transition()
-                            .duration(500)
-                            .style("opacity", 0);
-                    });
-            } else{
-                console.log("lose")
-            }
-            route.remove();
-        })
-        .remove();
+    return L/denominator - L/2 + minValue
 }
 
 function delta(grantMovement, path) {
@@ -146,7 +110,46 @@ function delta(grantMovement, path) {
     }
 }
 
-function fly(origin, destination, color, r, newAmountRaw, doDraw) {
+var institution = g.append("g").attr("class", "institution");;
+function transition(grantMovement, route, id, dest, doDraw, largestTotalGrants, realTimeFundingInfo) {
+    var l = route.node().getTotalLength();
+    grantMovement.transition()
+        .duration(l * 10)
+        .attrTween("transform", delta(grantMovement, route.node()))
+        .each("end", function() {
+
+            var sizeFloor = 1.5
+            // var s = d3.event.scale; //Add to adjust radius based on current zoom
+            var idClean = "loc" + id.replace(/[^0-9a-z]/gi, '');
+
+            //Scale the funding using the logistic function
+            var scaledRadius = logistic_fn(x = realTimeFundingInfo[id], sizeFloor, largestTotalGrants, 0.5)
+            var zoomAdjustRadius = scaledRadius;
+
+            if (doDraw === true) {
+                var location = projection(fundsDict[dest]);
+                institution = g.append("g").attr("class", "institution");
+                institution.append("svg:circle")
+                            .attr("cx", location[0])
+                            .attr("cy", location[1])
+                            .attr("class", "point")
+                            .attr("id", idClean)
+                            .attr("r", zoomAdjustRadius)
+                            .datum(zoomAdjustRadius)
+                            .style("fill", "white")
+                            .style("opacity", 0.25);
+            } else {
+                d3.selectAll(".institution")
+                    .select("#" + idClean)
+                    .attr('r', zoomAdjustRadius)
+                    .datum(zoomAdjustRadius);
+            }
+            route.remove();
+        })
+        .remove(); //applies to the route
+}
+
+function fly(origin, destination, color, id, r, doDraw, largestTotalGrants, realTimeFundingInfo) {
     var route = g.append("path")
                    .attr("fill-opacity", 0)
                    .datum({type: "LineString", coordinates: [fundsDict[origin], fundsDict[destination]]})
@@ -159,36 +162,51 @@ function fly(origin, destination, color, r, newAmountRaw, doDraw) {
                             .attr("r", r)
                             .attr("fill-opacity", 0.85);
 
-    transition(grantMovement, route, destination, newAmountRaw, doDraw);
+    transition(grantMovement, route, id, destination, doDraw, largestTotalGrants, realTimeFundingInfo);
 }
 
-function flyMaster(inputData, movementRate){
-    var i = 0;
-    var priorReceps = [];
+function flyMaster(inputData, largestTotalGrants, movementRate){
+
     var doDraw = false;
-    setInterval(function() {
+    var priorReceps = [];
+    var realTimeFundingInfo = {};
+
+    var i = 0;
+    setInterval(function()
+    {
         if (i > inputData.length - 1) {
-            // console.log("Complete")
             i = 0;
+            // var realTimeFundingInfo = {};
         }
         doDraw = false;
         var od = inputData[i];
-        if ($.inArray(od[0], priorReceps) == -1){
-            priorReceps.push(od[1])
-            doDraw = true
+        if (priorReceps.indexOf(od[5]) == -1){
+            priorReceps.push(od[5]);
+            doDraw = true;
+            realTimeFundingInfo[od[5]] = od[4]
+        } else {
+            realTimeFundingInfo[od[5]] += od[4]
         }
-        fly(od[0], od[1], funderColors[od[0]], od[3], od[4], doDraw);
+        fly(od[0], od[1], funderColors[od[0]], od[5], od[3], doDraw, largestTotalGrants, realTimeFundingInfo);
 
         //Update Date
         d3.selectAll('text').text(od[2]);
         i++;
-    }, movementRate);
+    }
+    , movementRate);
 }
 
 //----------------------------------------------------------------------------------------//
 
+function valuesFromObject(inputObject){
+    //See: http://stackoverflow.com/a/25797464/4898004.
+    return Object.keys(inputObject).map(function(key){return inputObject[key]})
+}
+
+
 function drawMain(simulationSpeed) {
     var routesToDraw = [];
+    var orgFundingInfoTemp = {};
 
     d3.json("data/starter_kit/data/world-topo-min.json", function(error, world) {
         var countries = topojson.feature(world, world.objects.countries).features;
@@ -202,54 +220,69 @@ function drawMain(simulationSpeed) {
 
         d3.csv("data/funder_db.csv", function(error, funder){
             funder.forEach(function (i) {
-                addPoints(i['lng'], i['lat'], 8, i['funder'], colorOverride = i['colour'], infoOverride = true, opacityOveride = 1);
+                addFunderPoints(i['lng'], i['lat'], 10, i['funder'], colorOverride = i['colour'], infoOverride = true, opacityOveride = 1);
                 fundsDict[i['funder']] = [i['lng'], i['lat']].map(parseFloat);
                 funderColors[i['funder']] = i['colour']
             })
 
             d3.csv("data/funding_sample.csv", function(error, funder){
-                funder.forEach(function (i) {
+                funder.forEach(function (d) {
 
-                    var amount = parseFloat(i['NormalizedAmount']);
-                    
-                    var fromPoint = [i['lng'], i['lat']];
-                    var toPoint = [i['lngFunder'], i['latFunder']];
-                    routesToDraw.push(fromPoint);  // must be left
-                    routesToDraw.push(toPoint);    // as strings
+                    var amount = parseFloat(d['NormalizedAmount']);
+                    var uniqueToGeo = (d['lng'] + d['lat']).replace(/ /g,'')
+
+                    //Update Grants in the database.
+                    if (orgFundingInfoTemp[uniqueToGeo] = undefined){
+                        orgFundingInfoTemp[uniqueToGeo] = amount
+                    } else {
+                        orgFundingInfoTemp[uniqueToGeo] += amount
+                    }
+
+                    var fromPoint = [d['lng'], d['lat']];
+                    var toPoint = [d['lngFunder'], d['latFunder']];
+                    routesToDraw.push(fromPoint);  // these must be
+                    routesToDraw.push(toPoint);    // left as strings
 
                     //Add Org
-                    fundsDict[i['OrganizationName']] = [i['lng'], i['lat']].map(parseFloat);
+                    fundsDict[d['OrganizationName']] = [d['lng'], d['lat']].map(parseFloat);
 
                     //Add Movement of Fund
-                    grantMovements.push([i['FunderNameFull'],
-                                         i['OrganizationName'],
-                                         i['StartDate'],
+                    grantMovements.push([d['FunderNameFull'],
+                                         d['OrganizationName'],
+                                         d['StartDate'],
                                          Math.sqrt(amount/Math.PI) * 0.009,
-                                         amount
+                                         amount,
+                                         uniqueToGeo
                     ]);
                 })
                 //Add DateBox
                 addDate();
 
+                //Work out the largest grant for a single Org.
+                var largestGrantSingleOrg = Math.max.apply(null, valuesFromObject(orgFundingInfoTemp))
+
                 // ***Run the Simulation*** ///
-                flyMaster(grantMovements, simulationSpeed);
+                flyMaster(grantMovements, 4415802947.2, simulationSpeed);
+
+                //Clear orgFundingInfoTemp from memory
+                orgFundingInfoTemp = [];
             });
         });
     });
 }
 
 function dotColor(amount){
-  if (parseFloat(amount) < 10000000){
-      return 'darkred'
-  } else if (parseFloat(amount) >  10000000 && parseFloat(amount)  < 100000000){
-      return 'red'
-  } else if (parseFloat(amount) >= 100000000 && parseFloat(amount) < 500000000){
-      return 'yellow'
-  } else if (parseFloat(amount) >= 500000000 && parseFloat(amount) < 1000000000){
-      return 'lightgreen'
-  } else if (parseFloat(amount) >= 1000000000){
-      return 'green'
-  }
+    if (parseFloat(amount) < 10000000){
+        return 'darkred'
+    } else if (parseFloat(amount) >  10000000 && parseFloat(amount)  < 100000000){
+        return 'red'
+    } else if (parseFloat(amount) >= 100000000 && parseFloat(amount) < 500000000){
+        return 'yellow'
+    } else if (parseFloat(amount) >= 500000000 && parseFloat(amount) < 1000000000){
+        return 'lightgreen'
+    } else if (parseFloat(amount) >= 1000000000){
+        return 'green'
+    }
 }
 
 function circleDomAppend(appendTo, x, y, color, opacity, id, r, info){
@@ -278,7 +311,7 @@ function circleDomAppend(appendTo, x, y, color, opacity, id, r, info){
 }
 
 //function to add points and text to the map (used in plotting grants)
-function addPoints(lat, lon, amount, name, colorOverride, infoOverride, opacityOverride) {
+function addFunderPoints(lat, lon, amount, name, colorOverride, infoOverride, opacityOverride) {
 
     var gpoint = g.append("g").attr("class", "gpoint");
 
@@ -301,37 +334,18 @@ function addPoints(lat, lon, amount, name, colorOverride, infoOverride, opacityO
     }
 
     if (opacityOverride == false){
-        var opacity = 0.55;
+        var opacity = 0.70;
     } else if (opacityOverride != false){
         var opacity = opacityOverride;
     }
-
-    // gpoint.append("svg:circle")
-    //     .attr("cx", x)
-    //     .attr("cy", y)
-    //     .attr("class","point")
-    //     .style("fill", toColor)
-    //     .style("opacity", opacity)
-    //     .attr("id", amountInitialScale)
-    //     .attr("r", amountInitialScale)
-    //     .on("mouseover", function(){
-    //         div.transition()
-    //             .duration(500)
-    //             .style("opacity", .85);
-    //         div.html(objectInfo)
-    //             .style("left", (d3.event.pageX) + "px")
-    //             .style("top", (d3.event.pageY - 28) + "px");
-    //             })
-    //     .on("mouseout", function(d){
-    //         div.transition()
-    //             .duration(500)
-    //             .style("opacity", 0);
-    //     });
 
     circleDomAppend(gpoint, x, y, toColor, opacity, amountInitialScale, amountInitialScale, objectInfo);
 }
 
 function redraw() {
+    //TO DO:
+    //Add Time Box scaling
+    //Correct window resize (i.e., edit setup
     width = document.getElementById('container').offsetWidth;
     height = width / 2;
     d3.select('svg').remove();
@@ -345,15 +359,11 @@ function pointScale(amount, zoomScale){
 
     if (size > amount) {
         return amount;
-        // } else if (size < rawFloor){
-        //         return rawFloor*amount;
-        //  }
     } else {
         return size;
     }
 }
 
-var bbox;
 function zoomer() {
     var t = d3.event.translate;
     var s = d3.event.scale;
@@ -375,14 +385,22 @@ function zoomer() {
     // circle size based on zoom level.
     // TO DO: only scale points in view
     d3.selectAll('.gpoint').selectAll('circle').attr('r', function (d, i){
-        var amount = d3.select(this).attr('id');
-        return pointScale(amount, s);
+        var currentAmount = d3.select(this).attr('id');
+        return pointScale(currentAmount, s);
+    });
+
+    d3.selectAll('.institution').selectAll('circle').attr('r', function (d, i){
+        var currentAmount = d3.select(this).datum();
+        // console.log(d3.select(this).datum());
+        return pointScale(currentAmount, s);
     });
 
     //Correct the routes for zooming and panning
     g.selectAll(".route")
         .attr("transform", transformCmd)
         .attr("d", path.projection(projection));
+
+    return s
 }
 
 var throttleTimer;
@@ -396,8 +414,12 @@ function throttle() {
 //geo translation on mouse click in map
 function click() {
 //    console.log(projection(d3.mouse(this)));
-    console.log(projection.invert(d3.mouse(this)));
+//     console.log(projection.invert(d3.mouse(this)));
 }
+
+
+// Execute Draw
+drawMain(simulationSpeed = 0.01) //smaller = faster.
 
 
 
