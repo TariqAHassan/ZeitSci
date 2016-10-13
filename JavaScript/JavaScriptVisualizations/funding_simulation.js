@@ -21,7 +21,7 @@ var zoom = d3.behavior.zoom()
                       .scaleExtent([1, 5000])
                       .on("zoom", zoomer);
 
-var width = document.getElementById('container').offsetWidth;
+var width = document.getElementById("container").offsetWidth;
 var height = width / 2;
 
 // Define the div for the tooltip
@@ -31,7 +31,6 @@ var div = d3.select("body").append("div")
 
 //Init
 var topo, projection, path, svg, g;
-var institution;
 
 // var currentUniFund = {};
 var fundsDict = {};
@@ -60,7 +59,7 @@ function setup(width, height){
 //DateBox
 
 function addDate() {
-    var startingWidth = document.getElementById('container').offsetWidth
+    var startingWidth = document.getElementById("container").offsetWidth
     var text = svg.append("text")
                     .attr("x", startingWidth - 300)         // make these
                     .attr("y", (startingWidth / 2) - 80)    // more robust.
@@ -84,9 +83,9 @@ function logistic_fn(x, minValue, maxValue, curveSteepness){
     //     (c) '-L/2' was added to center the function about y = 0.
     //     (d) curveSteepness (k) should be set to be ~= 1.
 
-    // maxAmount (Order of Magitude) / 10
+    // maxAmount (Order of Magnitude) / 10
     var maxOrderOfMag = Math.pow(10, parseInt(Math.log10(maxValue)) - 1);
-    var scaleBy = maxOrderOfMag * 2
+    var scaleBy = maxOrderOfMag * 2;
 
     var k = curveSteepness;
     var L = maxValue/scaleBy;
@@ -115,54 +114,61 @@ function delta(grantMovement, path) {
     }
 }
 
-var institution = g.append("g").attr("class", "institution"); // to be moved back inside a function.
+function terrestrialPoints(doDraw, grantToDraw, realTimeFundingInfo, largestTotalGrants){
+
+    // var sizeFloor = 1.5
+    var locID = grantToDraw["recipientUniqueGeo"];
+    var destination = grantToDraw["grantRecipientOrg"];
+
+    // var s = d3.event.scale; //Add to adjust radius based on current zoom
+    var idClean = "loc" + locID.replace(/[^0-9a-z]/gi, "");
+
+    //Scale the funding using the logistic function
+    var scaledRadius = logistic_fn(x = realTimeFundingInfo[locID], 1.5, largestTotalGrants, 0.5)
+
+    if (doDraw === true) {
+        var institution = g.append("g").attr("class", "institution");
+        var location = projection(fundsDict[destination]);
+        institution = g.append("g").attr("class", "institution");
+        institution.append("svg:circle")
+                    .attr("cx", location[0])
+                    .attr("cy", location[1])
+                    .attr("class", "point")
+                    .attr("id", idClean)
+                    .attr("r", scaledRadius)
+                    .datum(scaledRadius)
+                    .style("fill", "white")
+                    .style("opacity", 0.25);
+    } else {
+        d3.selectAll(".institution")
+            .select("#" + idClean)
+            .attr("r", scaledRadius)
+            .datum(scaledRadius);
+    }
+}
+
 function transition(grantMovement, route, grantToDraw, doDraw, largestTotalGrants, realTimeFundingInfo) {
 
     var l = route.node().getTotalLength();
+
     grantMovement.transition()
-        .duration(l * 10)
+        .duration(l * 20)
         .attrTween("transform", delta(grantMovement, route.node()))
         .each("end", function() {
 
-            var sizeFloor = 1.5
-            var locID = grantToDraw['recipientUniqueGeo'];
-            var destination = grantToDraw['grantRecipientOrg'];
-
-            // var s = d3.event.scale; //Add to adjust radius based on current zoom
-            var idClean = "loc" + locID.replace(/[^0-9a-z]/gi, '');
-
-            //Scale the funding using the logistic function
-            var scaledRadius = logistic_fn(x = realTimeFundingInfo[locID], sizeFloor, largestTotalGrants, 0.5)
-            var zoomAdjustRadius = scaledRadius;
-
-            if (doDraw === true) {
-                var location = projection(fundsDict[destination]);
-                institution = g.append("g").attr("class", "institution");
-                institution.append("svg:circle")
-                            .attr("cx", location[0])
-                            .attr("cy", location[1])
-                            .attr("class", "point")
-                            .attr("id", idClean)
-                            .attr("r", zoomAdjustRadius)
-                            .datum(zoomAdjustRadius)
-                            .style("fill", "white")
-                            .style("opacity", 0.25);
-            } else {
-                d3.selectAll(".institution")
-                    .select("#" + idClean)
-                    .attr('r', zoomAdjustRadius)
-                    .datum(zoomAdjustRadius);
-            }
-
+            //Delete the spent route.
             route.remove();
-        })
-        .remove(); //applies to the route
+
+            //Add Points on Land when the grants land
+            terrestrialPoints(doDraw, grantToDraw, realTimeFundingInfo, largestTotalGrants);
+
+        }).remove();
 }
 
 function fly(grantToDraw, doDraw, largestTotalGrants, realTimeFundingInfo) {
     
-    var from = fundsDict[grantToDraw['funderName']];
-    var to = fundsDict[grantToDraw['grantRecipientOrg']];
+    var from = fundsDict[grantToDraw["funderName"]];
+    var to = fundsDict[grantToDraw["grantRecipientOrg"]];
     
     var route = g.append("path")
                    .attr("fill-opacity", 0)
@@ -172,8 +178,8 @@ function fly(grantToDraw, doDraw, largestTotalGrants, realTimeFundingInfo) {
 
     var grantMovement = g.append("svg:circle")
                             .attr("class", "grantMovement")
-                            .attr("fill", funderColors[grantToDraw['funderName']])
-                            .attr("r", grantToDraw['movingGrantRadius'])
+                            .attr("fill", funderColors[grantToDraw["funderName"]])
+                            .attr("r", grantToDraw["movingGrantRadius"])
                             .attr("fill-opacity", 0.85);
 
     transition(grantMovement, route, grantToDraw, doDraw, largestTotalGrants, realTimeFundingInfo);
@@ -197,18 +203,18 @@ function flyMaster(inputData, largestTotalGrants, movementRate){
         doDraw = false;
         var grantToDraw = inputData[i];
 
-        if (priorReceps.indexOf(grantToDraw['recipientUniqueGeo']) == -1){
+        if (priorReceps.indexOf(grantToDraw["recipientUniqueGeo"]) == -1){
             doDraw = true;
-            priorReceps.push(grantToDraw['recipientUniqueGeo']);
-            realTimeFundingInfo[grantToDraw['recipientUniqueGeo']] = grantToDraw['grantAmount']
+            priorReceps.push(grantToDraw["recipientUniqueGeo"]);
+            realTimeFundingInfo[grantToDraw["recipientUniqueGeo"]] = grantToDraw["grantAmount"]
         } else {
-            realTimeFundingInfo[grantToDraw['recipientUniqueGeo']] += grantToDraw['grantAmount']
+            realTimeFundingInfo[grantToDraw["recipientUniqueGeo"]] += grantToDraw["grantAmount"]
         }
 
         fly(grantToDraw, doDraw, largestTotalGrants, realTimeFundingInfo);
 
         //Update Date
-        d3.selectAll('text').text(grantToDraw['startDate']);
+        d3.selectAll("text").text(grantToDraw["startDate"]);
         i++;
 
         // Stop when complete... still needs some tinkering.
@@ -245,16 +251,16 @@ function drawMain(simulationSpeed) {
 
         d3.csv("data/funder_db.csv", function(error, funder){
             funder.forEach(function (i) {
-                addFunderPoints(i['lng'], i['lat'], 10, i['funder'], colorOverride = i['colour'], infoOverride = true, opacityOveride = 1);
-                fundsDict[i['funder']] = [i['lng'], i['lat']].map(parseFloat);
-                funderColors[i['funder']] = i['colour']
-            })
+                addFunderPoints(i["lng"], i["lat"], 10, i["funder"], colorOverride = i["colour"], infoOverride = true, opacityOveride = 1);
+                fundsDict[i["funder"]] = [i["lng"], i["lat"]].map(parseFloat);
+                funderColors[i["funder"]] = i["colour"]
+            });
 
             d3.csv("data/funding_sample.csv", function(error, grant){
                 grant.forEach(function (d) {
 
-                    var amount = parseFloat(d['NormalizedAmount']);
-                    var recipientUniqueGeo = (d['lng'] + d['lat']).replace(/ /g,'')
+                    var amount = parseFloat(d["NormalizedAmount"]);
+                    var recipientUniqueGeo = (d["lng"] + d["lat"]).replace(/ /g,'')
 
                     //Update Grants in the database.
                     if (orgFundingInfoTemp[recipientUniqueGeo] = undefined){
@@ -263,25 +269,25 @@ function drawMain(simulationSpeed) {
                         orgFundingInfoTemp[recipientUniqueGeo] += amount
                     }
 
-                    var fromPoint = [d['lng'], d['lat']];
-                    var toPoint = [d['lngFunder'], d['latFunder']];
+                    var fromPoint = [d["lng"], d["lat"]];
+                    var toPoint = [d["lngFunder"], d["latFunder"]];
                     routesToDraw.push(fromPoint);  // these must be
                     routesToDraw.push(toPoint);    // left as strings
 
                     //Add Org
-                    fundsDict[d['OrganizationName']] = [d['lng'], d['lat']].map(parseFloat);
+                    fundsDict[d["OrganizationName"]] = [d["lng"], d["lat"]].map(parseFloat);
 
                     //Add Movement of Fund
                     grantMovements.push({
-                                'funderName'         : d['FunderNameFull'],
-                                'grantRecipientOrg'  : d['OrganizationName'],
-                                'startDate'          : d['StartDate'],
-                                'movingGrantRadius'  : Math.sqrt(amount/Math.PI) * 0.009,
-                                'grantAmount'        : amount,
-                                'recipientUniqueGeo' : recipientUniqueGeo
+                                "funderName"         : d["FunderNameFull"],
+                                "grantRecipientOrg"  : d["OrganizationName"],
+                                "startDate"          : d["StartDate"],
+                                "movingGrantRadius"  : Math.sqrt(amount/Math.PI) * 0.009,
+                                "grantAmount"        : amount,
+                                "recipientUniqueGeo" : recipientUniqueGeo
                     });
 
-                })
+                });
                 //Add DateBox
                 addDate();
 
@@ -304,15 +310,15 @@ function drawMain(simulationSpeed) {
 
 function dotColor(amount){
     if (parseFloat(amount) < 10000000){
-        return 'darkred'
+        return "darkred"
     } else if (parseFloat(amount) >  10000000 && parseFloat(amount)  < 100000000){
-        return 'red'
+        return "red"
     } else if (parseFloat(amount) >= 100000000 && parseFloat(amount) < 500000000){
-        return 'yellow'
+        return "yellow"
     } else if (parseFloat(amount) >= 500000000 && parseFloat(amount) < 1000000000){
-        return 'lightgreen'
+        return "lightgreen"
     } else if (parseFloat(amount) >= 1000000000){
-        return 'green'
+        return "green"
     }
 }
 
@@ -377,12 +383,12 @@ function addFunderPoints(lat, lon, amount, name, colorOverride, infoOverride, op
 // Map Mechanics
 
 function redraw() {
-    //TO DO:
+    //to do:
     //Add Time Box scaling
     //Correct window resize (i.e., edit setup())
-    width = document.getElementById('container').offsetWidth;
+    width = document.getElementById("container").offsetWidth;
     height = width / 2;
-    d3.select('svg').remove();
+    d3.select("svg").remove();
     setup(width, height);
 //    drawMain();
 }
@@ -418,13 +424,13 @@ function zoomer() {
 
     // Change circle size based on zoom level.//
 
-    // TO DO: only scale points in view
-    d3.selectAll('.funderpoints').selectAll('circle').attr('r', function (d, i){
-        var currentAmount = d3.select(this).attr('id');
+    //to dO: only scale points in view
+    d3.selectAll(".funderpoints").selectAll("circle").attr("r", function (d, i){
+        var currentAmount = d3.select(this).attr("id");
         return pointScale(currentAmount, s);
     });
 
-    d3.selectAll('.institution').selectAll('circle').attr('r', function (d, i){
+    d3.selectAll(".institution").selectAll("circle").attr("r", function (d, i){
         var currentAmount = d3.select(this).datum();
         return pointScale(currentAmount, s);
     });
