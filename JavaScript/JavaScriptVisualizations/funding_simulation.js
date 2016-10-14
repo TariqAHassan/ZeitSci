@@ -31,7 +31,7 @@ var div = d3.select("body").append("div")
 
 //Init
 var topo, projection, path, svg, g;
-var fundsDict = {};
+var funderGeoDict = {};
 var funderColors = {};
 
 setup(width, height);
@@ -80,7 +80,10 @@ function hideTooltip(d, i){
 //DateBox
 
 //Pass the starting date
-function addDate() {
+function addDate(startDate) {
+
+    var xWidthAdjust = 50;
+
     var startingContainerWidth = document.getElementById("container").offsetWidth
     var text = svg.append("text")
                     .attr("x", startingContainerWidth - 300)         // make these
@@ -89,11 +92,9 @@ function addDate() {
                     .attr("text-anchor", "middle")
                     .style("font", "Lucida Grande")
                     .style("font-size", "100px")
-                    .text("01/01/2000");
+                    .text(startDate);
 
-    bbox = text[0][0].getBBox()
-
-    var xWidthAdjust = 50;
+    var bbox = text[0][0].getBBox();
 
     svg.insert('rect','text')
         .attr('x', bbox.x - xWidthAdjust/2)
@@ -111,6 +112,51 @@ function addDate() {
         .style("font", "Lucida Grande")
         .style("font-size", "100px")
         .text("Starting");
+}
+
+//----------------------------------------------------------------------------------------//
+
+//Tooltip Funders Summary
+
+function uniqueCountPreseve(inputList) {
+    //See: http://stackoverflow.com/a/22011372/4898004
+    //This is a very nice little algorithm for sorting
+    //array elements by the number of their occurences
+    //Returns an array of uniques.
+    var map = inputList.reduce(function (p, c) {
+        p[c] = (p[c] || 0) + 1;
+        return p;
+    }, {});
+    var countArray = Object.keys(map).sort(function (a, b) {
+        return map[a] < map[b];
+    });
+    return countArray
+}
+
+function orgListFormatter(orgList){
+    var d = {};
+    var tail = "";
+    var uniqueOrgList = uniqueCountPreseve(orgList);
+    var uniqueOrgListLast = uniqueOrgList[uniqueOrgList.length - 1];
+
+    for (i in orgList){
+        if (d[orgList[i]] === undefined){
+            d[orgList[i]] = 1
+        } else {
+            d[orgList[i]] += 1
+        }
+    }
+
+    var summaryString = "";
+    for (i in uniqueOrgList){
+        if (uniqueOrgList[i] === uniqueOrgListLast){
+            tail = ")";
+        }  else{
+            tail = "), ";
+        }
+        summaryString += uniqueOrgList[i] + " (" + d[uniqueOrgList[i]] + tail;
+    }
+    return summaryString
 }
 
 //----------------------------------------------------------------------------------------//
@@ -167,19 +213,21 @@ function terrestrialPoints(doDraw, grantToDraw, realTimeFundingInfo, largestTota
     var destination = grantToDraw["grantRecipientOrg"];
 
     //Construct the info for the Point
-    var info = "<strong>" + destination + "</strong>" + "<br/>" +
-                "<em>" + "Total Grants: " + "</em>" + accounting.formatMoney(parseFloat(grantToDraw["grantAmount"])) + " USD" + "<br/>" +
+    var info =  "<strong>" + destination + "</strong>" + "<br/>" +
+                "<em>" + "Total Grants: " + "</em>" + accounting.formatMoney(parseFloat(grantToDraw["grantAmount"])) +
+                         " USD" + "<br/>" +
+                "<em>" + "Grants Awarded by: " + orgListFormatter(realTimeFundingInfo[locID][1]) + "</em>" + "<br/>" +
                 "<em>" + "Date of Last Grant: " + "</em>" + grantToDraw["startDate"];
 
     // var s = d3.event.scale; //Add to adjust radius based on current zoom
     var idClean = "loc" + locID.replace(/[^0-9a-z]/gi, "");
 
     //Scale the funding using the logistic function
-    var scaledRadius = logistic_fn(x = realTimeFundingInfo[locID], sizeFloor, largestTotalGrantByOrg, k, c)
+    var scaledRadius = logistic_fn(x = realTimeFundingInfo[locID][0], sizeFloor, largestTotalGrantByOrg, k, c)
 
     if (doDraw === true) {
         var institution = g.append("g").attr("class", "institution");
-        var location = projection(fundsDict[destination]);
+        var location = projection(funderGeoDict[destination]);
         institution = g.append("g").attr("class", "institution");
         institution.append("svg:circle")
                     .attr("cx", location[0])
@@ -224,10 +272,10 @@ function transition(grantMovement, route, grantToDraw, doDraw, largestTotalGrant
         }).remove(); //remove the moving circle
 }
 
-function grantTranslate(grantToDraw, funderAbrev, doDraw, largestTotalGrantByOrg, realTimeFundingInfo) {
+function grantTranslate(grantToDraw, doDraw, largestTotalGrantByOrg, realTimeFundingInfo) {
     
-    var from = fundsDict[grantToDraw["funderName"]];
-    var to = fundsDict[grantToDraw["grantRecipientOrg"]];
+    var from = funderGeoDict[grantToDraw["funderName"]];
+    var to = funderGeoDict[grantToDraw["grantRecipientOrg"]];
     
     var route = g.append("path")
                    .attr("fill-opacity", 0)
@@ -247,7 +295,7 @@ function grantTranslate(grantToDraw, funderAbrev, doDraw, largestTotalGrantByOrg
 function grantTranslateMaster(inputData, largestTotalGrantByOrg, largestIndividualGrant, movementRate, funderNameAbreviation){
 
     var doDraw = false;
-    var priorReceps = [];
+    var priorFundingRecipients = [];
     var realTimeFundingInfo = {};
 
     var i = 0;
@@ -260,20 +308,27 @@ function grantTranslateMaster(inputData, largestTotalGrantByOrg, largestIndividu
 
         doDraw = false;
         var grantToDraw = inputData[i];
+        var grantAmount = grantToDraw["grantAmount"]
         var funderAbrev = funderNameAbreviation[grantToDraw['funderName']];
         //merge this in
 
 
-        if (priorReceps.indexOf(grantToDraw["recipientUniqueGeo"]) == -1){
+        if (priorFundingRecipients.indexOf(grantToDraw["recipientUniqueGeo"]) == -1){
             doDraw = true;
-            priorReceps.push(grantToDraw["recipientUniqueGeo"]);
+            priorFundingRecipients.push(grantToDraw["recipientUniqueGeo"]);
 
-            realTimeFundingInfo[grantToDraw["recipientUniqueGeo"]] = grantToDraw["grantAmount"]
+            realTimeFundingInfo[grantToDraw["recipientUniqueGeo"]] = [grantAmount, [funderAbrev]]
         } else {
-            realTimeFundingInfo[grantToDraw["recipientUniqueGeo"]] += grantToDraw["grantAmount"]
+            var previousAmount = realTimeFundingInfo[grantToDraw["recipientUniqueGeo"]][0]
+            var previousOrgs  = realTimeFundingInfo[grantToDraw["recipientUniqueGeo"]][1]
+
+            realTimeFundingInfo[grantToDraw["recipientUniqueGeo"]] = [
+                   previousAmount + grantAmount
+                ,  previousOrgs.concat(funderAbrev)
+            ]
         }
 
-        grantTranslate(grantToDraw, funderAbrev, doDraw, largestTotalGrantByOrg, realTimeFundingInfo);
+        grantTranslate(grantToDraw, doDraw, largestTotalGrantByOrg, realTimeFundingInfo);
 
         //Update Date -- To Do: chec if it's the same first.
         d3.selectAll("text").text(grantToDraw["startDate"]);
@@ -298,9 +353,6 @@ function valuesFromObject(inputObject){
 
 function individualGrantExtractor(d, amount, recipientUniqueGeo, orgFundingInfoTemp){
 
-    var fromPoint = [d["lng"], d["lat"]];
-    var toPoint = [d["lngFunder"], d["latFunder"]];
-
     //Add the lng and lat of an Org; to do: first check if it already exists.
     var orgLocation = [d["lng"], d["lat"]].map(parseFloat);
 
@@ -313,18 +365,17 @@ function individualGrantExtractor(d, amount, recipientUniqueGeo, orgFundingInfoT
             "grantAmount"        : amount,
             "recipientUniqueGeo" : recipientUniqueGeo
     };
-
-    return {"fromPoint" : fromPoint, "toPoint" : toPoint,
-            "gmovement" : gmovement, "orgLocation" : orgLocation
-    }
+    return {"gmovement" : gmovement, "orgLocation" : orgLocation}
 }
 
 function drawMain(simulationSpeed) {
+    var startDate = "";
     var largestIndividualGrant = 0;
+
     var routesToDraw = [];
     var grantMovements = [];
-    var funderNameAbreviation = {};
     var orgFundingInfoTemp = {};
+    var funderNameAbreviation = {};
 
     d3.json("data/starter_kit/data/world-topo-min.json", function(error, world) {
         var countries = topojson.feature(world, world.objects.countries).features;
@@ -340,29 +391,32 @@ function drawMain(simulationSpeed) {
         var offsetT = document.getElementById('container').offsetTop+10;
 
         d3.csv("data/funder_db.csv", function(error, funder){
-            funder.forEach(function (d)
-            {
+            funder.forEach(function (d) {
                 addFunderPoints(d["lng"], d["lat"], 10, d["funder"], d["colour"], true, 1, offsetL, offsetT);
-                fundsDict[d["funder"]] = [d["lng"], d["lat"]].map(parseFloat);
+                funderGeoDict[d["funder"]] = [d["lng"], d["lat"]].map(parseFloat);
                 funderColors[d["funder"]] = d["colour"]
 
                 funderNameAbreviation[d['funder']] = d['funder'].match(/\((.*?)\)/)[1]
             });
 
             d3.csv("data/funding_sample.csv", function(error, grant){
-                grant.forEach(function (d)
-                {
+                grant.forEach(function (d) {
+
                     //Get the Current Grant
                     var amount = parseFloat(d["NormalizedAmount"]);
 
                     if (!(isNaN(amount))) {
 
-                        //If this is the largest grant, update.
-                        if (amount > largestIndividualGrant) {
-                            largestIndividualGrant = amount;
-                        }
+                        //Save the first date in the database
+                        if (startDate === ""){startDate = d["StartDate"];}
 
-                        var recipientUniqueGeo = (d["lng"] + d["lat"]).replace(/ /g, '')
+                        var fromPoint = funderGeoDict[d['FunderNameFull']].map(String);
+                        var toPoint = [d["lng"], d["lat"]];
+
+                        //If this is the largest grant, update.
+                        if (amount > largestIndividualGrant) {largestIndividualGrant = amount;}
+
+                        var recipientUniqueGeo = (d["lng"] + d["lat"]).replace(/ /g, "")
 
                         //Update Grants by Orginization in the database.
                         if (orgFundingInfoTemp[recipientUniqueGeo] === undefined) {
@@ -373,25 +427,24 @@ function drawMain(simulationSpeed) {
 
                         var singleGrant = individualGrantExtractor(d, amount, recipientUniqueGeo, orgFundingInfoTemp);
 
-                        grantMovements.push(singleGrant['gmovement'])
-                        fundsDict[d["OrganizationName"]] = singleGrant['orgLocation']
-                        routesToDraw.push(singleGrant['fromPoint'])
-                        routesToDraw.push(singleGrant['toPoint'])
-
+                        grantMovements.push(singleGrant['gmovement']);
+                        funderGeoDict[d["OrganizationName"]] = singleGrant['orgLocation'];
+                        routesToDraw.push(fromPoint);
+                        routesToDraw.push(toPoint);
                     }
                 });
                 //Add DateBox
-                addDate();
+                addDate(startDate);
 
                 //Work out the largest grant for a single Org.
                 var largestTotalGrantByOrg = Math.max.apply(null, valuesFromObject(orgFundingInfoTemp))
 
                 // ***Run the Simulation*** ///
                 grantTranslateMaster(grantMovements,
-                                    largestTotalGrantByOrg,
-                                    largestIndividualGrant,
-                                    simulationSpeed,
-                                    funderNameAbreviation
+                                     largestTotalGrantByOrg,
+                                     largestIndividualGrant,
+                                     simulationSpeed,
+                                     funderNameAbreviation
                 );
 
                 //Clear orgFundingInfoTemp from memory
