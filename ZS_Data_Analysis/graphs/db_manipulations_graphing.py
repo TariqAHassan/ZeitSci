@@ -5,13 +5,19 @@
 
 """
 # Imports
+import re
 import os
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from pprint import pprint
+from copy import deepcopy
+from supplementary_fns import cln
 from funding_database_tools import MAIN_FOLDER
 from graphs.graphing_tools import money_printer, org_group
+
+# To Do:
+# - add year-by-year funding info for each org -- make proportional to all the money moving around that year.
 
 # ------------------------------------------------------------------------------------------------ #
 # Read in Data
@@ -58,6 +64,55 @@ funding['latFunder'] = funding['Funder'].progress_map(lambda x: funders_dict[x][
 funding['lngFunder'] = funding['Funder'].progress_map(lambda x: funders_dict[x][1][1])
 
 # ------------------------------------------------------------------------------------------------ #
+# Remove Organization that are outside of the scope. **Move this to funding_database_merge.py**
+# ------------------------------------------------------------------------------------------------ #
+
+# Note: these terms may be resulting in false positives with non-English names. Use NLP to guess language first?
+banned_name_terms = map(lambda x: x.lower(), ["Inc.", "LLC", "Incorporated", "Company", "Cooperation", "Radio",
+                                              "Television", "Services", "Department", "Mr." "Mrs.", "Dr.", " PhD "])
+search_term_lower = '|'.join(map(re.escape, banned_name_terms))
+search_term_any = '|'.join(['Inc.', "Dept", "Serv"])
+
+search_term = search_term_any + search_term_lower
+
+funding = funding[~(funding['OrganizationName'].astype(str).str.lower().str.contains(search_term))].reset_index(drop=True)
+
+# ------------------------------------------------------------------------------------------------ #
+# Remove Organization Collisions for Geo Mapping
+# ------------------------------------------------------------------------------------------------ #
+
+funding['UniqueGeo'] = funding['lng'].astype(str) + funding['lat'].astype(str)
+
+def sclwr(input_list):
+    """Set, Clean, Lower input list."""
+    return set(map(lambda x: cln(str(x), 2).lower(), input_list))
+
+unique_geo_names = funding.groupby('UniqueGeo').apply(lambda x: x['OrganizationName'].tolist()).reset_index()
+unique_geo_names_duplicates = unique_geo_names[unique_geo_names[0].map(lambda x: len(sclwr(x))) > 1]
+
+def unique_order_preseve(input_list):
+    input_no_dup = list()
+    for i in input_list:
+        if i not in input_no_dup:
+            input_no_dup.append(i)
+    return input_no_dup
+
+# Set and each list and preseve order
+unique_geo_names_duplicates[0] = unique_geo_names[0].map(unique_order_preseve)
+
+# Keep the first item in each list
+to_keep = unique_geo_names_duplicates[0].map(lambda x: x[0]).tolist()
+
+# Get Org Names that are to be tossed
+to_remove = unique_geo_names_duplicates[0].map(lambda x: [i for i in x if i not in to_keep]).tolist()
+
+# Flatten the result
+to_remove_flat = [i for s in to_remove for i in s]
+
+# Filter the funding df and drop duplicates
+funding = funding[~(funding['OrganizationName'].isin(to_remove_flat))].reset_index(drop=True)
+
+# ------------------------------------------------------------------------------------------------ #
 # Create a list of Science Funding Orgs. in the Database.
 # ------------------------------------------------------------------------------------------------ #
 
@@ -95,14 +150,17 @@ funding_gb_org_cln = funding_gb_org[(funding_gb_org['NormalizedAmount'].astype(f
 
 funding_gb_org_cln['NormalizedAmount'] = funding_gb_org_cln['NormalizedAmount'].progress_map(
     lambda x: money_printer(x, "USD", 2015))
-#[funding_gb_org_cln.OrganizationBlock.isin(["United States", "Canada"])].
 funding_gb_org_cln.to_csv("science_funding.csv", index=False)
 
 # ------------------------------------------------------------------------------------------------ #
 # Time Series animation
 # ------------------------------------------------------------------------------------------------ #
 
-to_export = funding[(funding['NormalizedAmount'].astype(float) > 2500000)]
+min_grant_size = 750000
+
+# Require a grant be > min_grant_size in its own currency
+to_export = funding[(funding['Amount'].astype(float) >= min_grant_size) &\
+                    (pd.notnull(funding['NormalizedAmount']))]
 
 def date_zero_correct(input_str):
     if input_str[0] != "0" and float(input_str) < 10:
@@ -143,46 +201,30 @@ to_export['StartDate'] = to_export['StartDate'].astype(str).map(date_correct)
 # Drop
 to_export = to_export[pd.notnull(to_export['StartDate'])].reset_index(drop=True)
 
-to_export = to_export[pd.to_datetime(to_export['StartDate']) > "01/01/2010"]
+to_export = to_export[pd.to_datetime(to_export['StartDate']) > "01/01/2007"]
+
+# Restrict columns to those that are needed
+allowed_columns = ["OrganizationName", "FunderNameFull", "NormalizedAmount", "StartDate", "lng", "lat"]
+to_export = to_export[allowed_columns]
 
 # Export
 to_export.ix[pd.to_datetime(to_export['StartDate']).sort_values().index].reset_index(drop=True)\
-    .to_csv(MAIN_FOLDER+"/JavaScript/JavaScriptVisualizations/data/"+"funding_sample.csv", index=False)
+    .to_csv(MAIN_FOLDER + "/JavaScript/JavaScriptVisualizations/data/" + "funding_sample.csv", index=False)
 
+# ------------------------------------------------------------------------------------------------ #
 
-import math
-x = 2500000
-maxAmount = to_export['NormalizedAmount'].max()
+# ------------
+# Scratch Work
+# ------------
 
-def logistic_fn(x, minValue, maxValue, curveSteepness):
+tester = deepcopy(funding[funding['OrganizationBlock'] == 'Europe'])
 
-    # maxAmount (Order of Magitude) / 10
-    maxOrderOfMag = 10 ** (int(math.log10(maxAmount)) - 1)
+n_amount_groupby = tester.groupby('OrganizationName').apply(lambda x: sum(x['NormalizedAmount'].tolist())).reset_index()
+print(round(float(n_amount_groupby[0].max()), 1))
 
-    L = maxValue/maxOrderOfMag
-    k = curveSteepness
-    denominator = 1 + math.e**(-k*(x/maxOrderOfMag))
-
-    return L/denominator - L/2 + minValue
-
-logistic_fn(x*3, 1.5, maxAmount, curveSteepness=1)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# Groupby       Normal        Real USD
+# Name:      3161183583.1 | $3789172600.4
+# UniqueGeo: 3258690632.6 | $3904925835.0
 
 
 
