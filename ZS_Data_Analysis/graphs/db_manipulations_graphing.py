@@ -12,12 +12,16 @@ import pandas as pd
 from tqdm import tqdm
 from pprint import pprint
 from copy import deepcopy
+from statistics import mean
+from haversine import haversine
 from supplementary_fns import cln
+from itertools import combinations, permutations
 from funding_database_tools import MAIN_FOLDER
 from graphs.graphing_tools import money_printer, org_group
 
 # To Do:
 # - add year-by-year funding info for each org -- make proportional to all the money moving around that year.
+# - remove funders from OrgName column.
 
 # ------------------------------------------------------------------------------------------------ #
 # Read in Data
@@ -67,18 +71,99 @@ funding['lngFunder'] = funding['Funder'].progress_map(lambda x: funders_dict[x][
 # Remove Organization that are outside of the scope. **Move this to funding_database_merge.py**
 # ------------------------------------------------------------------------------------------------ #
 
-# Note: these terms may be resulting in false positives with non-English names. Use NLP to guess language first?
-banned_name_terms = map(lambda x: x.lower(), ["Inc.", "LLC", "Incorporated", "Company", "Cooperation", "Radio",
-                                              "Television", "Services", "Department", "Mr." "Mrs.", "Dr.", " PhD "])
-search_term_lower = '|'.join(map(re.escape, banned_name_terms))
-search_term_any = '|'.join(['Inc.', "Dept", "Serv"])
+# Note: these terms may be resulting in false positives with non-English names.
+# Use NLP to guess language first?
 
+# Define Terms that are banned under what conditions
+as_is_terms = ['Inc ', "Dept ", "Serv ", "Servs", "Srvs"]
+
+to_lower_terms = ["Inc.", "LLC", "Incorporated", "Company", "Corporation", "Radio",
+                  "Academy", "Television", "Service", "Servs", "Srvs", "Department",
+                  "Mr." "Mrs.", "Dr.", " PhD "]
+
+ends_with_terms = list(map(lambda x: x.rstrip().lower(), as_is_terms + ["PhD",  "LLC", "Incorporated", "Company"]))
+
+# Construct a search term based on as_is_terms & to_lower_terms.
+to_lower_terms_lowered = list(map(lambda x: x.lower(), to_lower_terms))
+search_term_lower = '|'.join(map(re.escape, to_lower_terms_lowered))
+search_term_any = '|'.join(as_is_terms)
 search_term = search_term_any + search_term_lower
 
-funding = funding[~(funding['OrganizationName'].astype(str).str.lower().str.contains(search_term))].reset_index(drop=True)
+# Block as_is_terms & to_lower_terms.
+funding = funding[~(funding['OrganizationName'].astype(str).str.lower().str.strip().str.contains(search_term))]\
+                                                                                        .reset_index(drop=True)
+# Block ends_with_terms
+def ends_with_checker(x, ends_with_terms=ends_with_terms, override_terms=['university']):
+    if str(x) == 'nan':
+        return False
+
+    if any(x.lower().rstrip().endswith(i) for i in ends_with_terms) and not any(i in x.lower() for i in override_terms):
+        return True
+    else:
+        return False
+
+# Ablate
+funding = funding[~(funding['OrganizationName'].map(ends_with_checker))].reset_index(drop=True)
 
 # ------------------------------------------------------------------------------------------------ #
-# Remove Organization Collisions for Geo Mapping
+# Homogenize Lng-Lat by OrganizationName (exact match) **Move this to funding_database_merge.py**
+# ------------------------------------------------------------------------------------------------ #
+
+org_geos_groupby = funding.groupby(['OrganizationName']).apply(lambda x: list(zip(x['lat'].tolist(), x['lng'].tolist()))).reset_index()
+
+org_geos_groupby = org_geos_groupby[org_geos_groupby[0].map(lambda x: len(set(x)) > 1)].reset_index(drop=True)
+
+def most_central_point(geos_array, valid_centroid=10):
+    """
+    Algorithm to find the point that is most central.
+    Using the haversine formula.
+
+    Would be slow at scale...What is this? >O(n^4)...yikes.
+    Thankfully, it only needs to churn though ~750 rows.
+    :param geos_array:
+    :param geos_array: valid_centroid (in KM). Defaults to 10.
+    :return:
+    """
+    distance_dict = dict.fromkeys(set(geos_array), list())
+    for i in set(geos_array):
+        other_geos = [j for j in geos_array if j != i]
+        distance_dict[i] = [haversine(i, k) for k in other_geos]
+
+    distance_dict_mean = {k: mean(v) for k, v in distance_dict.items()}
+    min_coord = min(distance_dict_mean, key=distance_dict_mean.get)
+
+    if distance_dict_mean[min_coord] <= valid_centroid:
+        return min_coord
+    else:
+        return np.NaN
+
+# Work out the centroid for each duplicate location
+org_geos_groupby['centroid'] = org_geos_groupby[0].map(most_central_point)
+
+# Save in a dict of the form {OrganizationName: centroid}
+multi_geo_dict = dict(zip(org_geos_groupby['OrganizationName'], org_geos_groupby['centroid']))
+
+# Swap out duplicates
+def geo_swap(org_name, current_geo, lat_or_lng):
+    if str(org_name) == 'nan' or str(current_geo) == 'nan':
+        return np.NaN
+    elif org_name in multi_geo_dict:
+        lookup = multi_geo_dict[org_name]
+        if str(lookup) != 'nan':
+            return lookup[lat_or_lng]
+        else:
+            return lookup
+    else:
+        return current_geo
+
+funding['lat'] = funding.apply(lambda x: geo_swap(x['OrganizationName'], x['lat'], 0), axis=1)
+funding['lng'] = funding.apply(lambda x: geo_swap(x['OrganizationName'], x['lng'], 1), axis=1)
+
+# Remove rows with nans in their lat or lng columns
+funding.dropna(subset = ['lat', 'lng'], inplace=True)
+
+# ------------------------------------------------------------------------------------------------ #
+# Remove Organization Collisions for Geo Mapping (Multiple Orgs at the same lat/lng).
 # ------------------------------------------------------------------------------------------------ #
 
 funding['UniqueGeo'] = funding['lng'].astype(str) + funding['lat'].astype(str)
@@ -113,7 +198,7 @@ to_remove_flat = [i for s in to_remove for i in s]
 funding = funding[~(funding['OrganizationName'].isin(to_remove_flat))].reset_index(drop=True)
 
 # ------------------------------------------------------------------------------------------------ #
-# Create a list of Science Funding Orgs. in the Database.
+# Create a Summary of Science Funding Orgs. in the Database.
 # ------------------------------------------------------------------------------------------------ #
 
 funders_info = pd.DataFrame(list(funders_dict.values()))
@@ -144,12 +229,12 @@ funding_gb_org = funding_gb_org[~funding_gb_org['OrganizationName'].map(
 
 os.chdir(MAIN_FOLDER+"/JavaScript/JavaScriptVisualizations/data")
 
-# Limit to 20,000,000 and up
+# Limit to $20,000,000 (2015 USD) and up
 funding_gb_org_cln = funding_gb_org[(funding_gb_org['NormalizedAmount'].astype(float) > 50000000)].drop(
                                     ['Researcher', 'GrantYear'], axis=1)
 
 funding_gb_org_cln['NormalizedAmount'] = funding_gb_org_cln['NormalizedAmount'].progress_map(
-    lambda x: money_printer(x, "USD", 2015))
+                                            lambda x: money_printer(x, "USD", 2015))
 funding_gb_org_cln.to_csv("science_funding.csv", index=False)
 
 # ------------------------------------------------------------------------------------------------ #
@@ -201,21 +286,29 @@ to_export['StartDate'] = to_export['StartDate'].astype(str).map(date_correct)
 # Drop
 to_export = to_export[pd.notnull(to_export['StartDate'])].reset_index(drop=True)
 
-to_export = to_export[pd.to_datetime(to_export['StartDate']) > "01/01/2007"]
+to_export = to_export[pd.to_datetime(to_export['StartDate']) > "01/01/2007"].reset_index(drop=True)
 
 # Restrict columns to those that are needed
 allowed_columns = ["OrganizationName", "FunderNameFull", "NormalizedAmount", "StartDate", "lng", "lat"]
 to_export = to_export[allowed_columns]
 
+# Sort
+to_export = to_export.ix[pd.to_datetime(to_export['StartDate']).sort_values().index].reset_index(drop=True)
+
+# Add an ID Column
+to_export["uID"] = pd.Series(to_export.index, index=to_export.index)
+column_order = ['uID'] + allowed_columns
+
 # Export
-to_export.ix[pd.to_datetime(to_export['StartDate']).sort_values().index].reset_index(drop=True)\
-    .to_csv(MAIN_FOLDER + "/JavaScript/JavaScriptVisualizations/data/" + "funding_sample.csv", index=False)
+to_export[column_order].to_csv(MAIN_FOLDER + "/JavaScript/JavaScriptVisualizations/data/" + "funding_sample.csv", index=False)
 
 # ------------------------------------------------------------------------------------------------ #
 
 # ------------
 # Scratch Work
 # ------------
+
+print(len(to_export.OrganizationName.unique())) # high -- Improve filtering.
 
 tester = deepcopy(funding[funding['OrganizationBlock'] == 'Europe'])
 
@@ -225,9 +318,6 @@ print(round(float(n_amount_groupby[0].max()), 1))
 # Groupby       Normal        Real USD
 # Name:      3161183583.1 | $3789172600.4
 # UniqueGeo: 3258690632.6 | $3904925835.0
-
-
-
 
 
 
