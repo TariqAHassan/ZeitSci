@@ -91,12 +91,13 @@ function addDate(startDate) {
                     .attr("dy", ".35em")
                     .attr("text-anchor", "middle")
                     .style("font", "Lucida Grande")
-                    .style("font-size", "100px")
+                    .style("font-size", "85px")
+                    .style("opacity", 0)
                     .text(startDate);
 
     var bbox = text[0][0].getBBox();
 
-    svg.insert('rect','text')
+    svg.insert('rect', 'text')
         .attr('x', bbox.x - xWidthAdjust/2)
         .attr('y', bbox.y)
         .attr('width', bbox.width + xWidthAdjust)
@@ -110,8 +111,28 @@ function addDate(startDate) {
         .attr("dy", ".35em")
         .attr("text-anchor", "middle")
         .style("font", "Lucida Grande")
-        .style("font-size", "100px")
-        .text("Starting");
+        .style("opacity", 1)
+        .style("font-size", "85px")
+        .text(startDate);
+}
+
+function dateChecker(newDate, oldDate) {
+    //Checks if 'newDate' is more recent
+    //than 'oldDate'. If so, returns `true`.
+    //Otherwise, returns `false`.
+    //Format: DD-MM-YYYY.
+    var oldSplit = oldDate.split("/");
+    var newSplit = newDate.split("/");
+
+    if (newSplit[2] > oldSplit[2]) {
+        return true;
+    } else if (newSplit[1] > oldSplit[1]) {
+        return true;
+    } else if (newSplit[0] > oldSplit[0]) {
+        return true;
+    } else {
+        return false;
+    }
 }
 
 //----------------------------------------------------------------------------------------//
@@ -134,6 +155,7 @@ function uniqueCountPreseve(inputList) {
 }
 
 function orgListFormatter(orgList){
+
     var d = {};
     var tail = "";
     var uniqueOrgList = uniqueCountPreseve(orgList);
@@ -148,15 +170,26 @@ function orgListFormatter(orgList){
     }
 
     var summaryString = "";
+    var insetBreakSpent = false;
     for (i in uniqueOrgList){
-        if (uniqueOrgList[i] === uniqueOrgListLast){
+        if (uniqueOrgList[i] === uniqueOrgListLast) {
             tail = ")";
-        }  else{
+        } else if ((i == 3) && (insetBreakSpent === false)){
+            tail = ")" + "</br>"
+            insetBreakSpent = true;
+        } else {
             tail = "), ";
         }
         summaryString += uniqueOrgList[i] + " (" + d[uniqueOrgList[i]] + tail;
     }
-    return summaryString
+    return summaryString;
+}
+
+function tooltipInfoFormater(destination, realTimeInfo, locID){
+    var info = "<strong>" + destination + "</strong>" + "<br/>" +
+                "<em>" + "Total Grants: " + "</em>" + accounting.formatMoney(parseFloat(realTimeInfo[locID][0])) +
+                " USD" + "<br/>" + "<em>" + "Grants Awarded by: " + orgListFormatter(realTimeInfo[locID][1]) + "</em>"
+    return info;
 }
 
 //----------------------------------------------------------------------------------------//
@@ -196,36 +229,38 @@ function delta(grantMovement, path) {
 
             var s = Math.min(Math.sin(Math.PI * t) * 0.7, 0.3);
 
+            //correct for the current zoom level.
+            // var sZoom = pointScale(s, zoom.scale());
+
             return "translate(" + p.x + "," + p.y + ") scale(" + s + ")";
         }
     }
 }
 
-function terrestrialPoints(doDraw, grantToDraw, realTimeFundingInfo, largestTotalGrantByOrg){
+function terrestrialPoints(newDraw, grantToDraw, realTimeInfo, largestTotalGrantByOrg){
 
     //Model Params
-    var c = 0.8
-    var k = 0.5
-    var sizeFloor = 1.5
+    var c = 2.5;
+    var k = 0.5;
+    var sizeFloor = 1.5;
+
+    //Get the current zoom level
+    var s = zoom.scale();
 
     //Set unique ID and the name of final location
     var locID = grantToDraw["recipientUniqueGeo"];
     var destination = grantToDraw["grantRecipientOrg"];
 
     //Construct the info for the Point
-    var info =  "<strong>" + destination + "</strong>" + "<br/>" +
-                "<em>" + "Total Grants: " + "</em>" + accounting.formatMoney(parseFloat(grantToDraw["grantAmount"])) +
-                         " USD" + "<br/>" +
-                "<em>" + "Grants Awarded by: " + orgListFormatter(realTimeFundingInfo[locID][1]) + "</em>" + "<br/>" +
-                "<em>" + "Date of Last Grant: " + "</em>" + grantToDraw["startDate"];
 
     // var s = d3.event.scale; //Add to adjust radius based on current zoom
     var idClean = "loc" + locID.replace(/[^0-9a-z]/gi, "");
 
     //Scale the funding using the logistic function
-    var scaledRadius = logistic_fn(x = realTimeFundingInfo[locID][0], sizeFloor, largestTotalGrantByOrg, k, c)
+    var scaledRadius = logistic_fn(x = realTimeInfo[locID][0], sizeFloor, largestTotalGrantByOrg, k, c)
+    // if (scaledRadius < sizeFloor){scaledRadius += sizeFloor}
 
-    if (doDraw === true) {
+    if (newDraw === true) {
         var institution = g.append("g").attr("class", "institution");
         var location = projection(funderGeoDict[destination]);
         institution = g.append("g").attr("class", "institution");
@@ -234,29 +269,29 @@ function terrestrialPoints(doDraw, grantToDraw, realTimeFundingInfo, largestTota
                     .attr("cy", location[1])
                     .attr("class", "point")
                     .attr("id", idClean)
-                    .attr("r", scaledRadius)
+                    .attr("r", pointScale(scaledRadius, s))
                     .datum(scaledRadius)
                     .style("fill", "white")
                     .style("opacity", 0.25)
                     .on("mousemove", function(d, i) {
                         showTooltip(d
                                     , i
-                                    , info
-                                    , document.getElementById('container').offsetLeft+20
-                                    , document.getElementById('container').offsetTop+10
+                                    , tooltipInfoFormater(destination, realTimeInfo, locID)
+                                    , document.getElementById('container').offsetLeft-20
+                                    , document.getElementById('container').offsetTop+20
                     )})
-                    .on("mouseout",  function(d, i){
+                    .on("mouseout",  function(d, i) {
                         hideTooltip(d, i)
                     });
     } else {
         d3.selectAll(".institution")
             .select("#" + idClean)
-            .attr("r", scaledRadius)
+            .attr("r", pointScale(scaledRadius, s))
             .datum(scaledRadius);
     }
 }
 
-function transition(grantMovement, route, grantToDraw, doDraw, largestTotalGrantByOrg, realTimeFundingInfo) {
+function transition(grantMovement, route, grantToDraw, newDraw, largestTotalGrantByOrg, realTimeInfo) {
 
     var l = route.node().getTotalLength();
 
@@ -268,11 +303,11 @@ function transition(grantMovement, route, grantToDraw, doDraw, largestTotalGrant
             route.remove(); //remove the route used to guide the circle.
 
             //Add points on the Earth when the grants lands
-            setTimeout(terrestrialPoints(doDraw, grantToDraw, realTimeFundingInfo, largestTotalGrantByOrg), 150);
+            setTimeout(terrestrialPoints(newDraw, grantToDraw, realTimeInfo, largestTotalGrantByOrg), 125);
         }).remove(); //remove the moving circle
 }
 
-function grantTranslate(grantToDraw, doDraw, largestTotalGrantByOrg, realTimeFundingInfo) {
+function grantTranslate(grantToDraw, newDraw, largestTotalGrantByOrg, realTimeInfo) {
     
     var from = funderGeoDict[grantToDraw["funderName"]];
     var to = funderGeoDict[grantToDraw["grantRecipientOrg"]];
@@ -289,54 +324,69 @@ function grantTranslate(grantToDraw, doDraw, largestTotalGrantByOrg, realTimeFun
                             .attr("r", grantToDraw["movingGrantRadius"])
                             .attr("fill-opacity", 0.85);
 
-    transition(grantMovement, route, grantToDraw, doDraw, largestTotalGrantByOrg, realTimeFundingInfo);
+    transition(grantMovement, route, grantToDraw, newDraw, largestTotalGrantByOrg, realTimeInfo);
 }
 
-function grantTranslateMaster(inputData, largestTotalGrantByOrg, largestIndividualGrant, movementRate, funderNameAbreviation){
+function grantTranslateMaster(inputData, largestTotalGrantByOrg, largestIndividualGrant, movementRate, funderNameAbbreviation){
 
-    var doDraw = false;
+    var newDraw = false;
     var priorFundingRecipients = [];
-    var realTimeFundingInfo = {};
+    var realTimeInfo = {};
 
     var i = 0;
     var complete = false;
-    var refreshIntervalId = setInterval(function(){
-        if (i > inputData.length - 2) {
-            // i = 0;
-            complete = true;
-        }
 
-        doDraw = false;
+    var animationIntervalID = setInterval(function(){
+        if (i > inputData.length - 2) {complete = true;}
+
+        newDraw = false;
         var grantToDraw = inputData[i];
+
         var grantAmount = grantToDraw["grantAmount"]
-        var funderAbrev = funderNameAbreviation[grantToDraw['funderName']];
-        //merge this in
+        var funderAbrev = funderNameAbbreviation[grantToDraw["funderName"]];
 
-
-        if (priorFundingRecipients.indexOf(grantToDraw["recipientUniqueGeo"]) == -1){
-            doDraw = true;
+        if (priorFundingRecipients.indexOf(grantToDraw["recipientUniqueGeo"]) === -1){
+            newDraw = true;
             priorFundingRecipients.push(grantToDraw["recipientUniqueGeo"]);
 
-            realTimeFundingInfo[grantToDraw["recipientUniqueGeo"]] = [grantAmount, [funderAbrev]]
+            realTimeInfo[grantToDraw["recipientUniqueGeo"]] = [grantAmount, [funderAbrev]]
         } else {
-            var previousAmount = realTimeFundingInfo[grantToDraw["recipientUniqueGeo"]][0]
-            var previousOrgs  = realTimeFundingInfo[grantToDraw["recipientUniqueGeo"]][1]
+            var previousAmount = realTimeInfo[grantToDraw["recipientUniqueGeo"]][0]
+            var previousOrgs  = realTimeInfo[grantToDraw["recipientUniqueGeo"]][1]
 
-            realTimeFundingInfo[grantToDraw["recipientUniqueGeo"]] = [
+            realTimeInfo[grantToDraw["recipientUniqueGeo"]] = [
                    previousAmount + grantAmount
                 ,  previousOrgs.concat(funderAbrev)
             ]
         }
 
-        grantTranslate(grantToDraw, doDraw, largestTotalGrantByOrg, realTimeFundingInfo);
+        grantTranslate(grantToDraw, newDraw, largestTotalGrantByOrg, realTimeInfo);
 
-        //Update Date -- To Do: chec if it's the same first.
-        d3.selectAll("text").text(grantToDraw["startDate"]);
+        //Update Date
+        d3.selectAll("text").text(function(d){
+            //This is here to ensure a linear flow for the
+            //time stamp. It is a bit of a fudge factor,
+            //but as the input funding csv will always be
+            //in proper descending order prior to export from
+            //pandas in python, this *should* act to smooth
+            //out erroneous date time updates which emerge
+            //from variability in d3 rendering.
+            var currentDrawnDate = d3.select(this).text();
+            var newDateToDraw = grantToDraw["startDate"];
+
+            if (dateChecker(newDateToDraw, currentDrawnDate)){
+                return newDateToDraw;
+            } else {
+                return currentDrawnDate;
+            }
+        });
+
+        //Pump counter.
         i++;
 
-        // Stop when complete...still needs some tinkering.
-        if (complete){
-            clearInterval(refreshIntervalId);
+        // Stop when complete...
+        if (complete === true){
+            clearInterval(animationIntervalID);
         }
     }
     , movementRate);
@@ -361,7 +411,7 @@ function individualGrantExtractor(d, amount, recipientUniqueGeo, orgFundingInfoT
             "funderName"         : d["FunderNameFull"],
             "grantRecipientOrg"  : d["OrganizationName"],
             "startDate"          : d["StartDate"],
-            "movingGrantRadius"  : Math.sqrt(amount/Math.PI) * 0.009,
+            "movingGrantRadius"  : Math.sqrt(amount/Math.PI) * 0.025,
             "grantAmount"        : amount,
             "recipientUniqueGeo" : recipientUniqueGeo
     };
@@ -375,7 +425,7 @@ function drawMain(simulationSpeed) {
     var routesToDraw = [];
     var grantMovements = [];
     var orgFundingInfoTemp = {};
-    var funderNameAbreviation = {};
+    var funderNameAbbreviation = {};
 
     d3.json("data/starter_kit/data/world-topo-min.json", function(error, world) {
         var countries = topojson.feature(world, world.objects.countries).features;
@@ -383,20 +433,19 @@ function drawMain(simulationSpeed) {
 
         var country = g.selectAll(".country").data(topo);
         country.enter().insert("path")
-                .attr("class", "country")
-                .attr("d", path)
-                .style("fill", "#383838");
+                        .attr("class", "country")
+                        .attr("d", path)
+                        .style("fill", "#383838");
 
-        var offsetL = document.getElementById('container').offsetLeft+0;
-        var offsetT = document.getElementById('container').offsetTop+10;
+        var offsetL = document.getElementById("container").offsetLeft+0;
+        var offsetT = document.getElementById("container").offsetTop+10;
 
         d3.csv("data/funder_db.csv", function(error, funder){
             funder.forEach(function (d) {
-                addFunderPoints(d["lng"], d["lat"], 10, d["funder"], d["colour"], true, 1, offsetL, offsetT);
+                addFunderPoints(d["lng"], d["lat"], funderCircleSize(11), d["funder"], d["colour"], true, 1, offsetL, offsetT);
                 funderGeoDict[d["funder"]] = [d["lng"], d["lat"]].map(parseFloat);
                 funderColors[d["funder"]] = d["colour"]
-
-                funderNameAbreviation[d['funder']] = d['funder'].match(/\((.*?)\)/)[1]
+                funderNameAbbreviation[d['funder']] = d['funder'].match(/\((.*?)\)/)[1]
             });
 
             d3.csv("data/funding_sample.csv", function(error, grant){
@@ -416,7 +465,7 @@ function drawMain(simulationSpeed) {
                         //If this is the largest grant, update.
                         if (amount > largestIndividualGrant) {largestIndividualGrant = amount;}
 
-                        var recipientUniqueGeo = (d["lng"] + d["lat"]).replace(/ /g, "")
+                        var recipientUniqueGeo = (d["lng"] + d["lat"]).replace(/ /g, "") + d['OrganizationName']
 
                         //Update Grants by Orginization in the database.
                         if (orgFundingInfoTemp[recipientUniqueGeo] === undefined) {
@@ -426,8 +475,8 @@ function drawMain(simulationSpeed) {
                         }
 
                         var singleGrant = individualGrantExtractor(d, amount, recipientUniqueGeo, orgFundingInfoTemp);
-
                         grantMovements.push(singleGrant['gmovement']);
+
                         funderGeoDict[d["OrganizationName"]] = singleGrant['orgLocation'];
                         routesToDraw.push(fromPoint);
                         routesToDraw.push(toPoint);
@@ -444,11 +493,11 @@ function drawMain(simulationSpeed) {
                                      largestTotalGrantByOrg,
                                      largestIndividualGrant,
                                      simulationSpeed,
-                                     funderNameAbreviation
+                                     funderNameAbbreviation
                 );
 
                 //Clear orgFundingInfoTemp from memory
-                orgFundingInfoTemp = {};
+                // orgFundingInfoTemp = {};
             });
         });
     });
@@ -458,19 +507,11 @@ function drawMain(simulationSpeed) {
 
 // Tools for plotting funders
 
-function dotColor(amount){
-    if (parseFloat(amount) < 10000000){
-        return "darkred"
-    } else if (parseFloat(amount) >  10000000 && parseFloat(amount)  < 100000000){
-        return "red"
-    } else if (parseFloat(amount) >= 100000000 && parseFloat(amount) < 500000000){
-        return "yellow"
-    } else if (parseFloat(amount) >= 500000000 && parseFloat(amount) < 1000000000){
-        return "lightgreen"
-    } else if (parseFloat(amount) >= 1000000000){
-        return "green"
-    }
+function funderCircleSize(circleSize){
+    //build out.
+    return circleSize;
 }
+
 
 function funderCircleAppend(appendTo, x, y, color, opacity, id, r, info, offsetL, offsetT){
     appendTo.append("svg:circle")
@@ -479,20 +520,22 @@ function funderCircleAppend(appendTo, x, y, color, opacity, id, r, info, offsetL
             .attr("class","point")
             .style("fill", color)
             // .style("stroke", "white")
-            .style("opacity", opacity)
+            // .style("opacity", opacity)
             .attr("id", id)
             .attr("r", r)
             .on("mousemove", function(d, i) {
                 showTooltip(d
                             , i
                             , "<strong>" + info + "</strong>"
-                            , offsetL
-                            , offsetT)
-            })
+                            , document.getElementById('container').offsetLeft+0
+                            , offsetT = document.getElementById('container').offsetTop+10
+            )})
             .on("mouseout",  function(d, i){
                 hideTooltip(d, i)
             });
 }
+
+
 
 //function to add points and text to the map (used in plotting grants)
 function addFunderPoints(lat, lon, amount, name, color, infoOverride, opacity, offsetL, offsetT) {
@@ -520,12 +563,12 @@ function redraw() {
     height = width / 2;
     d3.select("svg").remove();
     setup(width, height);
-//    drawMain();
+    drawMain();
 }
 
 function pointScale(amount, zoomScale){
-    var rawFloor = 0.09;
-    var size = amount * (100/zoomScale*0.05);
+    // var rawFloor = 0.09;
+    var size = amount * (5/zoomScale);
 
     if (size > amount) {
         return amount;
@@ -540,13 +583,13 @@ function zoomer() {
     var h = height/4;
 
     t[0] = Math.min(
-      (width/height)  * (s - 1),
-       Math.max(width * (1 - s), t[0])
+        (width/height) * (s - 1),
+        Math.max(width * (1 - s), t[0])
     );
 
     t[1] = Math.min(
-      h * (s - 1) + h * s,
-      Math.max(height  * (1 - s) - h * s, t[1])
+        h * (s - 1) + h * s,
+        Math.max(height  * (1 - s) - h * s, t[1])
     );
 
     var transformCmd = "translate(" + t + ")scale(" + s + ")"
@@ -590,6 +633,44 @@ function click() {
 //Execute Draw
 
 drawMain(simulationSpeed = 0.01) //smaller = faster.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
