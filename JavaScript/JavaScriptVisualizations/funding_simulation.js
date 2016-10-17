@@ -21,8 +21,14 @@ var zoom = d3.behavior.zoom()
                       .scaleExtent([1, 5000])
                       .on("zoom", zoomer);
 
-var width = document.getElementById("container").offsetWidth;
-var height = width / 2;
+// var width = document.getElementById("container").offsetWidth;
+// var height = width / 2;
+var w = document.getElementById("container").offsetWidth;
+var h = w/2 - 100
+
+var	margin = {top: 0, right: 0, bottom: 100, left: 0},
+	width  = document.getElementById("container").offsetWidth - margin.left - margin.right,
+	height = h + margin.bottom;
 
 // Define the div for the tooltip
 var div = d3.select("body").append("div")
@@ -30,8 +36,10 @@ var div = d3.select("body").append("div")
                            .style("opacity", 0);
 
 //Init
-var topo, projection, path, svg, g;
+// var topo, projection, path, svg, g;
+var topo, projection, path, text, legend, svgLwr, gLwr, svg, g;
 var funderGeoDict = {};
+var dateRealTime = [];
 var funderColors = {};
 
 setup(width, height);
@@ -42,14 +50,27 @@ function setup(width, height){
 
     path = d3.geo.path().projection(projection);
 
-    svg = d3.select("#container").append("svg")
-            .attr("width", width)
-            .attr("height", height)
+    svg = d3.select("#container")
+            .append("svg")
+		    .attr("width", width + margin.left + margin.right)
+		    .attr("height", height)
             .call(zoom)
             .on("click", click)
             .append("g");
+            // .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
     g = svg.append("g");
+
+    svgLwr = d3.select("#container2")
+        .append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", 150)
+        .on("click", click)
+        .append("g");
+    // .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+    gLwr = svgLwr.append("g");
+
 }
 
 //----------------------------------------------------------------------------------------//
@@ -83,21 +104,23 @@ function hideTooltip(d, i){
 function addDate(startDate) {
 
     var xWidthAdjust = 50;
+    var startingContainerWidth = document.getElementById("container").offsetWidth;
 
-    var startingContainerWidth = document.getElementById("container").offsetWidth
-    var text = svg.append("text")
-                    .attr("x", startingContainerWidth - 300)         // make these
-                    .attr("y", (startingContainerWidth / 2) - 80)    // more robust.
-                    .attr("dy", ".35em")
-                    .attr("text-anchor", "middle")
-                    .style("font", "Lucida Grande")
-                    .style("font-size", "85px")
-                    .style("opacity", 0)
-                    .text(startDate);
+    text = svg.append("text")
+                .attr("class", "datebox")
+                .attr("x", startingContainerWidth - 300)         // make these
+                .attr("y", (startingContainerWidth / 2) - 80)    // more robust.
+                .attr("dy", ".35em")
+                .attr("text-anchor", "middle")
+                .style("font", "Lucida Grande")
+                .style("font-size", "85px")
+                .style("opacity", 0)
+                .text(startDate);
 
     var bbox = text[0][0].getBBox();
 
     svg.insert('rect', 'text')
+        .attr("class", "datebox")
         .attr('x', bbox.x - xWidthAdjust/2)
         .attr('y', bbox.y)
         .attr('width', bbox.width + xWidthAdjust)
@@ -106,6 +129,7 @@ function addDate(startDate) {
         .style("opacity", 0.35);
 
     svg.append("text")
+        .attr("class", "datebox")
         .attr("x", startingContainerWidth - 300)         // make these
         .attr("y", (startingContainerWidth / 2) - 80)    // more robust.
         .attr("dy", ".35em")
@@ -230,9 +254,9 @@ function delta(grantMovement, path) {
             var s = Math.min(Math.sin(Math.PI * t) * 0.7, 0.3);
 
             //correct for the current zoom level.
-            // var sZoom = pointScale(s, zoom.scale());
+            var sZoom = pointScale(s, zoom.scale());
 
-            return "translate(" + p.x + "," + p.y + ") scale(" + s + ")";
+            return "translate(" + p.x + "," + p.y + ") scale(" + sZoom + ")";
         }
     }
 }
@@ -240,7 +264,7 @@ function delta(grantMovement, path) {
 function terrestrialPoints(newDraw, grantToDraw, realTimeInfo, largestTotalGrantByOrg){
 
     //Model Params
-    var c = 2.5;
+    var c = 2.9;
     var k = 0.5;
     var sizeFloor = 1.5;
 
@@ -296,7 +320,7 @@ function transition(grantMovement, route, grantToDraw, newDraw, largestTotalGran
     var l = route.node().getTotalLength();
 
     grantMovement.transition()
-        .duration(l * 20)
+        .duration(l * 15)
         .attrTween("transform", delta(grantMovement, route.node()))
         .each("end", function() {
             //Delete the spent route.
@@ -308,10 +332,10 @@ function transition(grantMovement, route, grantToDraw, newDraw, largestTotalGran
 }
 
 function grantTranslate(grantToDraw, newDraw, largestTotalGrantByOrg, realTimeInfo) {
-    
+
     var from = funderGeoDict[grantToDraw["funderName"]];
     var to = funderGeoDict[grantToDraw["grantRecipientOrg"]];
-    
+
     var route = g.append("path")
                    .attr("fill-opacity", 0)
                    .datum({type: "LineString", coordinates: [from, to]})
@@ -363,24 +387,24 @@ function grantTranslateMaster(inputData, largestTotalGrantByOrg, largestIndividu
         grantTranslate(grantToDraw, newDraw, largestTotalGrantByOrg, realTimeInfo);
 
         //Update Date
-        d3.selectAll("text").text(function(d){
-            //This is here to ensure a linear flow for the
-            //time stamp. It is a bit of a fudge factor,
-            //but as the input funding csv will always be
-            //in proper descending order prior to export from
-            //pandas in python, this *should* act to smooth
-            //out erroneous date time updates which emerge
-            //from variability in d3 rendering.
-            var currentDrawnDate = d3.select(this).text();
-            var newDateToDraw = grantToDraw["startDate"];
+        //This is here to insure a linear flow for the time stamp. Pretty rigorous procedure.
+        //It is a bit of a fudge factor, but as the input funding csv will always be
+        //in proper descending order prior to export from pandas in python, this *should* act to smooth
+        //out erroneous date time updates which emerge from variability in d3 rendering.
+        var newDateToDraw = grantToDraw["startDate"];
+        if (dateRealTime.indexOf(newDateToDraw) === -1){
+            dateRealTime.push(newDateToDraw)
+            svg.selectAll('text').text(function(d){
+                var currentDate = d3.select(this).text()
+                if (dateChecker(newDateToDraw, currentDate)){
+                    return newDateToDraw;
+                } else{
+                    return currentDate;
+                }
+            });
+        }
 
-            if (dateChecker(newDateToDraw, currentDrawnDate)){
-                return newDateToDraw;
-            } else {
-                return currentDrawnDate;
-            }
-        });
-
+        // funderRedraw();
         //Pump counter.
         i++;
 
@@ -411,6 +435,7 @@ function individualGrantExtractor(d, amount, recipientUniqueGeo, orgFundingInfoT
             "funderName"         : d["FunderNameFull"],
             "grantRecipientOrg"  : d["OrganizationName"],
             "startDate"          : d["StartDate"],
+            "uID"                : d["uID"],
             "movingGrantRadius"  : Math.sqrt(amount/Math.PI) * 0.025,
             "grantAmount"        : amount,
             "recipientUniqueGeo" : recipientUniqueGeo
@@ -440,13 +465,51 @@ function drawMain(simulationSpeed) {
         var offsetL = document.getElementById("container").offsetLeft+0;
         var offsetT = document.getElementById("container").offsetTop+10;
 
+        var numberOfFunders = 0
         d3.csv("data/funder_db.csv", function(error, funder){
             funder.forEach(function (d) {
-                addFunderPoints(d["lng"], d["lat"], funderCircleSize(11), d["funder"], d["colour"], true, 1, offsetL, offsetT);
+                addFunderPoints(d["lng"], d["lat"], funderCircleSize(10.5), d["funder"], d["colour"], true, 1, offsetL, offsetT);
                 funderGeoDict[d["funder"]] = [d["lng"], d["lat"]].map(parseFloat);
                 funderColors[d["funder"]] = d["colour"]
                 funderNameAbbreviation[d['funder']] = d['funder'].match(/\((.*?)\)/)[1]
+
+                numberOfFunders += 1
             });
+
+            //get width of all of them. Get width left over and divide by 2.
+            var currentWidth = document.getElementById("container2").offsetWidth;
+            var spaceIncrement = currentWidth/numberOfFunders;
+            var spacer = (currentWidth - currentWidth/spaceIncrement)/25;
+
+            legend = gLwr.append("g").attr("class", "legend");
+
+            for (var key in funderColors) {
+                var abbreiv = key.match(/\((.*?)\)/)[1];
+                var fColor = funderColors[key];
+
+                legend.attr("class", "legend")
+                    .append("svg:circle")
+                    .attr("cx", 0 + spacer)
+                    .attr("cy", 50)
+                    .attr("class", "point")
+                    .style("fill", fColor)
+                    .attr("id", abbreiv + "_legend_circle")
+                    .attr("r", 30);
+
+                legend.attr("class", "legend")
+                    .append("text")
+                    .attr("x", 0 + spacer)
+                    .attr("y", 50 + 65)
+                    .attr("id", abbreiv + "_legend_text")
+                    .attr("dy", ".35em")
+                    .attr("text-anchor", "middle")
+                    .style("font", "Lucida Grande")
+                    .style("font-size", "40px")
+                    .style("opacity", 1)
+                    .text(abbreiv);
+
+                spacer += spaceIncrement
+            }
 
             d3.csv("data/funding_sample.csv", function(error, grant){
                 grant.forEach(function (d) {
@@ -457,13 +520,17 @@ function drawMain(simulationSpeed) {
                     if (!(isNaN(amount))) {
 
                         //Save the first date in the database
-                        if (startDate === ""){startDate = d["StartDate"];}
+                        if (startDate === "") {
+                            startDate = d["StartDate"];
+                        }
 
                         var fromPoint = funderGeoDict[d['FunderNameFull']].map(String);
                         var toPoint = [d["lng"], d["lat"]];
 
                         //If this is the largest grant, update.
-                        if (amount > largestIndividualGrant) {largestIndividualGrant = amount;}
+                        if (amount > largestIndividualGrant) {
+                            largestIndividualGrant = amount;
+                        }
 
                         var recipientUniqueGeo = (d["lng"] + d["lat"]).replace(/ /g, "") + d['OrganizationName']
 
@@ -497,7 +564,7 @@ function drawMain(simulationSpeed) {
                 );
 
                 //Clear orgFundingInfoTemp from memory
-                // orgFundingInfoTemp = {};
+                orgFundingInfoTemp = {};
             });
         });
     });
@@ -512,30 +579,40 @@ function funderCircleSize(circleSize){
     return circleSize;
 }
 
+function funderRedraw() {
+    //refine to use already cached data.
+    //not working...yet.
+    g.selectAll(".point").remove()
+    var offsetL = document.getElementById("container").offsetLeft+0;
+    var offsetT = document.getElementById("container").offsetTop+10;
+    d3.csv("data/funder_db.csv", function(error, funder) {
+        funder.forEach(function (d) {
+            addFunderPoints(d["lng"], d["lat"], funderCircleSize(11), d["funder"], d["colour"], true, 1, offsetL, offsetT);
+        })
+    })
+}
 
 function funderCircleAppend(appendTo, x, y, color, opacity, id, r, info, offsetL, offsetT){
     appendTo.append("svg:circle")
-            .attr("cx", x)
-            .attr("cy", y)
-            .attr("class","point")
-            .style("fill", color)
-            // .style("stroke", "white")
-            // .style("opacity", opacity)
-            .attr("id", id)
-            .attr("r", r)
-            .on("mousemove", function(d, i) {
-                showTooltip(d
-                            , i
-                            , "<strong>" + info + "</strong>"
-                            , document.getElementById('container').offsetLeft+0
-                            , offsetT = document.getElementById('container').offsetTop+10
-            )})
-            .on("mouseout",  function(d, i){
-                hideTooltip(d, i)
-            });
+        .attr("cx", x)
+        .attr("cy", y)
+        .attr("class","point") //change to funderpoints?
+        .style("fill", color)
+        // .style("stroke", "white")
+        // .style("opacity", opacity)
+        .attr("id", id)
+        .attr("r", r)
+        .on("mousemove", function(d, i) {
+            showTooltip(d
+                        , i
+                        , "<strong>" + info + "</strong>"
+                        , document.getElementById('container').offsetLeft+0
+                        , offsetT = document.getElementById('container').offsetTop+10
+        )})
+        .on("mouseout",  function(d, i){
+            hideTooltip(d, i)
+        });
 }
-
-
 
 //function to add points and text to the map (used in plotting grants)
 function addFunderPoints(lat, lon, amount, name, color, infoOverride, opacity, offsetL, offsetT) {
@@ -561,7 +638,12 @@ function redraw() {
     //Correct window resize (i.e., edit setup())
     width = document.getElementById("container").offsetWidth;
     height = width / 2;
-    d3.select("svg").remove();
+    d3.select("#container").select("svg").remove();
+    d3.select("#container2").select("svg").remove();
+    // svg.selectAll("*").remove()
+    // d3.select("svgLwr").remove();
+    // legend.remove()
+    // gLwr.remove();
     setup(width, height);
     drawMain();
 }
@@ -598,14 +680,18 @@ function zoomer() {
     // Change circle size based on zoom level.//
 
     //to dO: only scale points in view
-    d3.selectAll(".funderpoints").selectAll("circle").attr("r", function (d, i){
-        var currentAmount = d3.select(this).attr("id");
-        return pointScale(currentAmount, s);
+    d3.selectAll(".funderpoints")
+        .selectAll("circle")
+        .attr("r", function (d, i){
+            var currentAmount = d3.select(this).attr("id");
+            return pointScale(currentAmount, s);
     });
 
-    d3.selectAll(".institution").selectAll("circle").attr("r", function (d, i){
-        var currentAmount = d3.select(this).datum();
-        return pointScale(currentAmount, s);
+    d3.selectAll(".institution")
+        .selectAll("circle")
+        .attr("r", function (d, i){
+            var currentAmount = d3.select(this).datum();
+            return pointScale(currentAmount, s);
     });
 
     //Correct the routes for zooming and panning
@@ -619,11 +705,12 @@ function throttle() {
     window.clearTimeout(throttleTimer);
     throttleTimer = window.setTimeout(function() {
     redraw();
-    }, 200);
+    }, 100);
 }
 
 //geo translation on mouse click in map
 function click() {
+    console.log(d3.mouse(this))
 //    console.log(projection(d3.mouse(this)));
 //     console.log(projection.invert(d3.mouse(this)));
 }
