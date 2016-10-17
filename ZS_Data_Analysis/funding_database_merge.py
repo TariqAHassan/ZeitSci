@@ -196,7 +196,6 @@ df['OrganizationBlock'] = df['OrganizationBlock'].astype(str).str.replace("Italy
 #                        Integrate University Endowment                     #
 # ------------------------------------------------------------------------- #
 
-
 os.chdir(MAIN_FOLDER + "/Data/WikiPull")
 
 # Read in University Endowment and information if the uni is public or private.
@@ -298,7 +297,7 @@ df['InstitutionType'] = endowment_type[:,1]
 df.to_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + 'MasterDatabaseRC3.p')
 
 
-
+# Fix quotes in Org. Name, e.g., "3s - Sensors, Signal Processing, Systems Gmbh".
 
 
 
