@@ -26,9 +26,9 @@ var zoom = d3.behavior.zoom()
 var w = document.getElementById("container").offsetWidth;
 var h = w/2 - 100
 
-var	margin = {top: 0, right: 50, bottom: 0, left: 0},
+var	margin = {top: 0, right: 0, bottom: 100, left: 0},
 	width  = document.getElementById("container").offsetWidth - margin.left - margin.right,
-	height = h - margin.top - margin.bottom - 50;
+	height = h + margin.bottom;
 
 // Define the div for the tooltip
 var div = d3.select("body").append("div")
@@ -38,7 +38,6 @@ var div = d3.select("body").append("div")
 //Init
 // var topo, projection, path, svg, g;
 var topo, projection, path, text, legend, svgLwr, gLwr, svg, g;
-var legendDrawn = false;
 var funderGeoDict = {};
 var dateRealTime = [];
 var funderColors = {};
@@ -54,25 +53,24 @@ function setup(width, height){
     svg = d3.select("#container")
             .append("svg")
 		    .attr("width", width + margin.left + margin.right)
-		    .attr("height", height - 0 + margin.top + margin.bottom)
+		    .attr("height", height)
             .call(zoom)
             .on("click", click)
-            .append("g")
-            .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+            .append("g");
+            // .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
     g = svg.append("g");
 
-    if (legendDrawn === false) {
-        svgLwr = d3.select("#container2")
-                    .append("svg")
-                    .attr("width", width + margin.left + margin.right)
-                    .attr("height", 150)
-                    .on("click", click)
-                    .append("g");
-                    // .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+    svgLwr = d3.select("#container2")
+        .append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", 150)
+        .on("click", click)
+        .append("g");
+    // .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-        gLwr = svgLwr.append("g");
-    }
+    gLwr = svgLwr.append("g");
+
 }
 
 //----------------------------------------------------------------------------------------//
@@ -129,8 +127,6 @@ function addDate(startDate) {
         .attr('height', bbox.height)
         .style("fill", "white")
         .style("opacity", 0.35);
-
-    console.log(startingContainerWidth)
 
     svg.append("text")
         .attr("class", "datebox")
@@ -324,7 +320,7 @@ function transition(grantMovement, route, grantToDraw, newDraw, largestTotalGran
     var l = route.node().getTotalLength();
 
     grantMovement.transition()
-        .duration(l * 20)
+        .duration(l * 15)
         .attrTween("transform", delta(grantMovement, route.node()))
         .each("end", function() {
             //Delete the spent route.
@@ -483,44 +479,37 @@ function drawMain(simulationSpeed) {
             //get width of all of them. Get width left over and divide by 2.
             var currentWidth = document.getElementById("container2").offsetWidth;
             var spaceIncrement = currentWidth/numberOfFunders;
-
             var spacer = (currentWidth - currentWidth/spaceIncrement)/25;
 
-                for (var key in funderColors) {
-                    var abbreiv = key.match(/\((.*?)\)/)[1];
-                    var fColor = funderColors[key];
+            legend = gLwr.append("g").attr("class", "legend");
 
-                    if (legendDrawn === false) {
-                        legend = gLwr.append("g").attr("class", "legend");
+            for (var key in funderColors) {
+                var abbreiv = key.match(/\((.*?)\)/)[1];
+                var fColor = funderColors[key];
 
-                        legend.attr("class", "legend")
-                            .append("svg:circle")
-                            .attr("cx", 0 + spacer)
-                            .attr("cy", 50)
-                            .attr("class", "point")
-                            .style("fill", fColor)
-                            .attr("id", abbreiv)
-                            .attr("r", 30);
+                legend.attr("class", "legend")
+                    .append("svg:circle")
+                    .attr("cx", 0 + spacer)
+                    .attr("cy", 50)
+                    .attr("class", "point")
+                    .style("fill", fColor)
+                    .attr("id", abbreiv + "_legend_circle")
+                    .attr("r", 30);
 
-                        legend.attr("class", "legend")
-                            .append("text")
-                            .attr("x", 0 + spacer)
-                            .attr("y", 50 + 65)
-                            .attr("id", abbreiv)
-                            .attr("dy", ".35em")
-                            .attr("text-anchor", "middle")
-                            .style("font", "Lucida Grande")
-                            .style("font-size", "40px")
-                            .style("opacity", 1)
-                            .text(abbreiv);
+                legend.attr("class", "legend")
+                    .append("text")
+                    .attr("x", 0 + spacer)
+                    .attr("y", 50 + 65)
+                    .attr("id", abbreiv + "_legend_text")
+                    .attr("dy", ".35em")
+                    .attr("text-anchor", "middle")
+                    .style("font", "Lucida Grande")
+                    .style("font-size", "40px")
+                    .style("opacity", 1)
+                    .text(abbreiv);
 
-                        spacer += spaceIncrement
-                    } else {
-
-                        spacer += spaceIncrement
-                    }
-                }
-                legendDrawn = true;
+                spacer += spaceIncrement
+            }
 
             d3.csv("data/funding_sample.csv", function(error, grant){
                 grant.forEach(function (d) {
@@ -649,8 +638,10 @@ function redraw() {
     //Correct window resize (i.e., edit setup())
     width = document.getElementById("container").offsetWidth;
     height = width / 2;
-    d3.select("svg").remove();
-    d3.select("legendDrawn").remove();
+    d3.select("#container").select("svg").remove();
+    d3.select("#container2").select("svg").remove();
+    // svg.selectAll("*").remove()
+    // d3.select("svgLwr").remove();
     // legend.remove()
     // gLwr.remove();
     setup(width, height);
