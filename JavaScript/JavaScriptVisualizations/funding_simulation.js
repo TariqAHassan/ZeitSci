@@ -37,11 +37,11 @@ var div = d3.select("body").append("div")
 
 //Init
 // var topo, projection, path, svg, g;
-var topo, projection, path, legend, svgLwr, gLwr, svg, g;
+var topo, projection, path, text, legend, svgLwr, gLwr, svg, g;
 var legendDrawn = false;
 var funderGeoDict = {};
+var dateRealTime = [];
 var funderColors = {};
-var currentuID = 0;
 
 setup(width, height);
 function setup(width, height){
@@ -59,6 +59,7 @@ function setup(width, height){
             .on("click", click)
             .append("g")
             .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
     g = svg.append("g");
 
     if (legendDrawn === false) {
@@ -67,7 +68,7 @@ function setup(width, height){
                     .attr("width", width + margin.left + margin.right)
                     .attr("height", 150)
                     .on("click", click)
-                    .append("g")
+                    .append("g");
                     // .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
         gLwr = svgLwr.append("g");
@@ -105,21 +106,23 @@ function hideTooltip(d, i){
 function addDate(startDate) {
 
     var xWidthAdjust = 50;
+    var startingContainerWidth = document.getElementById("container").offsetWidth;
 
-    var startingContainerWidth = document.getElementById("container").offsetWidth
-    var text = svg.append("text")
-                    .attr("x", startingContainerWidth - 300)         // make these
-                    .attr("y", (startingContainerWidth / 2) - 80)    // more robust.
-                    .attr("dy", ".35em")
-                    .attr("text-anchor", "middle")
-                    .style("font", "Lucida Grande")
-                    .style("font-size", "85px")
-                    .style("opacity", 0)
-                    .text(startDate);
+    text = svg.append("text")
+                .attr("class", "datebox")
+                .attr("x", startingContainerWidth - 300)         // make these
+                .attr("y", (startingContainerWidth / 2) - 80)    // more robust.
+                .attr("dy", ".35em")
+                .attr("text-anchor", "middle")
+                .style("font", "Lucida Grande")
+                .style("font-size", "85px")
+                .style("opacity", 0)
+                .text(startDate);
 
     var bbox = text[0][0].getBBox();
 
     svg.insert('rect', 'text')
+        .attr("class", "datebox")
         .attr('x', bbox.x - xWidthAdjust/2)
         .attr('y', bbox.y)
         .attr('width', bbox.width + xWidthAdjust)
@@ -127,7 +130,10 @@ function addDate(startDate) {
         .style("fill", "white")
         .style("opacity", 0.35);
 
+    console.log(startingContainerWidth)
+
     svg.append("text")
+        .attr("class", "datebox")
         .attr("x", startingContainerWidth - 300)         // make these
         .attr("y", (startingContainerWidth / 2) - 80)    // more robust.
         .attr("dy", ".35em")
@@ -364,7 +370,6 @@ function grantTranslateMaster(inputData, largestTotalGrantByOrg, largestIndividu
         newDraw = false;
         var grantToDraw = inputData[i];
 
-        currentuID = grantToDraw['uID']
         var grantAmount = grantToDraw["grantAmount"]
         var funderAbrev = funderNameAbbreviation[grantToDraw["funderName"]];
 
@@ -386,23 +391,22 @@ function grantTranslateMaster(inputData, largestTotalGrantByOrg, largestIndividu
         grantTranslate(grantToDraw, newDraw, largestTotalGrantByOrg, realTimeInfo);
 
         //Update Date
-        d3.selectAll("text").text(function(d){
-            //This is here to ensure a linear flow for the
-            //time stamp. It is a bit of a fudge factor,
-            //but as the input funding csv will always be
-            //in proper descending order prior to export from
-            //pandas in python, this *should* act to smooth
-            //out erroneous date time updates which emerge
-            //from variability in d3 rendering.
-            var currentDrawnDate = d3.select(this).text();
-            var newDateToDraw = grantToDraw["startDate"];
-
-            if (dateChecker(newDateToDraw, currentDrawnDate)){
-                return newDateToDraw;
-            } else {
-                return currentDrawnDate;
-            }
-        });
+        //This is here to insure a linear flow for the time stamp. Pretty rigorous procedure.
+        //It is a bit of a fudge factor, but as the input funding csv will always be
+        //in proper descending order prior to export from pandas in python, this *should* act to smooth
+        //out erroneous date time updates which emerge from variability in d3 rendering.
+        var newDateToDraw = grantToDraw["startDate"];
+        if (dateRealTime.indexOf(newDateToDraw) === -1){
+            dateRealTime.push(newDateToDraw)
+            svg.selectAll('text').text(function(d){
+                var currentDate = d3.select(this).text()
+                if (dateChecker(newDateToDraw, currentDate)){
+                    return newDateToDraw;
+                } else{
+                    return currentDate;
+                }
+            });
+        }
 
         // funderRedraw();
         //Pump counter.
@@ -489,7 +493,8 @@ function drawMain(simulationSpeed) {
                     if (legendDrawn === false) {
                         legend = gLwr.append("g").attr("class", "legend");
 
-                        legend.append("svg:circle")
+                        legend.attr("class", "legend")
+                            .append("svg:circle")
                             .attr("cx", 0 + spacer)
                             .attr("cy", 50)
                             .attr("class", "point")
@@ -497,7 +502,7 @@ function drawMain(simulationSpeed) {
                             .attr("id", abbreiv)
                             .attr("r", 30);
 
-                        var text = legend
+                        legend.attr("class", "legend")
                             .append("text")
                             .attr("x", 0 + spacer)
                             .attr("y", 50 + 65)
@@ -520,42 +525,39 @@ function drawMain(simulationSpeed) {
             d3.csv("data/funding_sample.csv", function(error, grant){
                 grant.forEach(function (d) {
 
-                    if (d['uID'] >= currentuID) {
+                    //Get the Current Grant
+                    var amount = parseFloat(d["NormalizedAmount"]);
 
-                        //Get the Current Grant
-                        var amount = parseFloat(d["NormalizedAmount"]);
+                    if (!(isNaN(amount))) {
 
-                        if (!(isNaN(amount))) {
-
-                            //Save the first date in the database
-                            if (startDate === "") {
-                                startDate = d["StartDate"];
-                            }
-
-                            var fromPoint = funderGeoDict[d['FunderNameFull']].map(String);
-                            var toPoint = [d["lng"], d["lat"]];
-
-                            //If this is the largest grant, update.
-                            if (amount > largestIndividualGrant) {
-                                largestIndividualGrant = amount;
-                            }
-
-                            var recipientUniqueGeo = (d["lng"] + d["lat"]).replace(/ /g, "") + d['OrganizationName']
-
-                            //Update Grants by Orginization in the database.
-                            if (orgFundingInfoTemp[recipientUniqueGeo] === undefined) {
-                                orgFundingInfoTemp[recipientUniqueGeo] = amount
-                            } else {
-                                orgFundingInfoTemp[recipientUniqueGeo] += amount
-                            }
-
-                            var singleGrant = individualGrantExtractor(d, amount, recipientUniqueGeo, orgFundingInfoTemp);
-                            grantMovements.push(singleGrant['gmovement']);
-
-                            funderGeoDict[d["OrganizationName"]] = singleGrant['orgLocation'];
-                            routesToDraw.push(fromPoint);
-                            routesToDraw.push(toPoint);
+                        //Save the first date in the database
+                        if (startDate === "") {
+                            startDate = d["StartDate"];
                         }
+
+                        var fromPoint = funderGeoDict[d['FunderNameFull']].map(String);
+                        var toPoint = [d["lng"], d["lat"]];
+
+                        //If this is the largest grant, update.
+                        if (amount > largestIndividualGrant) {
+                            largestIndividualGrant = amount;
+                        }
+
+                        var recipientUniqueGeo = (d["lng"] + d["lat"]).replace(/ /g, "") + d['OrganizationName']
+
+                        //Update Grants by Orginization in the database.
+                        if (orgFundingInfoTemp[recipientUniqueGeo] === undefined) {
+                            orgFundingInfoTemp[recipientUniqueGeo] = amount
+                        } else {
+                            orgFundingInfoTemp[recipientUniqueGeo] += amount
+                        }
+
+                        var singleGrant = individualGrantExtractor(d, amount, recipientUniqueGeo, orgFundingInfoTemp);
+                        grantMovements.push(singleGrant['gmovement']);
+
+                        funderGeoDict[d["OrganizationName"]] = singleGrant['orgLocation'];
+                        routesToDraw.push(fromPoint);
+                        routesToDraw.push(toPoint);
                     }
                 });
                 //Add DateBox
@@ -573,7 +575,7 @@ function drawMain(simulationSpeed) {
                 );
 
                 //Clear orgFundingInfoTemp from memory
-                // orgFundingInfoTemp = {};
+                orgFundingInfoTemp = {};
             });
         });
     });
@@ -648,7 +650,7 @@ function redraw() {
     width = document.getElementById("container").offsetWidth;
     height = width / 2;
     d3.select("svg").remove();
-    // d3.select("svg2").remove();
+    d3.select("legendDrawn").remove();
     // legend.remove()
     // gLwr.remove();
     setup(width, height);
@@ -687,14 +689,18 @@ function zoomer() {
     // Change circle size based on zoom level.//
 
     //to dO: only scale points in view
-    d3.selectAll(".funderpoints").selectAll("circle").attr("r", function (d, i){
-        var currentAmount = d3.select(this).attr("id");
-        return pointScale(currentAmount, s);
+    d3.selectAll(".funderpoints")
+        .selectAll("circle")
+        .attr("r", function (d, i){
+            var currentAmount = d3.select(this).attr("id");
+            return pointScale(currentAmount, s);
     });
 
-    d3.selectAll(".institution").selectAll("circle").attr("r", function (d, i){
-        var currentAmount = d3.select(this).datum();
-        return pointScale(currentAmount, s);
+    d3.selectAll(".institution")
+        .selectAll("circle")
+        .attr("r", function (d, i){
+            var currentAmount = d3.select(this).datum();
+            return pointScale(currentAmount, s);
     });
 
     //Correct the routes for zooming and panning
@@ -713,6 +719,7 @@ function throttle() {
 
 //geo translation on mouse click in map
 function click() {
+    console.log(d3.mouse(this))
 //    console.log(projection(d3.mouse(this)));
 //     console.log(projection.invert(d3.mouse(this)));
 }
