@@ -21,8 +21,14 @@ var zoom = d3.behavior.zoom()
                       .scaleExtent([1, 5000])
                       .on("zoom", zoomer);
 
-var width = document.getElementById("container").offsetWidth;
-var height = width / 2;
+// var width = document.getElementById("container").offsetWidth;
+// var height = width / 2;
+var w = document.getElementById("container").offsetWidth;
+var h = w/2 - 100
+
+var	margin = {top: 0, right: 50, bottom: 0, left: 0},
+	width  = document.getElementById("container").offsetWidth - margin.left - margin.right,
+	height = h - margin.top - margin.bottom - 50;
 
 // Define the div for the tooltip
 var div = d3.select("body").append("div")
@@ -30,9 +36,12 @@ var div = d3.select("body").append("div")
                            .style("opacity", 0);
 
 //Init
-var topo, projection, path, svg, g;
+// var topo, projection, path, svg, g;
+var topo, projection, path, legend, svgLwr, gLwr, svg, g;
+var legendDrawn = false;
 var funderGeoDict = {};
 var funderColors = {};
+var currentuID = 0;
 
 setup(width, height);
 function setup(width, height){
@@ -42,14 +51,27 @@ function setup(width, height){
 
     path = d3.geo.path().projection(projection);
 
-    svg = d3.select("#container").append("svg")
-            .attr("width", width)
-            .attr("height", height)
+    svg = d3.select("#container")
+            .append("svg")
+		    .attr("width", width + margin.left + margin.right)
+		    .attr("height", height - 0 + margin.top + margin.bottom)
             .call(zoom)
             .on("click", click)
-            .append("g");
-
+            .append("g")
+            .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
     g = svg.append("g");
+
+    if (legendDrawn === false) {
+        svgLwr = d3.select("#container2")
+                    .append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", 150)
+                    .on("click", click)
+                    .append("g")
+                    // .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+        gLwr = svgLwr.append("g");
+    }
 }
 
 //----------------------------------------------------------------------------------------//
@@ -230,9 +252,9 @@ function delta(grantMovement, path) {
             var s = Math.min(Math.sin(Math.PI * t) * 0.7, 0.3);
 
             //correct for the current zoom level.
-            // var sZoom = pointScale(s, zoom.scale());
+            var sZoom = pointScale(s, zoom.scale());
 
-            return "translate(" + p.x + "," + p.y + ") scale(" + s + ")";
+            return "translate(" + p.x + "," + p.y + ") scale(" + sZoom + ")";
         }
     }
 }
@@ -240,7 +262,7 @@ function delta(grantMovement, path) {
 function terrestrialPoints(newDraw, grantToDraw, realTimeInfo, largestTotalGrantByOrg){
 
     //Model Params
-    var c = 2.5;
+    var c = 2.9;
     var k = 0.5;
     var sizeFloor = 1.5;
 
@@ -308,10 +330,10 @@ function transition(grantMovement, route, grantToDraw, newDraw, largestTotalGran
 }
 
 function grantTranslate(grantToDraw, newDraw, largestTotalGrantByOrg, realTimeInfo) {
-    
+
     var from = funderGeoDict[grantToDraw["funderName"]];
     var to = funderGeoDict[grantToDraw["grantRecipientOrg"]];
-    
+
     var route = g.append("path")
                    .attr("fill-opacity", 0)
                    .datum({type: "LineString", coordinates: [from, to]})
@@ -342,6 +364,7 @@ function grantTranslateMaster(inputData, largestTotalGrantByOrg, largestIndividu
         newDraw = false;
         var grantToDraw = inputData[i];
 
+        currentuID = grantToDraw['uID']
         var grantAmount = grantToDraw["grantAmount"]
         var funderAbrev = funderNameAbbreviation[grantToDraw["funderName"]];
 
@@ -381,6 +404,7 @@ function grantTranslateMaster(inputData, largestTotalGrantByOrg, largestIndividu
             }
         });
 
+        // funderRedraw();
         //Pump counter.
         i++;
 
@@ -411,6 +435,7 @@ function individualGrantExtractor(d, amount, recipientUniqueGeo, orgFundingInfoT
             "funderName"         : d["FunderNameFull"],
             "grantRecipientOrg"  : d["OrganizationName"],
             "startDate"          : d["StartDate"],
+            "uID"                : d["uID"],
             "movingGrantRadius"  : Math.sqrt(amount/Math.PI) * 0.025,
             "grantAmount"        : amount,
             "recipientUniqueGeo" : recipientUniqueGeo
@@ -440,46 +465,97 @@ function drawMain(simulationSpeed) {
         var offsetL = document.getElementById("container").offsetLeft+0;
         var offsetT = document.getElementById("container").offsetTop+10;
 
+        var numberOfFunders = 0
         d3.csv("data/funder_db.csv", function(error, funder){
             funder.forEach(function (d) {
-                addFunderPoints(d["lng"], d["lat"], funderCircleSize(11), d["funder"], d["colour"], true, 1, offsetL, offsetT);
+                addFunderPoints(d["lng"], d["lat"], funderCircleSize(10.5), d["funder"], d["colour"], true, 1, offsetL, offsetT);
                 funderGeoDict[d["funder"]] = [d["lng"], d["lat"]].map(parseFloat);
                 funderColors[d["funder"]] = d["colour"]
                 funderNameAbbreviation[d['funder']] = d['funder'].match(/\((.*?)\)/)[1]
+
+                numberOfFunders += 1
             });
+
+            //get width of all of them. Get width left over and divide by 2.
+            var currentWidth = document.getElementById("container2").offsetWidth;
+            var spaceIncrement = currentWidth/numberOfFunders;
+
+            var spacer = (currentWidth - currentWidth/spaceIncrement)/25;
+
+                for (var key in funderColors) {
+                    var abbreiv = key.match(/\((.*?)\)/)[1];
+                    var fColor = funderColors[key];
+
+                    if (legendDrawn === false) {
+                        legend = gLwr.append("g").attr("class", "legend");
+
+                        legend.append("svg:circle")
+                            .attr("cx", 0 + spacer)
+                            .attr("cy", 50)
+                            .attr("class", "point")
+                            .style("fill", fColor)
+                            .attr("id", abbreiv)
+                            .attr("r", 30);
+
+                        var text = legend
+                            .append("text")
+                            .attr("x", 0 + spacer)
+                            .attr("y", 50 + 65)
+                            .attr("id", abbreiv)
+                            .attr("dy", ".35em")
+                            .attr("text-anchor", "middle")
+                            .style("font", "Lucida Grande")
+                            .style("font-size", "40px")
+                            .style("opacity", 1)
+                            .text(abbreiv);
+
+                        spacer += spaceIncrement
+                    } else {
+
+                        spacer += spaceIncrement
+                    }
+                }
+                legendDrawn = true;
 
             d3.csv("data/funding_sample.csv", function(error, grant){
                 grant.forEach(function (d) {
 
-                    //Get the Current Grant
-                    var amount = parseFloat(d["NormalizedAmount"]);
+                    if (d['uID'] >= currentuID) {
 
-                    if (!(isNaN(amount))) {
+                        //Get the Current Grant
+                        var amount = parseFloat(d["NormalizedAmount"]);
 
-                        //Save the first date in the database
-                        if (startDate === ""){startDate = d["StartDate"];}
+                        if (!(isNaN(amount))) {
 
-                        var fromPoint = funderGeoDict[d['FunderNameFull']].map(String);
-                        var toPoint = [d["lng"], d["lat"]];
+                            //Save the first date in the database
+                            if (startDate === "") {
+                                startDate = d["StartDate"];
+                            }
 
-                        //If this is the largest grant, update.
-                        if (amount > largestIndividualGrant) {largestIndividualGrant = amount;}
+                            var fromPoint = funderGeoDict[d['FunderNameFull']].map(String);
+                            var toPoint = [d["lng"], d["lat"]];
 
-                        var recipientUniqueGeo = (d["lng"] + d["lat"]).replace(/ /g, "") + d['OrganizationName']
+                            //If this is the largest grant, update.
+                            if (amount > largestIndividualGrant) {
+                                largestIndividualGrant = amount;
+                            }
 
-                        //Update Grants by Orginization in the database.
-                        if (orgFundingInfoTemp[recipientUniqueGeo] === undefined) {
-                            orgFundingInfoTemp[recipientUniqueGeo] = amount
-                        } else {
-                            orgFundingInfoTemp[recipientUniqueGeo] += amount
+                            var recipientUniqueGeo = (d["lng"] + d["lat"]).replace(/ /g, "") + d['OrganizationName']
+
+                            //Update Grants by Orginization in the database.
+                            if (orgFundingInfoTemp[recipientUniqueGeo] === undefined) {
+                                orgFundingInfoTemp[recipientUniqueGeo] = amount
+                            } else {
+                                orgFundingInfoTemp[recipientUniqueGeo] += amount
+                            }
+
+                            var singleGrant = individualGrantExtractor(d, amount, recipientUniqueGeo, orgFundingInfoTemp);
+                            grantMovements.push(singleGrant['gmovement']);
+
+                            funderGeoDict[d["OrganizationName"]] = singleGrant['orgLocation'];
+                            routesToDraw.push(fromPoint);
+                            routesToDraw.push(toPoint);
                         }
-
-                        var singleGrant = individualGrantExtractor(d, amount, recipientUniqueGeo, orgFundingInfoTemp);
-                        grantMovements.push(singleGrant['gmovement']);
-
-                        funderGeoDict[d["OrganizationName"]] = singleGrant['orgLocation'];
-                        routesToDraw.push(fromPoint);
-                        routesToDraw.push(toPoint);
                     }
                 });
                 //Add DateBox
@@ -512,30 +588,40 @@ function funderCircleSize(circleSize){
     return circleSize;
 }
 
+function funderRedraw() {
+    //refine to use already cached data.
+    //not working...yet.
+    g.selectAll(".point").remove()
+    var offsetL = document.getElementById("container").offsetLeft+0;
+    var offsetT = document.getElementById("container").offsetTop+10;
+    d3.csv("data/funder_db.csv", function(error, funder) {
+        funder.forEach(function (d) {
+            addFunderPoints(d["lng"], d["lat"], funderCircleSize(11), d["funder"], d["colour"], true, 1, offsetL, offsetT);
+        })
+    })
+}
 
 function funderCircleAppend(appendTo, x, y, color, opacity, id, r, info, offsetL, offsetT){
     appendTo.append("svg:circle")
-            .attr("cx", x)
-            .attr("cy", y)
-            .attr("class","point")
-            .style("fill", color)
-            // .style("stroke", "white")
-            // .style("opacity", opacity)
-            .attr("id", id)
-            .attr("r", r)
-            .on("mousemove", function(d, i) {
-                showTooltip(d
-                            , i
-                            , "<strong>" + info + "</strong>"
-                            , document.getElementById('container').offsetLeft+0
-                            , offsetT = document.getElementById('container').offsetTop+10
-            )})
-            .on("mouseout",  function(d, i){
-                hideTooltip(d, i)
-            });
+        .attr("cx", x)
+        .attr("cy", y)
+        .attr("class","point") //change to funderpoints?
+        .style("fill", color)
+        // .style("stroke", "white")
+        // .style("opacity", opacity)
+        .attr("id", id)
+        .attr("r", r)
+        .on("mousemove", function(d, i) {
+            showTooltip(d
+                        , i
+                        , "<strong>" + info + "</strong>"
+                        , document.getElementById('container').offsetLeft+0
+                        , offsetT = document.getElementById('container').offsetTop+10
+        )})
+        .on("mouseout",  function(d, i){
+            hideTooltip(d, i)
+        });
 }
-
-
 
 //function to add points and text to the map (used in plotting grants)
 function addFunderPoints(lat, lon, amount, name, color, infoOverride, opacity, offsetL, offsetT) {
@@ -562,6 +648,9 @@ function redraw() {
     width = document.getElementById("container").offsetWidth;
     height = width / 2;
     d3.select("svg").remove();
+    // d3.select("svg2").remove();
+    // legend.remove()
+    // gLwr.remove();
     setup(width, height);
     drawMain();
 }
@@ -619,7 +708,7 @@ function throttle() {
     window.clearTimeout(throttleTimer);
     throttleTimer = window.setTimeout(function() {
     redraw();
-    }, 200);
+    }, 100);
 }
 
 //geo translation on mouse click in map

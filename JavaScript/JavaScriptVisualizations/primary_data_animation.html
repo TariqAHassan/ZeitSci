@@ -15,13 +15,24 @@
 
 #container {
   margin:10px 10%;
-  border:2px solid #000;
-  border-radius: 5px;
+  border:10px solid #000;
+  border-radius: 10px;
   height:100%;
   overflow:hidden;
   background: #f0f8ff;
 }
+.hidden {
+    display: none;
+}
 
+#container2 {
+  margin:0px 10%;
+  border:0px solid #000;
+  border-radius: 0px;
+  height:100%;
+  overflow:hidden;
+  background-color:transparent;
+}
 .hidden {
     display: none;
 }
@@ -37,12 +48,23 @@ div.tooltip {
     opacity: 0.95;
 }
 
+.legend {
+  font-size: 12px;
+}
+rect {
+  stroke-width: 2;
+}
+
 </style>
 </head>
 <body>
 
   <p><br><br></p>
+  <!--<p><br><br></p>-->
+  <p align="center" style="font-size:100px">Science Funding from Around the World</p>
   <div id="container"></div>
+  <div id="container2"></div>
+
 
 <script src="libraries/accounting/accounting.min.js"></script>
 <script src="libraries/jquery-3.1.1.min.js"></script>
