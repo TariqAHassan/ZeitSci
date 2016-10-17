@@ -7,6 +7,7 @@
 # Imports
 import re
 import os
+import time
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -14,6 +15,7 @@ from pprint import pprint
 from copy import deepcopy
 from statistics import mean
 from haversine import haversine
+from calendar import monthrange
 from supplementary_fns import cln
 from itertools import combinations, permutations
 from funding_database_tools import MAIN_FOLDER
@@ -22,6 +24,7 @@ from graphs.graphing_tools import money_printer, org_group
 # To Do:
 # - add year-by-year funding info for each org -- make proportional to all the money moving around that year.
 # - remove funders from OrgName column.
+# - shorten fundernamefull for export
 
 # ------------------------------------------------------------------------------------------------ #
 # Read in Data
@@ -40,7 +43,7 @@ funders_dict = {
      , 'DoD_CDMRP'      : ['US Department of Defence (DOD)',                                      [38.870833, -77.055833]]
      , 'DoD_CNRM'       : ['US Department of Defence (DOD)',                                      [38.870833, -77.055833]]
      , 'European Union' : ['European Commission (EC)',                                            [50.843611, 4.382777]]
-     , 'HHS_ACF'        : ['US Administration for Children & Families (ARS)',                     [38.886666, -77.014444]]
+     , 'HHS_ACF'        : ['US Administration for Children & Families (ACF)',                     [38.886666, -77.014444]]
      , 'HHS_CDC'        : ['US Centers for Disease Control and Prevention (CDC)',                 [33.798817, -84.325598]]
      , 'HHS_FDA'        : ['US Food and Drug Administration (FDA)',                               [39.03556, -76.98271]]
      , 'HHS_NIDILRR'    : ['US National Institute on Disability, Independent Living, and Rehabilitation Research (NIDILRR)',
@@ -75,7 +78,7 @@ funding['lngFunder'] = funding['Funder'].progress_map(lambda x: funders_dict[x][
 # Use NLP to guess language first?
 
 # Define Terms that are banned under what conditions
-as_is_terms = ['Inc ', "Dept ", "Serv ", "Servs", "Srvs"]
+as_is_terms = ['Inc ', 'Inc.', "Dept ", "Dept.", "Serv ", "Servs", "Srvs"]
 
 to_lower_terms = ["Inc.", "LLC", "Incorporated", "Company", "Corporation", "Radio",
                   "Academy", "Television", "Service", "Servs", "Srvs", "Department",
@@ -83,15 +86,12 @@ to_lower_terms = ["Inc.", "LLC", "Incorporated", "Company", "Corporation", "Radi
 
 ends_with_terms = list(map(lambda x: x.rstrip().lower(), as_is_terms + ["PhD",  "LLC", "Incorporated", "Company"]))
 
-# Construct a search term based on as_is_terms & to_lower_terms.
-to_lower_terms_lowered = list(map(lambda x: x.lower(), to_lower_terms))
-search_term_lower = '|'.join(map(re.escape, to_lower_terms_lowered))
-search_term_any = '|'.join(as_is_terms)
-search_term = search_term_any + search_term_lower
+for at in as_is_terms:
+    funding = funding[~(funding['OrganizationName'].astype(str).str.strip().str.contains(at))]
 
-# Block as_is_terms & to_lower_terms.
-funding = funding[~(funding['OrganizationName'].astype(str).str.lower().str.strip().str.contains(search_term))]\
-                                                                                        .reset_index(drop=True)
+for lt in to_lower_terms:
+    funding = funding[~(funding['OrganizationName'].astype(str).str.lower().str.strip().str.contains(lt))]
+
 # Block ends_with_terms
 def ends_with_checker(x, ends_with_terms=ends_with_terms, override_terms=['university']):
     if str(x) == 'nan':
@@ -106,34 +106,37 @@ def ends_with_checker(x, ends_with_terms=ends_with_terms, override_terms=['unive
 funding = funding[~(funding['OrganizationName'].map(ends_with_checker))].reset_index(drop=True)
 
 # ------------------------------------------------------------------------------------------------ #
-# Homogenize Lng-Lat by OrganizationName (exact match) **Move this to funding_database_merge.py**
+# Homogenize Lng-Lat by OrganizationName (exact match)
 # ------------------------------------------------------------------------------------------------ #
 
 org_geos_groupby = funding.groupby(['OrganizationName']).apply(lambda x: list(zip(x['lat'].tolist(), x['lng'].tolist()))).reset_index()
 
 org_geos_groupby = org_geos_groupby[org_geos_groupby[0].map(lambda x: len(set(x)) > 1)].reset_index(drop=True)
 
-def most_central_point(geos_array, valid_centroid=10):
+def most_central_point(geos_array, valid_centroid=50):
     """
-    Algorithm to find the point that is most central.
-    Using the haversine formula.
+    Algorithm to find the point that is most central (i.e., medoid)
+    using the haversine formula.
 
-    Would be slow at scale...What is this? >O(n^4)...yikes.
-    Thankfully, it only needs to churn though ~750 rows.
     :param geos_array:
-    :param geos_array: valid_centroid (in KM). Defaults to 10.
+    :param valid_centroid: min distance to all other points (in KM).
+                           Defaults to 50 km.
     :return:
     """
-    distance_dict = dict.fromkeys(set(geos_array), list())
-    for i in set(geos_array):
-        other_geos = [j for j in geos_array if j != i]
-        distance_dict[i] = [haversine(i, k) for k in other_geos]
+    uniuqe_geos = list(set(geos_array))
 
-    distance_dict_mean = {k: mean(v) for k, v in distance_dict.items()}
-    min_coord = min(distance_dict_mean, key=distance_dict_mean.get)
+    coord_dict = dict()
+    for i in uniuqe_geos:
+        coord_dict[i] = [haversine(i, j) for j in uniuqe_geos if j != i]
 
-    if distance_dict_mean[min_coord] <= valid_centroid:
-        return min_coord
+    # Compute the mean for each
+    coord_dict_mean = {k: mean(v) for k, v in coord_dict.items()}
+
+    # Find the best fit
+    medoid_mean_coord = min(coord_dict_mean, key=coord_dict_mean.get)
+
+    if coord_dict_mean[medoid_mean_coord] <= valid_centroid:
+        return medoid_mean_coord
     else:
         return np.NaN
 
@@ -160,13 +163,13 @@ funding['lat'] = funding.apply(lambda x: geo_swap(x['OrganizationName'], x['lat'
 funding['lng'] = funding.apply(lambda x: geo_swap(x['OrganizationName'], x['lng'], 1), axis=1)
 
 # Remove rows with nans in their lat or lng columns
-funding.dropna(subset = ['lat', 'lng'], inplace=True)
+funding = funding.dropna(subset = ['lat', 'lng']).reset_index(drop=True)
 
 # ------------------------------------------------------------------------------------------------ #
 # Remove Organization Collisions for Geo Mapping (Multiple Orgs at the same lat/lng).
 # ------------------------------------------------------------------------------------------------ #
 
-funding['UniqueGeo'] = funding['lng'].astype(str) + funding['lat'].astype(str)
+funding['UniqueGeo'] = funding['lng'].astype(str) + funding['lat'].astype(str) + funding['OrganizationName']
 
 def sclwr(input_list):
     """Set, Clean, Lower input list."""
@@ -201,51 +204,58 @@ funding = funding[~(funding['OrganizationName'].isin(to_remove_flat))].reset_ind
 # Create a Summary of Science Funding Orgs. in the Database.
 # ------------------------------------------------------------------------------------------------ #
 
-funders_info = pd.DataFrame(list(funders_dict.values()))
-funders_info.rename(columns={2: "colour"}, inplace=True)
-funders_info['lat'] = list(map(lambda x: x[0], funders_info[1]))
-funders_info['lng'] = list(map(lambda x: x[1], funders_info[1]))
-del funders_info[1]
-funders_info.rename(columns={0:'funder'}, inplace=True)
-
-funders_info = funders_info.sort_values("funder").drop_duplicates('funder').reset_index(drop=True)
-funders_info = funders_info[['funder', 'lat', 'lng', 'colour']]
-
-funders_info.to_csv(MAIN_FOLDER + "JavaScript/JavaScriptVisualizations/data/" + "funder_db.csv", index=False)
+# funders_info = pd.DataFrame(list(funders_dict.values()))
+# funders_info.rename(columns={2: "colour"}, inplace=True)
+# funders_info['lat'] = list(map(lambda x: x[0], funders_info[1]))
+# funders_info['lng'] = list(map(lambda x: x[1], funders_info[1]))
+# del funders_info[1]
+# funders_info.rename(columns={0:'funder'}, inplace=True)
+#
+# funders_info = funders_info.sort_values("funder").drop_duplicates('funder').reset_index(drop=True)
+# funders_info = funders_info[['funder', 'lat', 'lng', 'colour']]
+#
+# funders_info.to_csv(MAIN_FOLDER + "JavaScript/JavaScriptVisualizations/data/" + "funder_db.csv", index=False)
 
 # ------------------------------------------------------------------------------------------------ #
 # Group by Organization
 # ------------------------------------------------------------------------------------------------ #
 
-funding_gb = funding.reset_index(drop=True)
-funding_gb.drop(["Keywords"], inplace=True, axis=1)
-
-funding_gb_org = org_group(funding_gb, additiona_cols=['FunderNameFull', 'latFunder', 'lngFunder'])
-
-funding_gb_org['OrganizationName'] = funding_gb_org['OrganizationName'].str.replace("\"", "")
-
-funding_gb_org = funding_gb_org[~funding_gb_org['OrganizationName'].map(
-    lambda x: any(i in str(x) for i in ['Inc', 'Llc', "Company", "Corporation"]))].reset_index(drop=True)
-
-os.chdir(MAIN_FOLDER+"/JavaScript/JavaScriptVisualizations/data")
-
-# Limit to $20,000,000 (2015 USD) and up
-funding_gb_org_cln = funding_gb_org[(funding_gb_org['NormalizedAmount'].astype(float) > 50000000)].drop(
-                                    ['Researcher', 'GrantYear'], axis=1)
-
-funding_gb_org_cln['NormalizedAmount'] = funding_gb_org_cln['NormalizedAmount'].progress_map(
-                                            lambda x: money_printer(x, "USD", 2015))
-funding_gb_org_cln.to_csv("science_funding.csv", index=False)
+# funding_gb = funding.reset_index(drop=True)
+# funding_gb.drop(["Keywords"], inplace=True, axis=1)
+#
+# funding_gb_org = org_group(funding_gb, additiona_cols=['FunderNameFull', 'latFunder', 'lngFunder'])
+#
+# funding_gb_org['OrganizationName'] = funding_gb_org['OrganizationName'].str.replace("\"", "")
+#
+# funding_gb_org = funding_gb_org[~funding_gb_org['OrganizationName'].map(
+#     lambda x: any(i in str(x) for i in ['Inc', 'Llc', "Company", "Corporation"]))].reset_index(drop=True)
+#
+# os.chdir(MAIN_FOLDER+"/JavaScript/JavaScriptVisualizations/data")
+#
+# # Limit to $20,000,000 (2015 USD) and up
+# funding_gb_org_cln = funding_gb_org[(funding_gb_org['NormalizedAmount'].astype(float) > 50000000)].drop(
+#                                     ['Researcher', 'GrantYear'], axis=1)
+#
+# funding_gb_org_cln['NormalizedAmount'] = funding_gb_org_cln['NormalizedAmount'].progress_map(
+#                                             lambda x: money_printer(x, "USD", 2015))
+# funding_gb_org_cln.to_csv("science_funding.csv", index=False)
 
 # ------------------------------------------------------------------------------------------------ #
 # Time Series animation
 # ------------------------------------------------------------------------------------------------ #
+# block dates > 2016.
+# min_grant_size = 100000
 
-min_grant_size = 750000
+top_x_orgs = 100
+min_start_date = "01/01/2012"
+required_terms = ['unive', 'ecole', 'polytechnique']
+# removed for now: school, acad, hospit, medical, istit, labra, obser, clinic,  centre, center, college.
 
-# Require a grant be > min_grant_size in its own currency
-to_export = funding[(funding['Amount'].astype(float) >= min_grant_size) &\
-                    (pd.notnull(funding['NormalizedAmount']))]
+def contains_required_term(x, required_terms=required_terms):
+    return True if any(i in str(x).lower() for i in required_terms) else False
+
+# Limit to org's that contain required terms (above).
+to_export = funding[funding['OrganizationName'].map(contains_required_term)].reset_index(drop=True)
 
 def date_zero_correct(input_str):
     if input_str[0] != "0" and float(input_str) < 10:
@@ -283,24 +293,95 @@ def date_correct(input_date):
 
 to_export['StartDate'] = to_export['StartDate'].astype(str).map(date_correct)
 
-# Drop
+# Drop invalid start dates
+to_export = to_export[to_export['StartDate'].astype(str).str.count("/") == 2].reset_index(drop=True)
+
+# Drop rows without a start date.
 to_export = to_export[pd.notnull(to_export['StartDate'])].reset_index(drop=True)
 
-to_export = to_export[pd.to_datetime(to_export['StartDate']) > "01/01/2007"].reset_index(drop=True)
+# --- Spread Canadian Data over the whole year --- #
+def random_day_month_swap(input_date, block, looking_for='Canada'):
+    if block != looking_for or input_date[0:5] != "01/01":
+        return input_date
+    dsplit = input_date.split("/")
+
+    # Pick a random month
+    random_month = np.random.randint(1, high=12, size=1)[0]
+    max_day = monthrange(int(dsplit[2]), random_month)[1]
+
+    random_day = np.random.randint(1, high=max_day, size=1)[0]
+    day_to_add = "0" + str(random_day) if random_day < 10 else str(random_day)
+    month_to_add = "0" + str(random_month) if random_month < 10 else str(random_month)
+    return "/".join([day_to_add, month_to_add, dsplit[2]])
+
+to_export['StartDate'] = to_export.apply(lambda x: random_day_month_swap(x['StartDate'], x['OrganizationBlock']), axis=1)
+
+# ---------------------------------------------------------- #
+
+# Restrict to a date range
+to_export['StartDateDTime'] = pd.to_datetime(to_export['StartDate'], format="%d/%m/%Y").order()
+to_export = to_export[(to_export['StartDateDTime'] >= min_start_date) &
+                      (to_export['StartDateDTime'] <= time.strftime("%d/%m/%Y"))].reset_index(drop=True)
+
+# Find orgs with the most grants (dollar amount).
+orgs_by_grants = to_export.groupby('OrganizationName').apply(lambda x: sum(x['NormalizedAmount'])).reset_index().dropna()
+orgs_by_grants = orgs_by_grants.sort_values(0, ascending=False).reset_index(drop=True)[0:top_x_orgs]
+
+#Filter to the top x orgs by funding
+to_export = to_export[to_export['OrganizationName'].isin(orgs_by_grants['OrganizationName'].tolist())].reset_index(drop=True)
+
+# # Require a grant be > min_grant_size in its own currency
+# to_export = to_export[(to_export['NormalizedAmount'].astype(float) >= min_grant_size) &\
+#                         (pd.notnull(to_export['NormalizedAmount']))].reset_index(drop=True)
+
+# too long for the legend...come back and fix later.
+to_export = to_export[~(to_export['FunderNameFull'].str.contains("NIDILRR"))]
+
+# Shuffle
+to_export = to_export.reindex(np.random.permutation(to_export.index))
+
+# Sort by date
+to_export = to_export.sort_values(by='StartDateDTime').reset_index(drop=True)
+del to_export['StartDateDTime']
+
+# ------------------------------------------------------------------------------------------------ #
+
+# Agg by FunderNameFull by year
+org_year_groupby = deepcopy(to_export)
+org_year_groupby['StartYear'] = org_year_groupby['StartDate'].map(lambda x: x.split("/")[2]).astype(int)
+
+org_year_groupby = org_year_groupby.groupby(['FunderNameFull', 'StartYear']).apply(lambda x: sum(x['NormalizedAmount'].tolist())).reset_index()
+org_year_groupby.rename(columns={0:'TotalGrants'}, inplace=True)
+
+org_year_byyear = org_year_groupby.groupby('StartYear').apply(lambda x: sum(x['TotalGrants'])).to_dict()
+org_year_groupby['PropTotalGrants'] = org_year_groupby.apply(lambda x: x['TotalGrants']/org_year_byyear[x['StartYear']], axis=1)
+
+org_year_groupby = org_year_groupby.sort_values('StartYear').reset_index(drop=True)
+
+# Check
+# org_year_groupby.groupby('StartYear')['PropTotalGrants'].sum()
+
+org_year_groupby.to_csv(MAIN_FOLDER + "/JavaScript/JavaScriptVisualizations/data/" + "funding_yearby_summary.csv", index=False)
+
+# ------------------------------------------------------------------------------------------------ #
 
 # Restrict columns to those that are needed
 allowed_columns = ["OrganizationName", "FunderNameFull", "NormalizedAmount", "StartDate", "lng", "lat"]
 to_export = to_export[allowed_columns]
 
-# Sort
-to_export = to_export.ix[pd.to_datetime(to_export['StartDate']).sort_values().index].reset_index(drop=True)
-
 # Add an ID Column
 to_export["uID"] = pd.Series(to_export.index, index=to_export.index)
 column_order = ['uID'] + allowed_columns
 
+print(to_export.shape[0])
+print(len(to_export.OrganizationName.unique()))
+
+#Order Columns
+to_export = to_export[column_order]
+
 # Export
-to_export[column_order].to_csv(MAIN_FOLDER + "/JavaScript/JavaScriptVisualizations/data/" + "funding_sample.csv", index=False)
+to_export.to_csv(MAIN_FOLDER + "/JavaScript/JavaScriptVisualizations/data/" + "funding_sample.csv", index=False)
+
 
 # ------------------------------------------------------------------------------------------------ #
 
@@ -308,71 +389,26 @@ to_export[column_order].to_csv(MAIN_FOLDER + "/JavaScript/JavaScriptVisualizatio
 # Scratch Work
 # ------------
 
-print(len(to_export.OrganizationName.unique())) # high -- Improve filtering.
+print(len(to_export.OrganizationName.unique()))
 
-tester = deepcopy(funding[funding['OrganizationBlock'] == 'Europe'])
-
-n_amount_groupby = tester.groupby('OrganizationName').apply(lambda x: sum(x['NormalizedAmount'].tolist())).reset_index()
-print(round(float(n_amount_groupby[0].max()), 1))
-
+# tester = deepcopy(funding[funding['OrganizationBlock'] == 'Europe'])
+# n_amount_groupby = tester.groupby('OrganizationName').apply(lambda x: sum(x['NormalizedAmount'].tolist())).reset_index()
+# print(round(float(n_amount_groupby[0].max()), 1))
 # Groupby       Normal        Real USD
 # Name:      3161183583.1 | $3789172600.4
 # UniqueGeo: 3258690632.6 | $3904925835.0
 
+tester2 = deepcopy(to_export)
+
+n_amount_groupby = tester2.groupby('OrganizationName').apply(lambda x: sum(x['NormalizedAmount'].tolist())).reset_index()
+print(round(float(n_amount_groupby[0].max()), 1))
 
 
+to_export['NormalizedAmount'].max()
+to_export['NormalizedAmount'].sum()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#18,256,493,155.84
+#59,003,607.15
 
 
 
