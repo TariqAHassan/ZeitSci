@@ -38,10 +38,13 @@ var div = d3.select("body").append("div")
 //Init
 // var topo, projection, path, svg, g;
 var topo, projection, path, defs, filter, feMerge, text, legend, svgLwr, gLwr, svg, funderLayer, g;
-var recipientRankings = {};
-var funderGeoDict = {};
+var legendBoxHeight = 200;
 var dateRealTime = [];
 var funderColors = {};
+var funderGeoDict = {};
+var recipientRankings = {};
+var abbreviationFunderName = {};
+var funderNameAbbreviation = {};
 var funderColorsAbbreviation = {};
 var fundingAgencyFlightStatus = {};
 
@@ -73,7 +76,7 @@ function setup(width, height){
     svgLwr = d3.select("#container2")
         .append("svg")
         .attr("width", width + margin.left + margin.right)
-        .attr("height", 180)
+        .attr("height", legendBoxHeight)
         .on("click", click)
         .append("g");
     // .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
@@ -111,24 +114,26 @@ function setup(width, height){
 
 //Tooltip Functionality
 
-var tooltip = d3.select("#container")
-                .append("div")
-                .attr("class", "tooltip hidden");
+var tooltipContainer = d3.select("#container")
+                            .append("div")
+                            .attr("class", "tooltip hidden");
 
-function showTooltip(d, i, info, offsetL, offsetT){
-    if (d === 'void'){return;}
-    var mouse = d3.mouse(svg.node()).map(function(d) {
-        return parseInt(d);
-    });
-    tooltip.classed("hidden", false)
+var tooltipContainer2 = d3.select("#container2")
+                            .append("div")
+                            .attr("class", "tooltip hidden");
+
+function showTooltip(d, i, tooltipObj, info, offsetL, offsetT){
+    var mouse = d3.mouse(svg.node()).map(function(d) {return parseInt(d);});
+    tooltipObj.classed("hidden", false)
         .attr("style", "left:"+(mouse[0]-offsetL)+"px;" +
-                        "top:"+(mouse[1]+offsetT)+"px")
+                        "top:"+(mouse[1]+offsetT)+"px"
+        )
         .html(info)
         .style("font-size", "35px");
 }
 
-function hideTooltip(d, i){
-     tooltip.classed("hidden", true);
+function hideTooltip(d, i, tooltipObj){
+     tooltipObj.classed("hidden", true);
 }
 
 //----------------------------------------------------------------------------------------//
@@ -340,12 +345,13 @@ function terrestrialPoints(newDraw, grantToDraw, realTimeInfo, largestTotalGrant
                     .on("mousemove", function(d, i) {
                         showTooltip(d
                                     , i
+                                    , tooltipContainer
                                     , tooltipInfoFormater(destination, realTimeInfo, locID)
                                     , document.getElementById('container').offsetLeft-20
                                     , document.getElementById('container').offsetTop+20
                     )})
                     .on("mouseout",  function(d, i) {
-                        hideTooltip(d, i)
+                        hideTooltip(d, i, tooltipContainer)
                     });
     } else {
         d3.selectAll(".institution")
@@ -422,7 +428,6 @@ function grantTranslateMaster(arrayOfGrantsToDraw,
                               largestTotalGrantByOrg,
                               largestIndividualGrant,
                               movementRate,
-                              funderNameAbbreviation,
                               flightSpeed){
     var newDraw = false;
     var priorFundingRecipients = [];
@@ -501,13 +506,18 @@ function grantTranslateMaster(arrayOfGrantsToDraw,
 
 // Constructing the Initial Map
 
-function valuesFromObject(inputObject){
-    //See: http://stackoverflow.com/a/25797464/4898004.
-    return Object.keys(inputObject).map(function(key){return inputObject[key]})
+function legendTooltipInfo(name){
+    var title = abbreviationFunderName[name].replace(/\((.*?)\)/, "").trim();
+    var fullTooltip = "<strong>" + title + "</strong>";
+
+    return fullTooltip;
 }
+
 
 function legendGenerator(legend, currentWidth, numberOfFunders){
 
+    var yCircleSpace = 75;
+    var yTextSpace = yCircleSpace*1; //could be changed in the future.
     var legendCircleSize = 30;
     var spaceIncrement = currentWidth/numberOfFunders;
     var spacer = (currentWidth - currentWidth/spaceIncrement)/25;
@@ -517,46 +527,61 @@ function legendGenerator(legend, currentWidth, numberOfFunders){
         var fColor = funderColors[key];
 
         var legendCircleTypes = ['glower', 'reg'];
-
-        for (var t in legendCircleTypes){
+        for (var t in legendCircleTypes) {
             legend.attr("class", "legend")
                 .append("svg:circle")
-                .attr("cx", 0 + spacer)
-                .attr("cy", 75)
+                .attr("cx", spacer)
+                .attr("cy", yCircleSpace)
                 .attr("class", "legend")
                 .style("fill", fColor)
                 .attr("id", abbreiv + "_legend_circle_" + legendCircleTypes[t])
                 .attr("r", legendCircleSize)
                 .datum(legendCircleSize)
-                .on("mousemove", function(d, i) {
-                    var name = d3.select(this).attr("id").split("_")[0]
-                    console.log(name)
-                    if (t == 'glower'){d = 'void'}
-                    showTooltip(d
-                                , i
-                                , name
-                                , document.getElementById('container2').offsetLeft+20
-                                , document.getElementById('container').offsetTop+20
-                )})
-                .on("mouseout",  function(d, i) {
-                    hideTooltip(d, i)
+                .on("mousemove", function (d, i) {
+                    var name = d3.select(this).attr("id").split("_")[0];
+                    var offsetL = -document.getElementById("container2").offsetLeft;
+                    var offsetT = legendBoxHeight - legendBoxHeight/4;
+                    showTooltip(d, i, tooltipContainer2, legendTooltipInfo(name), offsetL, offsetT);
+                    //Scale Corresponding Map point up
+                    d3.selectAll(".funderpoints")
+                        .select("#" + name)
+                        .attr("r", function (d, i){
+                            var s = zoom.scale();
+                            return pointScale(d3.select(this).datum(), s)*2.5;
+                        });
+                })
+                .on("mouseout", function (d, i) {
+                    var name = d3.select(this).attr("id").split("_")[0];
+                    hideTooltip(d, i, tooltipContainer2);
+                    //Scale Corresponding Map point down
+                    d3.selectAll(".funderpoints")
+                        .select("#" + name)
+                        .attr("r", function (d, i){
+                            var s = zoom.scale();
+                            return pointScale(d3.select(this).datum(), s);
+                        });
                 });
-            }
+        }
 
-            legend.attr("class", "legend")
-                .append("text")
-                .attr("x", 0 + spacer)
-                .attr("y", 75 + 75)
-                .attr("id", abbreiv + "_legend_text")
-                .attr("dy", ".35em")
-                .attr("text-anchor", "middle")
-                .style("font", "Lucida Grande")
-                .style("font-size", "40px")
-                .style("opacity", 1)
-                .text(abbreiv);
+        legend.attr("class", "legend")
+            .append("text")
+            .attr("x", 0 + spacer)
+            .attr("y", yCircleSpace + yTextSpace)
+            .attr("id", abbreiv + "_legend_text")
+            .attr("dy", ".35em")
+            .attr("text-anchor", "middle")
+            .style("font", "Lucida Grande")
+            .style("font-size", "40px")
+            .style("opacity", 1)
+            .text(abbreiv);
 
-            spacer += spaceIncrement
+        spacer += spaceIncrement
     }
+}
+
+function valuesFromObject(inputObject){
+    //See: http://stackoverflow.com/a/25797464/4898004.
+    return Object.keys(inputObject).map(function(key){return inputObject[key]})
 }
 
 function individualGrantExtractor(d, amount, recipientUniqueGeo, orgFundingInfoTemp){
@@ -584,7 +609,6 @@ function drawMain(simulationSpeed, flightSpeed) {
     var routesToDraw = [];
     var grantMovements = [];
     var orgFundingInfoTemp = {};
-    var funderNameAbbreviation = {};
 
     d3.json("data/starter_kit/data/world-topo-min.json", function(error, world) {
         topo = topojson.feature(world, world.objects.countries).features;
@@ -601,11 +625,13 @@ function drawMain(simulationSpeed, flightSpeed) {
         var numberOfFunders = 0;
         d3.csv("data/funder_db.csv", function(error, funder){
             funder.forEach(function (d) {
-                addFunderPoints(d["lng"], d["lat"], funderCircleSize(12), d["funder"], d["colour"], true, 1, offsetL, offsetT);
+                var abbreviation = d['funder'].match(/\((.*?)\)/)[1];
+                addFunderPoints(d["lng"], d["lat"], funderCircleSize(12), d["funder"], d["colour"], true, 0.85, offsetL, offsetT);
                 funderGeoDict[d["funder"]] = [d["lng"], d["lat"]].map(parseFloat);
                 funderColors[d["funder"]] = d["colour"]
-                funderColorsAbbreviation[d['funder'].match(/\((.*?)\)/)[1]] = d["colour"]
-                funderNameAbbreviation[d['funder']] = d['funder'].match(/\((.*?)\)/)[1]
+                funderColorsAbbreviation[abbreviation] = d["colour"]
+                funderNameAbbreviation[d['funder']] = abbreviation
+                abbreviationFunderName[abbreviation] = d['funder']
                 numberOfFunders += 1
             });
 
@@ -666,7 +692,6 @@ function drawMain(simulationSpeed, flightSpeed) {
                                      largestTotalGrantByOrg,
                                      largestIndividualGrant,
                                      simulationSpeed,
-                                     funderNameAbbreviation,
                                      flightSpeed
                 );
 
@@ -686,27 +711,28 @@ function funderCircleSize(circleSize){
     return circleSize;
 }
 
-function funderCircleAppend(appendTo, x, y, color, opacity, id, r, info, offsetL, offsetT){
+function funderCircleAppend(appendTo, x, y, color, opacity, r, info, offsetL, offsetT){
     appendTo.append("svg:circle")
         .attr("cx", x)
         .attr("cy", y)
         .attr("class","funderpoint") //change to funderpoints?
         .style("fill", color)
-        // .style("stroke", "white")
-        // .style("opacity", opacity)
-        .attr("id", id)
+        .style("opacity", opacity)
+        .attr("id", info.match(/\((.*?)\)/)[1])
         .attr("r", r)
         // .attr("stroke", "white")
         // .attr("stroke-width", 1)
+        .datum(r)
         .on("mousemove", function(d, i) {
             showTooltip(d
                         , i
+                        , tooltipContainer
                         , "<strong>" + info + "</strong>"
                         , document.getElementById('container').offsetLeft+0
                         , offsetT = document.getElementById('container').offsetTop+10
         )})
         .on("mouseout",  function(d, i){
-            hideTooltip(d, i)
+            hideTooltip(d, i, tooltipContainer)
         });
 }
 
@@ -721,7 +747,7 @@ function addFunderPoints(lat, lon, amount, name, color, infoOverride, opacity, o
     var amountInitialScale = amount;
     var objectInfo = name;
 
-    funderCircleAppend(funderpoints, x, y, color, opacity, amountInitialScale, amountInitialScale, objectInfo, offsetL, offsetT);
+    funderCircleAppend(funderpoints, x, y, color, opacity, amountInitialScale, objectInfo, offsetL, offsetT);
 }
 
 //----------------------------------------------------------------------------------------//
@@ -782,15 +808,15 @@ function zoomer() {
     d3.selectAll(".funderpoints")
         .selectAll("circle")
         .attr("r", function (d, i){
-            var currentAmount = d3.select(this).attr("id");
-            return pointScale(currentAmount, s);
+            var currentRadius = d3.select(this).datum();
+            return pointScale(currentRadius, s);
     });
 
     d3.selectAll(".institution")
         .selectAll("circle")
         .attr("r", function (d, i){
-            var currentAmount = d3.select(this).datum();
-            return pointScale(currentAmount, s);
+            var currentRadius = d3.select(this).datum();
+            return pointScale(currentRadius, s);
     });
 
     //Correct the routes for zooming and panning
