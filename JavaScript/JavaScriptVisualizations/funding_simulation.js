@@ -37,16 +37,17 @@ var div = d3.select("body").append("div")
 
 //Init
 // var topo, projection, path, svg, g;
-var topo, projection, path, defs, filter, feMerge, text, legend, svgLwr, gLwr, svg, g;
+var topo, projection, path, defs, filter, feMerge, text, legend, svgLwr, gLwr, svg, funderLayer, g;
 var recipientRankings = {};
 var funderGeoDict = {};
 var dateRealTime = [];
 var funderColors = {};
+var funderColorsAbbreviation = {};
 var fundingAgencyFlightStatus = {};
 
 setup(width, height);
 function setup(width, height){
-    // dateRealTime = [];
+    dateRealTime = [];
 
     projection = d3.geo.mercator()
                        .translate([(width/1.45), (height/1)])
@@ -56,14 +57,18 @@ function setup(width, height){
 
     svg = d3.select("#container")
             .append("svg")
-		    .attr("width", width + margin.left + margin.right)
-		    .attr("height", height)
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height)
             .call(zoom)
             .on("click", click)
             .append("g");
             // .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
+    //General Layer
     g = svg.append("g");
+
+    //Layer on top for the Funding Agency Markers
+    funderLayer = svg.append("g");
 
     svgLwr = d3.select("#container2")
         .append("svg")
@@ -295,7 +300,7 @@ function delta(grantMovement, path) {
 function terrestrialPoints(newDraw, grantToDraw, realTimeInfo, largestTotalGrantByOrg){
 
     //Model Params
-    var c = 2.9; //drop to 2.7
+    var c = 2.5;
     var k = 0.5; //increase to 0.8
     var sizeFloor = 1.5;
 
@@ -316,6 +321,9 @@ function terrestrialPoints(newDraw, grantToDraw, realTimeInfo, largestTotalGrant
     var scaledRadius = logistic_fn(x = realTimeInfo[locID][0], sizeFloor, largestTotalGrantByOrg, k, c)
     // if (scaledRadius < sizeFloor){scaledRadius += sizeFloor}
 
+    //Get the Agency that has given the most to the current institution
+    var largestContributorColor = funderColorsAbbreviation[uniqueCountPreseve(realTimeInfo[locID][1])[0]];
+
     if (newDraw === true) {
         var institution = g.append("g").attr("class", "institution");
         var location = projection(funderGeoDict[destination]);
@@ -323,12 +331,12 @@ function terrestrialPoints(newDraw, grantToDraw, realTimeInfo, largestTotalGrant
         institution.append("svg:circle")
                     .attr("cx", location[0])
                     .attr("cy", location[1])
-                    .attr("class", "point")
+                    .attr("class", "institution")
                     .attr("id", idClean)
                     .attr("r", pointScale(scaledRadius, s))
                     .datum(scaledRadius)
-                    .style("fill", "white")
-                    .style("opacity", 0.25)
+                    .style("fill", largestContributorColor)
+                    .style("opacity", 0.40)
                     .on("mousemove", function(d, i) {
                         showTooltip(d
                                     , i
@@ -343,18 +351,22 @@ function terrestrialPoints(newDraw, grantToDraw, realTimeInfo, largestTotalGrant
         d3.selectAll(".institution")
             .select("#" + idClean)
             .attr("r", pointScale(scaledRadius, s))
+            .style("fill", largestContributorColor)
             .datum(scaledRadius);
     }
 }
 
 function legendCircleActivityScaler(grantToDraw){
+        var status = fundingAgencyFlightStatus[grantToDraw['funderName']];
+        if (status == 0){var transitionRate = 450;} else {var transitionRate = 300;}
+
         d3.selectAll('#container2')
         .select("#" + grantToDraw["funderName"].match(/\((.*?)\)/)[1] + "_legend_circle_glower")
         .transition()
-        .duration(500)
+        .duration(transitionRate)
         .attr("r", function (d, i){
             var radius = d3.select(this).datum();
-            if (fundingAgencyFlightStatus[grantToDraw['funderName']] > 0) {
+            if (status > 0) {
                 return radius*1.5;
             }
             else {return 0;}
@@ -362,13 +374,12 @@ function legendCircleActivityScaler(grantToDraw){
         .style("filter", "url(#glow)");
 }
 
-
-function transition(grantMovement, route, grantToDraw, newDraw, largestTotalGrantByOrg, realTimeInfo) {
+function transition(grantMovement, route, grantToDraw, newDraw, largestTotalGrantByOrg, realTimeInfo, flightSpeed) {
 
     var l = route.node().getTotalLength();
 
     grantMovement.transition()
-        .duration(l * 12)
+        .duration(l * flightSpeed)
         .attrTween("transform", delta(grantMovement, route.node()))
         .each("end", function() {
             //Delete the spent route.
@@ -387,7 +398,7 @@ function transition(grantMovement, route, grantToDraw, newDraw, largestTotalGran
         }).remove(); //remove the moving circle
 }
 
-function grantTranslate(grantToDraw, newDraw, largestTotalGrantByOrg, realTimeInfo) {
+function grantTranslate(grantToDraw, newDraw, largestTotalGrantByOrg, realTimeInfo, flightSpeed) {
 
     var from = funderGeoDict[grantToDraw["funderName"]];
     var to = funderGeoDict[grantToDraw["grantRecipientOrg"]];
@@ -404,10 +415,15 @@ function grantTranslate(grantToDraw, newDraw, largestTotalGrantByOrg, realTimeIn
                             .attr("r", grantToDraw["movingGrantRadius"])
                             .attr("fill-opacity", 0.85);
 
-    transition(grantMovement, route, grantToDraw, newDraw, largestTotalGrantByOrg, realTimeInfo);
+    transition(grantMovement, route, grantToDraw, newDraw, largestTotalGrantByOrg, realTimeInfo, flightSpeed);
 }
 
-function grantTranslateMaster(arrayOfGrantsToDraw, largestTotalGrantByOrg, largestIndividualGrant, movementRate, funderNameAbbreviation){
+function grantTranslateMaster(arrayOfGrantsToDraw,
+                              largestTotalGrantByOrg,
+                              largestIndividualGrant,
+                              movementRate,
+                              funderNameAbbreviation,
+                              flightSpeed){
     var newDraw = false;
     var priorFundingRecipients = [];
     var realTimeInfo = {};
@@ -444,7 +460,7 @@ function grantTranslateMaster(arrayOfGrantsToDraw, largestTotalGrantByOrg, large
             fundingAgencyFlightStatus[grantToDraw['funderName']] += 1
         }
 
-        grantTranslate(grantToDraw, newDraw, largestTotalGrantByOrg, realTimeInfo);
+        grantTranslate(grantToDraw, newDraw, largestTotalGrantByOrg, realTimeInfo, flightSpeed);
 
         //Update Date
         //This is here to insure a linear flow for the time stamp. Pretty rigorous procedure.
@@ -483,7 +499,7 @@ function grantTranslateMaster(arrayOfGrantsToDraw, largestTotalGrantByOrg, large
 
 //----------------------------------------------------------------------------------------//
 
-// Constructing the initial Map
+// Constructing the Initial Map
 
 function valuesFromObject(inputObject){
     //See: http://stackoverflow.com/a/25797464/4898004.
@@ -507,7 +523,7 @@ function legendGenerator(legend, currentWidth, numberOfFunders){
                 .append("svg:circle")
                 .attr("cx", 0 + spacer)
                 .attr("cy", 75)
-                .attr("class", "point")
+                .attr("class", "legend")
                 .style("fill", fColor)
                 .attr("id", abbreiv + "_legend_circle_" + legendCircleTypes[t])
                 .attr("r", legendCircleSize)
@@ -561,7 +577,7 @@ function individualGrantExtractor(d, amount, recipientUniqueGeo, orgFundingInfoT
     return {"gmovement" : gmovement, "orgLocation" : orgLocation}
 }
 
-function drawMain(simulationSpeed) {
+function drawMain(simulationSpeed, flightSpeed) {
     var startDate = "";
     var largestIndividualGrant = 0;
 
@@ -571,8 +587,7 @@ function drawMain(simulationSpeed) {
     var funderNameAbbreviation = {};
 
     d3.json("data/starter_kit/data/world-topo-min.json", function(error, world) {
-        var countries = topojson.feature(world, world.objects.countries).features;
-        topo = countries;
+        topo = topojson.feature(world, world.objects.countries).features;
 
         var country = g.selectAll(".country").data(topo);
         country.enter().insert("path")
@@ -586,9 +601,10 @@ function drawMain(simulationSpeed) {
         var numberOfFunders = 0;
         d3.csv("data/funder_db.csv", function(error, funder){
             funder.forEach(function (d) {
-                addFunderPoints(d["lng"], d["lat"], funderCircleSize(10.5), d["funder"], d["colour"], true, 1, offsetL, offsetT);
+                addFunderPoints(d["lng"], d["lat"], funderCircleSize(12), d["funder"], d["colour"], true, 1, offsetL, offsetT);
                 funderGeoDict[d["funder"]] = [d["lng"], d["lat"]].map(parseFloat);
                 funderColors[d["funder"]] = d["colour"]
+                funderColorsAbbreviation[d['funder'].match(/\((.*?)\)/)[1]] = d["colour"]
                 funderNameAbbreviation[d['funder']] = d['funder'].match(/\((.*?)\)/)[1]
                 numberOfFunders += 1
             });
@@ -614,17 +630,13 @@ function drawMain(simulationSpeed) {
                     if (!(isNaN(amount))) {
 
                         //Save the first date in the database
-                        if (startDate === "") {
-                            startDate = d["StartDate"];
-                        }
+                        if (startDate === "") {startDate = d["StartDate"];}
 
                         var fromPoint = funderGeoDict[d['FunderNameFull']].map(String);
                         var toPoint = [d["lng"], d["lat"]];
 
                         //If this is the largest grant, update.
-                        if (amount > largestIndividualGrant) {
-                            largestIndividualGrant = amount;
-                        }
+                        if (amount > largestIndividualGrant) {largestIndividualGrant = amount;}
 
                         var recipientUniqueGeo = (d["lng"] + d["lat"]).replace(/ /g, "") + d['OrganizationName']
 
@@ -654,7 +666,8 @@ function drawMain(simulationSpeed) {
                                      largestTotalGrantByOrg,
                                      largestIndividualGrant,
                                      simulationSpeed,
-                                     funderNameAbbreviation
+                                     funderNameAbbreviation,
+                                     flightSpeed
                 );
 
                 //Clear orgFundingInfoTemp from memory
@@ -673,29 +686,18 @@ function funderCircleSize(circleSize){
     return circleSize;
 }
 
-function funderRedraw() {
-    //refine to use already cached data.
-    //not working...yet.
-    g.selectAll(".point").remove()
-    var offsetL = document.getElementById("container").offsetLeft+0;
-    var offsetT = document.getElementById("container").offsetTop+10;
-    d3.csv("data/funder_db.csv", function(error, funder) {
-        funder.forEach(function (d) {
-            addFunderPoints(d["lng"], d["lat"], funderCircleSize(11), d["funder"], d["colour"], true, 1, offsetL, offsetT);
-        })
-    })
-}
-
 function funderCircleAppend(appendTo, x, y, color, opacity, id, r, info, offsetL, offsetT){
     appendTo.append("svg:circle")
         .attr("cx", x)
         .attr("cy", y)
-        .attr("class","point") //change to funderpoints?
+        .attr("class","funderpoint") //change to funderpoints?
         .style("fill", color)
         // .style("stroke", "white")
         // .style("opacity", opacity)
         .attr("id", id)
         .attr("r", r)
+        // .attr("stroke", "white")
+        // .attr("stroke-width", 1)
         .on("mousemove", function(d, i) {
             showTooltip(d
                         , i
@@ -711,7 +713,7 @@ function funderCircleAppend(appendTo, x, y, color, opacity, id, r, info, offsetL
 //function to add points and text to the map (used in plotting grants)
 function addFunderPoints(lat, lon, amount, name, color, infoOverride, opacity, offsetL, offsetT) {
 
-    var funderpoints = g.append("g").attr("class", "funderpoints");
+    var funderpoints = funderLayer.append("g").attr("class", "funderpoints");
 
     var location = projection([lat, lon]);
     var x = location[0];
@@ -725,6 +727,8 @@ function addFunderPoints(lat, lon, amount, name, color, infoOverride, opacity, o
 //----------------------------------------------------------------------------------------//
 
 //General Mechanics
+var simulationSpeed = 0.01;
+var flightSpeed = 9.5;
 
 function redraw() {
     //to do:
@@ -739,7 +743,7 @@ function redraw() {
     // legend.remove()
     // gLwr.remove();
     setup(width, height);
-    drawMain();
+    drawMain(simulationSpeed, flightSpeed);
 }
 
 function pointScale(amount, zoomScale){
@@ -770,6 +774,7 @@ function zoomer() {
 
     var transformCmd = "translate(" + t + ")scale(" + s + ")"
     g.attr("transform", transformCmd);
+    funderLayer.attr("transform", transformCmd);
 
     // Change circle size based on zoom level.//
 
@@ -811,9 +816,8 @@ function click() {
 
 //----------------------------------------------------------------------------------------//
 
-//Execute Draw
-
-drawMain(simulationSpeed = 0.01) //smaller = faster.
+//Execute Simulation
+drawMain(simulationSpeed, flightSpeed) //smaller = faster.
 
 
 
