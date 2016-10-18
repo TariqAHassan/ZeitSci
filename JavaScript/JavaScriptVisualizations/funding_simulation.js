@@ -295,8 +295,8 @@ function delta(grantMovement, path) {
 function terrestrialPoints(newDraw, grantToDraw, realTimeInfo, largestTotalGrantByOrg){
 
     //Model Params
-    var c = 2.9;
-    var k = 0.5;
+    var c = 2.9; //drop to 2.7
+    var k = 0.5; //increase to 0.8
     var sizeFloor = 1.5;
 
     //Get the current zoom level
@@ -347,6 +347,22 @@ function terrestrialPoints(newDraw, grantToDraw, realTimeInfo, largestTotalGrant
     }
 }
 
+function legendCircleActivityScaler(grantToDraw){
+        d3.selectAll('#container2')
+        .select("#" + grantToDraw["funderName"].match(/\((.*?)\)/)[1] + "_legend_circle_glower")
+        .transition()
+        .duration(500)
+        .attr("r", function (d, i){
+            var radius = d3.select(this).datum();
+            if (fundingAgencyFlightStatus[grantToDraw['funderName']] > 0) {
+                return radius*1.5;
+            }
+            else {return 0;}
+        })
+        .style("filter", "url(#glow)");
+}
+
+
 function transition(grantMovement, route, grantToDraw, newDraw, largestTotalGrantByOrg, realTimeInfo) {
 
     var l = route.node().getTotalLength();
@@ -361,6 +377,9 @@ function transition(grantMovement, route, grantToDraw, newDraw, largestTotalGran
             if (fundingAgencyFlightStatus[grantToDraw['funderName']] > 0){
                  fundingAgencyFlightStatus[grantToDraw['funderName']] -= 1
             }
+
+            //Scale the circles in the legend by circles current in flight
+            legendCircleActivityScaler(grantToDraw)
 
             //Add points on the Earth when the grants lands
             setTimeout(terrestrialPoints(newDraw, grantToDraw, realTimeInfo, largestTotalGrantByOrg), 125);
@@ -418,6 +437,13 @@ function grantTranslateMaster(arrayOfGrantsToDraw, largestTotalGrantByOrg, large
             ];
         }
 
+        //Update Record of Airborn Grants
+        if (!(grantToDraw['funderName'] in fundingAgencyFlightStatus)){
+            fundingAgencyFlightStatus[grantToDraw['funderName']] = 1
+        } else {
+            fundingAgencyFlightStatus[grantToDraw['funderName']] += 1
+        }
+
         grantTranslate(grantToDraw, newDraw, largestTotalGrantByOrg, realTimeInfo);
 
         //Update Date
@@ -438,29 +464,6 @@ function grantTranslateMaster(arrayOfGrantsToDraw, largestTotalGrantByOrg, large
             });
         }
 
-        d3.selectAll('#container2')
-            .select("#" + grantToDraw["funderName"].match(/\((.*?)\)/)[1] + "_legend_circle_glower")
-            .attr("r", function (d, i){
-                var radius = d3.select(this).datum();
-
-                if (complete === false && fundingAgencyFlightStatus[grantToDraw['funderName']] > 1){
-                    return radius*1.5;
-                } else {
-                    return 0;
-                }
-            })
-            .style("filter", "url(#glow)");
-        if (!(grantToDraw['funderName'] in fundingAgencyFlightStatus)){
-            fundingAgencyFlightStatus[grantToDraw['funderName']] = 1
-        } else {
-            fundingAgencyFlightStatus[grantToDraw['funderName']] += 1
-        }
-
-        //funderRedraw();
-
-        //Pump counter.
-        i++;
-
         // Stop when complete...
         if (complete === true){
             //Remove all glow on exit.
@@ -471,6 +474,9 @@ function grantTranslateMaster(arrayOfGrantsToDraw, largestTotalGrantByOrg, large
             }
             clearInterval(animationIntervalID);
         }
+
+        //Pump counter.
+        i++;
     }
     , movementRate);
 }
