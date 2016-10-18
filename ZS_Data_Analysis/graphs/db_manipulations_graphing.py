@@ -140,11 +140,11 @@ def most_central_point(geos_array, valid_centroid=50):
     else:
         return np.NaN
 
-# Work out the centroid for each duplicate location
-org_geos_groupby['centroid'] = org_geos_groupby[0].map(most_central_point)
+# Work out the medoid for each duplicate location
+org_geos_groupby['medoid'] = org_geos_groupby[0].map(most_central_point)
 
-# Save in a dict of the form {OrganizationName: centroid}
-multi_geo_dict = dict(zip(org_geos_groupby['OrganizationName'], org_geos_groupby['centroid']))
+# Save in a dict of the form {OrganizationName: medoid}
+multi_geo_dict = dict(zip(org_geos_groupby['OrganizationName'], org_geos_groupby['medoid']))
 
 # Swap out duplicates
 def geo_swap(org_name, current_geo, lat_or_lng):
@@ -246,12 +246,26 @@ funding = funding[~(funding['OrganizationName'].isin(to_remove_flat))].reset_ind
 # block dates > 2016.
 # min_grant_size = 100000
 
+# More sophisticated random day generator
+# random_days_dict = dict()
+# for y in range(int(min_start_date.split("/")[2]), int(to_export['StartDate'].max().split("/")[2])):
+#     nested_year_dict = dict()
+#     for m in range(1, 12+1):
+#         max_days = monthrange(y, m)[1]
+#         random_day_options = np.random.randint(1, high=max_days, size=14)
+#         nested_year_dict[m] = list(random_day_options)
+#     random_days_dict[y] = nested_year_dict
+
+# Merge toOgb by day
+
 top_x_orgs = 100
-min_start_date = "01/01/2012"
-required_terms = ['unive', 'ecole', 'polytechnique']
+min_start_date = "01/01/2013"
+required_terms = []
+# required_terms = ['unive', 'ecole', 'polytechnique']
 # removed for now: school, acad, hospit, medical, istit, labra, obser, clinic,  centre, center, college.
 
 def contains_required_term(x, required_terms=required_terms):
+    if not len(required_terms): return True
     return True if any(i in str(x).lower() for i in required_terms) else False
 
 # Limit to org's that contain required terms (above).
@@ -301,6 +315,9 @@ to_export = to_export[pd.notnull(to_export['StartDate'])].reset_index(drop=True)
 
 # --- Spread Canadian Data over the whole year --- #
 def random_day_month_swap(input_date, block, looking_for='Canada'):
+    """
+    To do: decrease number of possible days.
+    """
     if block != looking_for or input_date[0:5] != "01/01":
         return input_date
     dsplit = input_date.split("/")
@@ -330,12 +347,40 @@ orgs_by_grants = orgs_by_grants.sort_values(0, ascending=False).reset_index(drop
 #Filter to the top x orgs by funding
 to_export = to_export[to_export['OrganizationName'].isin(orgs_by_grants['OrganizationName'].tolist())].reset_index(drop=True)
 
-# # Require a grant be > min_grant_size in its own currency
-# to_export = to_export[(to_export['NormalizedAmount'].astype(float) >= min_grant_size) &\
-#                         (pd.notnull(to_export['NormalizedAmount']))].reset_index(drop=True)
-
 # too long for the legend...come back and fix later.
 to_export = to_export[~(to_export['FunderNameFull'].str.contains("NIDILRR"))]
+
+# ------------------------------------------------------------------------------------------------ #
+
+# Agg by FunderNameFull by year
+funder_year_groupby = deepcopy(to_export)
+funder_year_groupby['StartYear'] = funder_year_groupby['StartDate'].map(lambda x: x.split("/")[2]).astype(int)
+
+funder_year_groupby = funder_year_groupby.groupby(['FunderNameFull', 'StartYear']).apply(lambda x: sum(x['NormalizedAmount'].tolist())).reset_index()
+funder_year_groupby.rename(columns={0:'TotalGrants'}, inplace=True)
+
+org_year_byyear = funder_year_groupby.groupby('StartYear').apply(lambda x: sum(x['TotalGrants'])).to_dict()
+funder_year_groupby['PropTotalGrants'] = funder_year_groupby.apply(lambda x: x['TotalGrants']/org_year_byyear[x['StartYear']], axis=1)
+
+funder_year_groupby = funder_year_groupby.sort_values('StartYear').reset_index(drop=True)
+
+# Check
+# funder_year_groupby.groupby('StartYear')['PropTotalGrants'].sum()
+
+# ------------------------------------------------------------------------------------------------ #
+
+def to_export_col_summary(x):
+    return [sum(x['NormalizedAmount'].tolist()), x['lng'].tolist()[0], x['lat'].tolist()[0], len(x['lat'].tolist())]
+
+# Grouby by OrganizationName, StartDate, OrganizationName
+to_export = to_export.groupby(['OrganizationName', 'StartDate', 'StartDateDTime', 'FunderNameFull']).apply(
+    lambda x: to_export_col_summary(x)).reset_index()
+to_export_groupbycol = np.array(to_export[0].tolist())
+to_export['NormalizedAmount'] = to_export_groupbycol[:,0]
+to_export['lng'] = to_export_groupbycol[:,1]
+to_export['lat'] = to_export_groupbycol[:,2]
+to_export['NumberOfGrants'] = [int(i) for i in to_export_groupbycol[:,3]]
+del to_export[0]
 
 # Shuffle
 to_export = to_export.reindex(np.random.permutation(to_export.index))
@@ -344,44 +389,30 @@ to_export = to_export.reindex(np.random.permutation(to_export.index))
 to_export = to_export.sort_values(by='StartDateDTime').reset_index(drop=True)
 del to_export['StartDateDTime']
 
-# ------------------------------------------------------------------------------------------------ #
-
-# Agg by FunderNameFull by year
-org_year_groupby = deepcopy(to_export)
-org_year_groupby['StartYear'] = org_year_groupby['StartDate'].map(lambda x: x.split("/")[2]).astype(int)
-
-org_year_groupby = org_year_groupby.groupby(['FunderNameFull', 'StartYear']).apply(lambda x: sum(x['NormalizedAmount'].tolist())).reset_index()
-org_year_groupby.rename(columns={0:'TotalGrants'}, inplace=True)
-
-org_year_byyear = org_year_groupby.groupby('StartYear').apply(lambda x: sum(x['TotalGrants'])).to_dict()
-org_year_groupby['PropTotalGrants'] = org_year_groupby.apply(lambda x: x['TotalGrants']/org_year_byyear[x['StartYear']], axis=1)
-
-org_year_groupby = org_year_groupby.sort_values('StartYear').reset_index(drop=True)
-
-# Check
-# org_year_groupby.groupby('StartYear')['PropTotalGrants'].sum()
-
-org_year_groupby.to_csv(MAIN_FOLDER + "/JavaScript/JavaScriptVisualizations/data/" + "funding_yearby_summary.csv", index=False)
-
-# ------------------------------------------------------------------------------------------------ #
-
-# Restrict columns to those that are needed
-allowed_columns = ["OrganizationName", "FunderNameFull", "NormalizedAmount", "StartDate", "lng", "lat"]
-to_export = to_export[allowed_columns]
-
 # Add an ID Column
 to_export["uID"] = pd.Series(to_export.index, index=to_export.index)
-column_order = ['uID'] + allowed_columns
 
-print(to_export.shape[0])
-print(len(to_export.OrganizationName.unique()))
+# Restrict columns to those that are needed and Set Column Order
+allowed_columns = ["OrganizationName", "FunderNameFull", "NormalizedAmount", "StartDate", "NumberOfGrants", "lng", "lat"]
+column_order = ['uID'] + allowed_columns
 
 #Order Columns
 to_export = to_export[column_order]
 
-# Export
-to_export.to_csv(MAIN_FOLDER + "/JavaScript/JavaScriptVisualizations/data/" + "funding_sample.csv", index=False)
+print(to_export.shape[0])
+print(len(to_export.OrganizationName.unique()))
 
+# ------------------------------------------------------------------------------------------------ #
+
+# Exports
+export_root = MAIN_FOLDER + "/JavaScript/JavaScriptVisualizations/data/"
+to_export.to_csv(export_root + "funding_sample.csv", index=False)
+funder_year_groupby.to_csv(export_root + "funding_yearby_summary.csv", index=False)
+
+
+orgs_by_grants = orgs_by_grants['OrganizationName'].reset_index().rename(columns={'index':'OrganizationRank'})
+orgs_by_grants['OrganizationRank'] += 1
+orgs_by_grants.to_csv(export_root + "organization_rankings.csv", index=False)
 
 # ------------------------------------------------------------------------------------------------ #
 
