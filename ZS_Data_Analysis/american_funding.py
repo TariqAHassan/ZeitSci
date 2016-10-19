@@ -1,11 +1,11 @@
-'''
+"""
 
     US Funding
     ~~~~~~~~~~
 
     Python 3.5
 
-'''
+"""
 
 # ---------------- #
 #  Import Modules  #
@@ -14,9 +14,13 @@
 import os
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 from abstract_analysis import *
-from region_abbrevs import US_states
+from region_abbrevs import US_states, Canada_prov_terr, European_Countries
 from supplementary_fns import cln
+from easymoney.easy_pandas import twoD_nested_dict
+
+from american_funding_geo import master_geo_locator
 
 from funding_database_tools import MAIN_FOLDER
 from funding_database_tools import order_cols
@@ -25,7 +29,11 @@ from funding_database_tools import df_combine
 from funding_database_tools import comma_reverse
 from funding_database_tools import column_drop
 from funding_database_tools import string_match_list
+from funding_database_tools import remove_accents
+from funding_database_tools import wiki_pull_geo_parser
+from funding_database_tools import try_dict_lookup
 from funding_database_tools import year_columns
+from funding_database_tools import partial_key_check
 from funding_database_tools import two_iso_country_dict
 from funding_database_tools import multi_readin
 
@@ -35,11 +43,10 @@ from funding_database_tools import multi_readin
 
 # NOTEs:
 #   1. this code will merge fy_total_cost and fy_total_cost_sub_projects
-#   2. AE is in the OrganizationState column (not a US State).
+#   2. AE is in the OrganizationState column (not a US State). Correct.
 
 os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/USA")
-
-us_files = [i for i in os.listdir() if i != ".DS_Store" and "~" not in i and ".R" not in i][0:]
+us_files = [i for i in os.listdir() if i.endswith(".csv")]
 
 # to_concat = []
 # for f in us_files:
@@ -50,7 +57,8 @@ us_files = [i for i in os.listdir() if i != ".DS_Store" and "~" not in i and ".R
 # us_df = pd.concat(to_concat)
 # us_df.index = range(us_df.shape[0])
 
-us_df = multi_readin(us_files, encoding="ISO-8859-1")
+us_df = multi_readin(us_files, encoding="ISO-8859-1", dtypes={"Organization_Zip": 'str'})
+tqdm.pandas(desc="status")
 
 def total_merge(fy_total, fy_total_sub):
     if str(fy_total) != 'nan':
@@ -118,65 +126,36 @@ new_fs = [i for i in new_fs if i[0] != i[1]]
 for f in new_fs:
     us_df.loc[us_df.fundingsource == f[0], 'fundingsource'] = f[1]
 
-# Drop duplicates.
-us_df.drop_duplicates(keep = "first", inplace = True)
-us_df.index = range(us_df.shape[0])
+# Clean Country Names (drop tabs, i.e., "\t")
+us_df['organization_country'] = us_df['organization_country'].str.replace("\t", "")
 
-# Get lng/lat from zip
-os.chdir(MAIN_FOLDER + "/Data")
-
-# Get Zip code data
-zipdb = pd.read_csv("free-zipcode-database.csv")
-
-# Cean the Dataframe
-us_df['organization_zip'] = us_df.organization_zip.astype(str)
-us_df['organization_zip'] = us_df.organization_zip.apply(lambda v: v.strip().split("-")[0])
+# Clean City Names (remove extra white space).
 us_df['organization_city'] = us_df.organization_city.apply(lambda v: v.strip())
 
-# Convert Zipcode to a string
-zipdb['Zipcode'] = zipdb.Zipcode.astype(str)
+# Drop duplicates.
+us_df.drop_duplicates(keep = "first", inplace=True)
+us_df.reset_index(drop=True, inplace=True)
 
-# Correct zipdb column names
-zipdb.rename(columns = dict(Zipcode = 'organization_zip'
-                            , City = 'organization_city'
-                            , Country = 'organization_country'
-                            , State = 'organization_state')
-                            , inplace = True)
+# Cean the Dataframe zip codes
+us_df['organization_zip'] = us_df['organization_zip'].astype(str)
+us_df['organization_zip'] = us_df['organization_zip'].apply(lambda v: v.strip().split("-")[0][:5])
 
-zipdb['lat_long'] = zipdb.apply(lambda x: [x['Lat'], x['Long']], axis = 1)
+us_df_lat_lng = us_df.progress_apply(
+    lambda x: master_geo_locator(x['organization_zip'], x['organization_name'], x['organization_country']), axis=1)
+us_df_lat_lng_np = np.array(us_df_lat_lng.tolist())
 
-# Specify join on
-cols = ['organization_zip', 'organization_city', 'lat_long', 'Lat', 'Long']
-
-# Truncate zip codes in organization_zip
-us_df['organization_zip'] = us_df['organization_zip'].astype(str).map(lambda x: x[:5])
-
-# Create a dictionary of US zipcodes
-us_zipcode_geo_dict = dict(zip(zipdb['organization_zip'], zipdb['lat_long']))
-
-def us_geo_locator(zipcode, lng_or_lat):
-    geo = np.nan
-    if zipcode in us_zipcode_geo_dict.keys():
-        geo = us_zipcode_geo_dict[zipcode]
-        return geo[0] if lng_or_lat == 'Lat' else geo[1]
-
-    return np.nan
-
-us_df['Lat'] = us_df['organization_zip'].map(lambda x: us_geo_locator(x, 'Lat'))
-us_df['Long'] = us_df['organization_zip'].map(lambda x: us_geo_locator(x, 'Long'))
+us_df['lat'] = us_df_lat_lng_np[:,0]
+us_df['lng'] = us_df_lat_lng_np[:,1]
 
 # Many thanks to @miraculixx over on Stack Overflow.
 # see: http://stackoverflow.com/questions/38284615/speed-up-pandas-dataframe-lookup/38284860#38284860
 
 # Drop entries for which location information could not be obtained
-us_df = us_df[pd.notnull(us_df["Lat"])]
+us_df = us_df[pd.notnull(us_df["lat"])]
 
 # lower col names
 us_df.columns = [c.lower() for c in us_df.columns]
 us_df.index = range(us_df.shape[0])
-
-
-
 
 # deploy comma_reverse()
 us_df['contact_pi_project_leader'] = [comma_reverse(i) for i in us_df['contact_pi_project_leader'].tolist()]
@@ -222,19 +201,19 @@ us_df.columns = new_col_names
 # Add Currency Column
 us_df["FundCurrency"] = "USD"
 
-# Correct Block Name to invariably be 'United States'.
+# Set Organization Block Name to 'United States'.
 us_df['OrganizationBlock'] = "United States"
 
-# Correct OrganizationState
-us_df['OrganizationState'] = us_df['OrganizationState'].replace(US_states)
+# Correct OrganizationState: USA, Canada and Europe.
+for d in [US_states, Canada_prov_terr, European_Countries]:
+    us_df['OrganizationState'] = us_df['OrganizationState'].replace(d)
 
 # Convert GrantYear and Amount to Floats
 us_df['GrantYear'] = us_df['GrantYear'].astype(float)
 us_df['Amount'] = us_df['Amount'].astype(float)
 
-
 # Correct weird case of negative grants.
-# us_df['Amount'] = us_df['Amount'].map(lambda x: x if str(x) == 'nan' or x > 0 else x*-1)
+# us_df['Amount'] = us_df['Amount'].map(lambda x: x if str(x) == 'nan' or x >= 0 else x*-1)
 
 # Refresh index
 us_df.reset_index(drop=True, inplace=True)
@@ -247,9 +226,7 @@ us_df = us_df[order_cols]
 
 
 # Save
-os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/CompleteRegionDatabases")
-us_df.to_pickle("AmericanFundingDatabase.p")
-
+us_df.to_pickle(MAIN_FOLDER + "/Data/Governmental_Science_Funding/CompleteRegionDatabases/" + "AmericanFundingDatabase.p")
 
 
 

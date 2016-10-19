@@ -23,6 +23,7 @@ import pandas as pd
 from copy import deepcopy
 from fuzzywuzzy import fuzz    # needed?
 from fuzzywuzzy import process
+from easymoney.easy_pandas import twoD_nested_dict
 
 from abstract_analysis import *
 
@@ -227,7 +228,21 @@ def remove_accents(input_str):
     nkfd_form = unicodedata.normalize('NFKD', input_str)
     return ("".join([c for c in nkfd_form if not unicodedata.combining(c)]))
 
-def multi_readin(files_to_readin, lower_cols=True, unnammed_drop=False, encoding = None):
+def try_dict_lookup(input_dict, key):
+    """
+
+    :param input_dict:
+    :param key:
+    :return:
+    """
+    if key in input_dict.keys():
+        return input_dict[key]
+    if remove_accents(key) in input_dict.keys():
+        return input_dict[remove_accents(key)]
+    else:
+        return np.NaN
+
+def multi_readin(files_to_readin, lower_cols=True, unnammed_drop=False, encoding = None, dtypes=None):
     """
 
     Read in multiple csv files.
@@ -239,9 +254,9 @@ def multi_readin(files_to_readin, lower_cols=True, unnammed_drop=False, encoding
     to_concat = list()
     for f in files_to_readin:
         if encoding != None:
-            temp_df = pd.read_csv(f, encoding=encoding)
+            temp_df = pd.read_csv(f, encoding=encoding, dtype=dtypes)
         else:
-            temp_df = pd.read_csv(f)
+            temp_df = pd.read_csv(f, dtype=dtypes)
         if lower_cols:
             temp_df.columns = [cln(c.lower(), 2) for c in temp_df.columns.tolist()]
         to_concat.append(temp_df)
@@ -254,6 +269,26 @@ def multi_readin(files_to_readin, lower_cols=True, unnammed_drop=False, encoding
             df.drop(td, axis=1, inplace=True)
 
     return df.reset_index(drop=True, inplace=False)
+
+def wiki_pull_geo_parser(db_path):
+    """
+    Nested Dict from WikiPull {Country {UNI: GEO}}
+    """
+    df = pd.read_csv(db_path)
+    df = df.dropna(subset=['lat', 'lng']).reset_index(drop=True).drop('Unnamed: 0', axis=1)
+    df['University'] = df['University'].str.lower()
+    df['lat_long'] = df.apply(lambda x: [round(x['lat'], 6), round(x['lng'], 6)], axis=1)
+    return  twoD_nested_dict(df, 'Country', 'University', 'lat_long')
+
+def partial_key_check(partial_key, dictionary):
+    """
+    Checks for a partial key match in a dict.
+    Returns the corresponding key if one (and only one) was found.
+    Otherwise, returns nan.
+    """
+    keys = list(dictionary.keys())
+    key_matches = [i for i in keys if partial_key.lower() in i.lower()]
+    return key_matches[0] if len(key_matches) == 1 else np.NaN
 
 # Create ISO country Dict.
 two_iso_country_dict = dict()

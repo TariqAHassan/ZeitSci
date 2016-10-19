@@ -27,7 +27,6 @@ from funding_database_tools import df_combine
 from funding_database_tools import column_drop
 from funding_database_tools import string_match_list
 
-
 # Try US postal codes too.
 
 # ------------------------------------------------------------------------------------------------------------ #
