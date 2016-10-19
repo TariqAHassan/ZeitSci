@@ -22,6 +22,7 @@ from funding_database_tools import MAIN_FOLDER
 from funding_database_tools import order_cols
 from funding_database_tools import comma_reverse
 from funding_database_tools import remove_accents
+from funding_database_tools import try_dict_lookup
 from funding_database_tools import fdb_common_words
 from funding_database_tools import df_combine
 from funding_database_tools import column_drop
@@ -65,16 +66,13 @@ ca_df.index = range(ca_df.shape[0])
 # Correct Year
 ca_df.year = ca_df.year.map(lambda x: x.split("-")[0])
 
-# Move to get Canadian Uni Info.
-os.chdir(MAIN_FOLDER + "/Data/WikiPull/North_America")
-
 # Import
-can_uni_geo = pd.read_csv("NorthAmericaUnivertitiesComplete.csv")
+can_uni_geo = pd.read_csv(MAIN_FOLDER + "/Data/WikiPull/North_America/" + "NorthAmericaUniversitiesComplete.csv")
 del can_uni_geo["Unnamed: 0"]
 
 # Limit to canada
-can_uni_geo = can_uni_geo[can_uni_geo.Country == "Canada"]
-can_uni_geo.index = range(can_uni_geo.shape[0])
+can_uni_geo = can_uni_geo[can_uni_geo.Country == "Canada"].reset_index(drop=True)
+# can_uni_geo.index = range(can_uni_geo.shape[0])
 
 # Get lat - lng info
 can_city_lat = dict(zip([remove_accents(k) for k in can_uni_geo['University'].str.lower()], can_uni_geo['lat']))
@@ -83,24 +81,9 @@ can_city_lng = dict(zip([remove_accents(k) for k in can_uni_geo['University'].st
 # Determine what Unis are missing
 # missing_can_unis = list(set(ca_df.university.unique().tolist()) - set(can_city_dict.keys()))
 
-def try_dict_lookup(input_dict, key):
-    """
-
-    :param input_dict:
-    :param key:
-    :return:
-    """
-    if key in input_dict.keys():
-        return input_dict[key]
-    if remove_accents(key) in input_dict.keys():
-        return input_dict[remove_accents(key)]
-    else:
-        return np.NaN
-
 # Populate with lat-lng information
 ca_df['lng'] = ca_df.university.str.lower().map(lambda x: try_dict_lookup(can_city_lng, x))
 ca_df['lat'] = ca_df.university.str.lower().map(lambda x: try_dict_lookup(can_city_lat, x))
-
 
 # -------------------- #
 # Add city information #
@@ -110,7 +93,7 @@ ca_df['lat'] = ca_df.university.str.lower().map(lambda x: try_dict_lookup(can_ci
 os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/Canada")
 
 # Import
-can_uni_cities = pd.read_excel("Canadian_Universities_WIki.xlsx")
+can_uni_cities = pd.read_excel("Canadian_Universities_Wiki.xlsx")
 
 # Limit to city
 can_uni_cities['City'] = can_uni_cities['City'].map(lambda x: x.split(",")[0])
