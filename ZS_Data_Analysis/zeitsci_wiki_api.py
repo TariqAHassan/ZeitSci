@@ -1,3 +1,11 @@
+"""
+
+    Wikipedia Information
+    ~~~~~~~~~~~~~~~~~~~~~
+
+"""
+
+
 import datetime
 import os
 import re
@@ -11,21 +19,22 @@ import numpy as np
 from fuzzywuzzy import fuzz
 from nltk.corpus import stopwords
 
-from my_keys import WIKI_USER_AGENT
 from supplementary_fns import cln
+from my_keys import WIKI_USER_AGENT
+MAIN_FOLDER = "/Users/tariq/Google Drive/Programming Projects/ZeitSci/"
 
-# TO DO: Clean up imports
-
-# TO DO: import currency abbres.
+# TO DO:
+# - Clean up imports
+# - import currency abbres.
 
 # Get the current dir
-current_dir = os.getcwd()
+# current_dir = os.getcwd()
 
 # Move over to the data folder
-os.chdir(current_dir.rsplit('/', 1)[0] + "/Data")
+os.chdir(MAIN_FOLDER + "/Data")
 
 # Change back to orig. dir.
-os.chdir(current_dir)
+# os.chdir(current_dir)
 
 
 def wiki_complete(title):
@@ -288,23 +297,45 @@ class WikiUniversities(object):
         except:
             return False
 
-    def twoDlist_to_dec(self, coordinates):
+    def dash_correct(self, input_str):
+        """
+
+        :param input_str:
+        :return:
+        """
+        neg_count = str(input_str).count("-")
+        if neg_count == 0:
+            return input_str
+        if neg_count in [0, 1] and input_str[0] == '-':
+            return input_str
+        elif neg_count == 1 and input_str[0] == '-':
+            return input_str
+        elif neg_count >= 1 and input_str[0] != '-':
+            return input_str.replace("-", "")
+        elif neg_count > 1 and input_str[0] == '-':
+            return "-" + input_str.replace("-", "")
+
+    def twoDlist_to_dec(self, coordinates, raw_cords=None):
         """
 
         :param coordinates:
         :return:
         """
+        if raw_cords != None:
+            dirs = list(map(str.lower, filter(lambda x: x.strip().lower() in ['n', 'w', 's', 'e'], raw_cords)))
+            lat_scalar = -1 if 's' in dirs else 1
+            lng_scalar = -1 if 'w' in dirs else 1
+        else:
+            lat_scalar = lng_scalar = 1
 
         try:
             if np.array(coordinates).shape == (2, 3):
-                for loc in range(len(coordinates)):
-                    coordinates[loc] = self.dms2des(coordinates[loc])
-            else:
-                return None
+                lng_lat = [self.dms2des(coordinates[0]), self.dms2des(coordinates[1])]
+                if len(list(filter(None, lng_lat))) == 2:
+                    return [lng_lat[0]*lat_scalar, lng_lat[1]*lng_scalar]
+            return None
         except:
             return None
-
-        return coordinates
 
     def wiki_coords_extractor(self, raw_page, start = "{{coor"):
         """
@@ -317,15 +348,14 @@ class WikiUniversities(object):
             Thus, unconsidered forms are likely to defeat this algorithm, and thus the function
             will fail to return any coordinate information.
 
-        :param start: where to start the extract from the raw page. Defaults to "{{coor"
-        :param raw_page: a raw wikipedia page as extract by wiki_complete_get()
-        :return: the [longitude, latitude] from a wikipedia page in decimal degrees
+        :param start: where to start the extract from the raw page. Defaults to "{{coor".
+        :param raw_page: a raw wikipedia page as extract by wiki_complete_get().
+        :return: the [longitude, latitude] from a wikipedia page in decimal degrees.
         """
-
-        coordinates = list()
-        lng_lat = list()
-        temp = list()
         dms = ""
+        temp = list()
+        lng_lat = list()
+        coordinates = list()
         specified_dms = ["lat" + p for p in [i + "=" for i in ['d', 'm', 's']]] + \
                         ["long" + p for p in [i + "=" for i in ['d', 'm', 's']]]
 
@@ -344,12 +374,12 @@ class WikiUniversities(object):
 
         # If 1. worked, convert the answer into decimal degrees and return
         if np.array(coordinates).shape == (2, 3):
-            return self.twoDlist_to_dec(coordinates)
+            return self.twoDlist_to_dec(coordinates, coord)
 
         # 2. if 1. doesn't work, look for all of (latd, latm, lats) and (longd, longm, longs)
         if all(x in cln(raw_page, 2) for x in specified_dms):
             for s in specified_dms:
-                dms = re.sub(r'[^0-9.]', "", cln(cln(raw_page, 2).split(s)[-1].split("|")[0]), 2)
+                dms = self.dash_correct(re.sub(r'[^-?+?0-9.]', "", cln(cln(raw_page, 2).split(s)[-1].split("|")[0]), 2))
                 if dms.count(".") <= 1 and self.try_float(dms):
                     temp.append(float(dms))
                 if s[-2] == "s":
@@ -361,7 +391,7 @@ class WikiUniversities(object):
             return self.twoDlist_to_dec(coordinates)
 
         # 3. If 2. also doesn't work, try to extract decimal degrees
-        if len(coordinates) != 0: # Clear above attempt
+        if len(coordinates): # Clear above attempt
             coordinates = list()
 
         for c in coord:
@@ -638,7 +668,7 @@ class WikiUniversities(object):
         :return: a dictionary with institution_type, longitude, latitude and endowment information.
         """
 
-        # Crate the dict
+        # Create the dict
         institution_data = {
             "institution_type": ""
             , "lng": ""
@@ -674,34 +704,6 @@ class WikiUniversities(object):
         institution_data["endowment"] = endowment if endowment != None else ""
 
         return institution_data
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
