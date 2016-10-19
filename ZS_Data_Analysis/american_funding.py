@@ -195,7 +195,6 @@ us_df.columns = new_col_names
 # Remove individual researchers
 # us_df = us_df[~us_df.OrganizationName.map(lambda x: "".join(x.lower().split())).str.contains(",phd")]
 # us_df = us_df[~us_df.OrganizationName.map(lambda x: "".join(x.lower().split())).str.contains(",md")]
-
 # Remove rows with amount == 0?
 
 # Add Currency Column
