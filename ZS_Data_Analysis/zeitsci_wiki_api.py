@@ -20,8 +20,7 @@ from fuzzywuzzy import fuzz
 from nltk.corpus import stopwords
 
 from supplementary_fns import cln
-from my_keys import WIKI_USER_AGENT
-MAIN_FOLDER = "/Users/tariq/Google Drive/Programming Projects/ZeitSci/"
+from my_keys import WIKI_USER_AGENT, MAIN_FOLDER
 
 # TO DO:
 # - Clean up imports

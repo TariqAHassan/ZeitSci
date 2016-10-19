@@ -1,7 +1,7 @@
 """
 
-    US Funding
-    ~~~~~~~~~~
+    US Funding GIS
+    ~~~~~~~~~~~~~~
 
     Python 3.5
         ...i.e., beware of starred expression.
@@ -38,9 +38,9 @@ from funding_database_tools import remove_accents
 # - South Korea      H
 # - Europe (Italy)   D
 # - United Kingdom   D
-# - Australia        H
+# - Australia        D
 # - Chile            H
-# - Bermuda          D
+# - Bermuda          H
 #
 # H = Half Done
 # D = Done
