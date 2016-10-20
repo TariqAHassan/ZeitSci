@@ -14,14 +14,16 @@ import glob2
 import string
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 from abstract_analysis import *
+from currency_converter import CurrencyConverter
 from funding_database_tools import MAIN_FOLDER
 from funding_database_tools import multi_readin
 
-
 from easymoney.money import EasyPeasy
 from easymoney.easy_pandas import strlist_to_list, twoD_nested_dict
+from sources.world_bank_interface import _world_bank_pull_wrapper as wbpw
 
 
 # Goal:
@@ -80,7 +82,7 @@ os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/CompleteRegionDatabas
 
 
 # ------------------------------------------------------------------------- #
-#               Integrate Funding Data from around the World                #
+# Integrate Funding Data from around the World
 # ------------------------------------------------------------------------- #
 
 # Read in Databases
@@ -90,58 +92,94 @@ ca_df = pd.read_pickle('CanadianFundingDatabase.p')
 
 # Merge the dataframes
 df = us_df.append([eu_df, ca_df])
-df.index = range(df.shape[0])
+df = df.reset_index(drop=True)
+tqdm.pandas(desc="status")
 
 # ------------------------------------------------------------------------- #
-#                           Normalize Grant Amount                          #
+# Normalize Grant Amount
 # ------------------------------------------------------------------------- #
 
-def zeitsci_normalize(amount
-                      , org_block
-                      , org_state
-                      , grant_year
-                      , to_year=2015
-                      , base_currency='USD'
-                      , exchange_date = '2015-12-31'):
+# Create an instance of CurrencyConverter
+c = CurrencyConverter()
+
+# Get Most Recent CPI Information from the IMF via. the world Bank
+cpi = wbpw("CPI", "FP.CPI.TOTL")[0]
+
+# Convert to CPI dataframe to a dict
+cpi_dict = twoD_nested_dict(cpi, 'Year', 'Country', 'CPI', engine='fast')
+
+# Max Years in CPI dataframe
+cpi_dict_max = cpi.groupby('Country').apply(lambda x: int(max(x['Year']))).to_dict()
+
+def zeitsci_cpi(region, year_a, year_b):
+
+    rate = np.NaN
+    year_a_str = str(year_a)
+    year_b_str = str(year_b)
+
+    if all(i in cpi_dict for i in [year_a_str, year_b_str]):
+        if all(region in j for j in [cpi_dict[year_a_str], cpi_dict[year_b_str]]):
+            c1 = float(cpi_dict[year_a_str][region]) # start
+            c2 = float(cpi_dict[year_b_str][region]) # end
+            rate = (c2 - c1)/c1 + 1
+
+    return rate
+
+def zeitsci_normalize(amount, amount_block, amount_state, amount_cur, from_year, base_year=2015, base_currency='USD'):
     """
 
     :param amount:
-    :param org_block:
-    :param org_state:
-    :param grant_year:
-    :param to_year:
+    :param amount_block:
+    :param amount_state:
+    :param amount_cur:
+    :param from_year:
+    :param base_year:
     :param base_currency:
-    :param exchange_date:
     :return:
     """
-    # Set the Currency (and handle Europe properly).
-    currency = org_state if org_block == 'Europe' else org_block
+    # Get the region
+    region = amount_block if amount_block in ['United States', 'Canada'] else amount_state
 
-    # Return a NaN if any nans are passed
-    if 'nan' in [str(i) for i in list(locals().values())]:
-        return np.nan
+    # Handle possible dates beyond DB
+    amount_from_year = from_year
+    if region not in cpi_dict_max:
+        return np.NaN
 
-    try:
-        return ep.normalize(amount=amount
-                             , currency=currency
-                             , from_year=int(grant_year)
-                             , to_year=to_year
-                             , base_currency=base_currency
-                             , exchange_date=exchange_date)
-    except:
-        return np.nan
+    if from_year > cpi_dict_max[region]:
+        amount_from_year = cpi_dict_max[region]
 
-c = 0
-normalize_grant_list = list()
-for grant in zip(*[df['Amount'], df['OrganizationBlock'], df['OrganizationState'], df['GrantYear']]):
-    c += 1
-    if c % 5000 == 0:
-        print(round((float(c) / df.shape[0]) * 100, 2), "%")
-    normalize_grant_list.append(zeitsci_normalize(grant[0], grant[1], grant[2], grant[3]))
+    # Get inflation rate
+    inflation_rate = zeitsci_cpi(region, amount_from_year, base_year)
 
-# An .apply wasn't used because this is a lengthy operation, currently
-# bottlednecked by easymoney. This way progress can be monitored.
-df['NormalizedAmount'] = normalize_grant_list
+    if pd.isnull(inflation_rate):
+        return np.NaN
+
+    # Adjust for inflation
+    real_amount = inflation_rate * amount
+    # print(from_year, amount, real_amount, "|", inflation_rate)
+
+    # Convert to base currency
+    return c.convert(real_amount, amount_cur, base_currency)
+
+def zeitsci_normalize_wrapper(x):
+
+    if pd.isnull(x['GrantYear']): return np.NaN
+    input_dict = {
+        'block' : x['OrganizationBlock'],
+        'state' : x['OrganizationState'],
+        'amount' : x['Amount'],
+        'from_year' : int(x['GrantYear']),
+        'amount_cur' : x['FundCurrency']
+    }
+    if any(pd.isnull(i) for i in input_dict.values()): return np.NaN
+
+    return zeitsci_normalize(input_dict['amount']
+                             , input_dict['block']
+                             , input_dict['state']
+                             , input_dict['amount_cur']
+                             , input_dict['from_year'])
+
+df['NormalizedAmount'] = df.progress_apply(lambda x: zeitsci_normalize_wrapper(x), axis=1)
 
 # ------------------------------------------------------------------------- #
 #                      Write Integrated Database to Disk                    #
