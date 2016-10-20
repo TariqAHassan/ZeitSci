@@ -255,7 +255,7 @@ def journal_lookup(jname):
 class WikiUniversities(object):
     """
 
-    Class for extract a Universty's: Endowment, [log,lat] and whether it's public or private.
+    Class for extract a Universty's: Endowment, [log,width] and whether it's public or private.
 
     """
 
@@ -275,7 +275,7 @@ class WikiUniversities(object):
         :return: decimal Degrees
         """
 
-        if len([i for i in dms if isinstance(i, float)]) != 3:
+        if len([i for i in dms if isinstance(i, (float, int))]) != 3:
             return None
 
         deg = dms[0]
@@ -316,30 +316,80 @@ class WikiUniversities(object):
 
     def twoDlist_to_dec(self, coordinates, raw_cords=None):
         """
+        Adds Direction information to Coords.
 
-        :param coordinates:
+        :param coordinates: processed coordinates
+        :param coordinates: raw extract from raw_page.
         :return:
         """
+        dec_result = None
         if raw_cords != None:
             dirs = list(map(str.lower, filter(lambda x: x.strip().lower() in ['n', 'w', 's', 'e'], raw_cords)))
-            lat_scalar = -1 if 's' in dirs else 1
-            lng_scalar = -1 if 'w' in dirs else 1
+            dirs = [cln(x, 2) for x in dirs]
+            height_scalar = -1 if 's' in dirs else 1
+            width_scalar = -1 if 'w' in dirs else 1
         else:
-            lat_scalar = lng_scalar = 1
+            width_scalar = height_scalar = 1
 
         try:
             if np.array(coordinates).shape == (2, 3):
-                lng_lat = [self.dms2des(coordinates[0]), self.dms2des(coordinates[1])]
-                if len(list(filter(None, lng_lat))) == 2:
-                    return [lng_lat[0]*lat_scalar, lng_lat[1]*lng_scalar]
+                height_width = [self.dms2des(coordinates[0]), self.dms2des(coordinates[1])]
+                if len(list(filter(None, height_width))) == 2:
+                    dec_result = [height_width[0] * height_scalar, height_width[1] * width_scalar]
+            elif len(coordinates) == 2 and all(isinstance(i, (float, int)) for i in coordinates):
+                dec_result = [coordinates[0] * height_scalar, coordinates[1] * width_scalar]
+        except:
             return None
+
+        return dec_result
+
+    def x_degrees_extractor(self, raw_page):
+        """
+
+        Yet another format on wikipedia for GIS info.
+        Very uninspired code...but this is becoming very tedious and dull...
+
+        Regex from: http://stackoverflow.com/a/3368993/4898004.
+
+        :param raw_page:
+        :return:
+        """
+        geo_info = dict()
+        raw_page_cln_whited_space = str(cln(raw_page, 2))
+        terms = ["degrees", 'minutes', 'seconds', 'direction']
+        look_for = [[y + "_" + x + "=" for x in terms] for y in ['lat', 'long']]
+        look_for_flat = [i for s in look_for for i in s]
+
+        end = "|"
+        for s in look_for_flat:
+            try:
+                term = re.findall(re.escape(s) + "(.*)" + re.escape(end), raw_page_cln_whited_space)[0].split(end)[0]
+            except:
+                return None
+            if "direction" not in s:
+                try:
+                    geo_info[s.replace("=", "")] = int(term)
+                except:
+                    return None
+            else:
+                geo_info[s.replace("=", "")] = term
+
+        height_scalar = -1 if 's' in geo_info['lat_direction'] else 1
+        width_scalar = -1 if 'w' in geo_info['long_direction'] else 1
+
+        try:
+            coords = [
+                self.dms2des([geo_info['lat_degrees'], geo_info['lat_minutes'], geo_info['lat_seconds']]) * height_scalar,
+                self.dms2des([geo_info['long_degrees'], geo_info['long_minutes'], geo_info['long_seconds']]) * width_scalar
+            ]
+            return coords
         except:
             return None
 
     def wiki_coords_extractor(self, raw_page, start = "{{coor"):
         """
 
-        This function tries to get coordinates (lng/lat) from a wikipedia page.
+        This function tries to get coordinates (long/lat) from a wikipedia page.
 
         Note:
             While a bit of effort has gone towards to make this procedure a juggernaut,
@@ -349,11 +399,11 @@ class WikiUniversities(object):
 
         :param start: where to start the extract from the raw page. Defaults to "{{coor".
         :param raw_page: a raw wikipedia page as extract by wiki_complete_get().
-        :return: the [longitude, latitude] from a wikipedia page in decimal degrees.
+        :return: the [longtitude, latitude] from a wikipedia page in decimal degrees.
         """
         dms = ""
         temp = list()
-        lng_lat = list()
+        height_width = list()
         coordinates = list()
         specified_dms = ["lat" + p for p in [i + "=" for i in ['d', 'm', 's']]] + \
                         ["long" + p for p in [i + "=" for i in ['d', 'm', 's']]]
@@ -366,10 +416,10 @@ class WikiUniversities(object):
         # 1. Try to get Degrees, Minutes and Seconds
         for c in coord:
             if self.try_float(c):
-                lng_lat.append(float(cln(c, 2)))
-            if cln(c.lower(), 2) in ['n', 'w', 's', 'e'] and len(lng_lat) == 3:
-                coordinates.append(lng_lat)
-                lng_lat = []
+                height_width.append(float(cln(c, 2)))
+            if cln(c.lower(), 2) in ['n', 'w', 's', 'e'] and len(height_width) == 3:
+                coordinates.append(height_width)
+                height_width = []
 
         # If 1. worked, convert the answer into decimal degrees and return
         if np.array(coordinates).shape == (2, 3):
@@ -377,12 +427,14 @@ class WikiUniversities(object):
 
         # 2. if 1. doesn't work, look for all of (latd, latm, lats) and (longd, longm, longs)
         if all(x in cln(raw_page, 2) for x in specified_dms):
+            print(raw_page)
+            print("^Could be backwards...check.")
             for s in specified_dms:
                 dms = self.dash_correct(re.sub(r'[^-?+?0-9.]', "", cln(cln(raw_page, 2).split(s)[-1].split("|")[0]), 2))
                 if dms.count(".") <= 1 and self.try_float(dms):
                     temp.append(float(dms))
                 if s[-2] == "s":
-                    coordinates.append(temp)
+                    coordinates.append(temp) # flip? [::-1]
                     temp = list()
 
         # If 2 worked, convert the answer (as above) and return
@@ -397,13 +449,19 @@ class WikiUniversities(object):
             if "." in c and self.try_float(c):
                 coordinates.append(float(cln(c, 2)))
 
-        #coord = [coordinates.append(float(cln(c, 2))) for c in coord if "." in c and self.try_float(c)]
+        # Check attempt 3. for Success or failure.
+        if len(coordinates) == 2:
+            return self.twoDlist_to_dec(coordinates, raw_cords=coord)
+        else:
+            coordinates = list()
 
-        # Check attempt 3. for failure.
-        if len(coordinates) != 2:
-            return None  # Give up
+        # Attempt 4.
+        coordinates = self.x_degrees_extractor(raw_page)
+        if coordinates != None and len(coordinates) == 2:
+            return coordinates
+        else:
+            return None  # give up
 
-        return coordinates
 
     def money_scale_denoters(self, input_str):
         """
@@ -411,7 +469,6 @@ class WikiUniversities(object):
         :param input_str:
         :return:
         """
-
         denoters_found = []
         for md in self.money_denoters:
             if md in input_str.lower():
@@ -534,7 +591,7 @@ class WikiUniversities(object):
         """
 
         :param endowment_list:
-        :return: returns a dict with nominal endowment info (not adjusted for inflation).
+        :return: returns a dict with nominal endowment info (not adjusted for infwidthion).
         """
 
         num_scale = 1
@@ -666,14 +723,8 @@ class WikiUniversities(object):
                        manually for the most relable endowment information. Defaults to None.
         :return: a dictionary with institution_type, longitude, latitude and endowment information.
         """
-
         # Create the dict
-        institution_data = {
-            "institution_type": ""
-            , "lng": ""
-            , "lat": ""
-            , "endowment": ""
-        }
+        institution_data = {"institution_type": "", "lng": "", "lat": "", "endowment": ""}
 
         if wiki_page_title in ["", "nan", "NaN", None, np.nan]:
             return institution_data
@@ -698,8 +749,8 @@ class WikiUniversities(object):
 
         # Add to dict
         institution_data["institution_type"] = institution_type if institution_type != None else ""
-        institution_data["lng"] = location[0] if None not in location else ""
-        institution_data["lat"] = location[1] if None not in location else ""
+        institution_data["lat"] = location[0] if location != None and None not in location else ""
+        institution_data["lng"] = location[1] if location != None and None not in location else ""
         institution_data["endowment"] = endowment if endowment != None else ""
 
         return institution_data
