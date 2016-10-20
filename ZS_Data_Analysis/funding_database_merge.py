@@ -25,6 +25,8 @@ from easymoney.money import EasyPeasy
 from easymoney.easy_pandas import strlist_to_list, twoD_nested_dict
 from sources.world_bank_interface import _world_bank_pull_wrapper as wbpw
 
+# Release Candidate
+RC = 5
 
 # Goal:
 # A dataframe with the following columns:
@@ -63,7 +65,6 @@ from sources.world_bank_interface import _world_bank_pull_wrapper as wbpw
 chars = re.escape(string.punctuation)
 
 # Create an instance of EasyPeasy
-ep = EasyPeasy()
 
 def alphanum(input_str, chars=chars):
     """
@@ -125,7 +126,7 @@ def zeitsci_cpi(region, year_a, year_b):
 
     return rate
 
-def zeitsci_normalize(amount, amount_block, amount_state, amount_cur, from_year, base_year=2015, base_currency='USD'):
+def zeitsci_normalize(amount, amount_state, amount_cur, from_year, amount_block = None, base_year=2015, base_currency='USD'):
     """
 
     :param amount:
@@ -138,7 +139,10 @@ def zeitsci_normalize(amount, amount_block, amount_state, amount_cur, from_year,
     :return:
     """
     # Get the region
-    region = amount_block if amount_block in ['United States', 'Canada'] else amount_state
+    if amount_block == None:
+        region = amount_state
+    else:
+        region = amount_block if amount_block in ['United States', 'Canada'] else amount_state
 
     # Handle possible dates beyond DB
     amount_from_year = from_year
@@ -150,13 +154,11 @@ def zeitsci_normalize(amount, amount_block, amount_state, amount_cur, from_year,
 
     # Get inflation rate
     inflation_rate = zeitsci_cpi(region, amount_from_year, base_year)
-
     if pd.isnull(inflation_rate):
         return np.NaN
 
     # Adjust for inflation
     real_amount = inflation_rate * amount
-    # print(from_year, amount, real_amount, "|", inflation_rate)
 
     # Convert to base currency
     return c.convert(real_amount, amount_cur, base_currency)
@@ -165,34 +167,21 @@ def zeitsci_normalize_wrapper(x):
 
     if pd.isnull(x['GrantYear']): return np.NaN
     input_dict = {
-        'block' : x['OrganizationBlock'],
         'state' : x['OrganizationState'],
         'amount' : x['Amount'],
         'from_year' : int(x['GrantYear']),
-        'amount_cur' : x['FundCurrency']
+        'amount_cur' : x['FundCurrency'],
+        'block': x['OrganizationBlock']
     }
     if any(pd.isnull(i) for i in input_dict.values()): return np.NaN
 
     return zeitsci_normalize(input_dict['amount']
-                             , input_dict['block']
                              , input_dict['state']
                              , input_dict['amount_cur']
-                             , input_dict['from_year'])
+                             , input_dict['from_year']
+                             , input_dict['block'])
 
 df['NormalizedAmount'] = df.progress_apply(lambda x: zeitsci_normalize_wrapper(x), axis=1)
-
-# ------------------------------------------------------------------------- #
-#                      Write Integrated Database to Disk                    #
-# ------------------------------------------------------------------------- #
-
-df.to_pickle("FundingDatabase.p")
-# df.to_csv('FundingDatabase.csv', index=False)
-
-# ------------------------------------------------------------------------- #
-#                      Read In Cached Integrated Database                   #
-# ------------------------------------------------------------------------- #
-
-df = pd.read_pickle('FundingDatabase.p')
 
 # Temporary until the above Integration code is rerun.
 df['OrganizationBlock'] = df['OrganizationBlock'].astype(str).str.replace("Italy", "United States")
@@ -241,32 +230,32 @@ univerties_dbs = list(set([i.replace("~$", "") for i in glob2.glob('*/*Complete.
 university_db = multi_readin(univerties_dbs, unnammed_drop=True)
 
 # Endowment '['x', 'y', 'z']' --> ['x', 'y', 'z'].
-university_db['endowment'] = university_db['endowment'].map(lambda x: x if str(x) == 'nan' else strlist_to_list(x))
+university_db['endowment'] = university_db['endowment'].map(lambda x: strlist_to_list(x), na_action='ignore')
 
-def endowment_normalizer(endowment_list, country, base_currency='USD'):
+def endowment_normalizer(x, base_currency='USD'):
     """
 
-    :param endowment_list:
-    :param block:
-    :param state:
+    :param x: passed from the university_db dataframe
+    :param base_currency:
     :return:
     """
+    endowment_list = x['endowment']
     if str(endowment_list) == 'nan':
         return np.NaN
 
     amount = float(endowment_list[0])
+    amount_currency = endowment_list[1]
     from_year = int(float(endowment_list[2]))
 
     if len(str(from_year)) == 4:
         try:
-            return ep.normalize(amount=amount, currency=country, from_year=from_year, base_currency=base_currency)
+            return zeitsci_normalize(amount, x['country'], amount_currency, from_year)
         except:
             return np.NaN
 
     return np.NaN
 
-university_db['normalized_endowment'] = university_db.apply(
-    lambda x: endowment_normalizer(x['endowment'], x['country']), axis=1)
+university_db['normalized_endowment'] = university_db.apply(lambda x: endowment_normalizer(x), axis=1)
 
 # Upper university names and remove special chars
 university_db['university'] = university_db['university'].astype(str).str.upper().map(lambda x: alphanum(x))
@@ -332,10 +321,9 @@ df['OrganizationName'] = df['OrganizationName'].map(lambda x: x.replace("\"", ""
 # ------------------------------------------------------------------------- #
 
 # Save
-df.to_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + 'MasterDatabaseRC4.p')
+df.to_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + 'MasterDatabaseRC' + str(RC) +'.p')
 
 
-# Fix quotes in Org. Name, e.g., "3s - Sensors, Signal Processing, Systems Gmbh".
 
 
 

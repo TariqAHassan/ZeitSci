@@ -36,7 +36,6 @@ var div = d3.select("body").append("div")
                            .style("opacity", 0);
 
 //Init
-// var topo, projection, path, svg, g;
 var topo, projection, path, defs, filter, feMerge, text, legend, svgLwr, gLwr, svg, funderLayer, g;
 var legendBoxHeight = 200;
 var largestSingleGrant = 0;
@@ -312,7 +311,7 @@ function terrestrialPoints(newDraw, grantToDraw, realTimeInfo){
 
     //Model Params
     var c = 2.9;
-    var k = 0.5; //increase to 0.8
+    var k = 0.1; //increase to 0.8
     var sizeFloor = 1.5;
 
     //Get the current zoom level
@@ -413,7 +412,7 @@ function transition(grantMovement, route, grantToDraw, newDraw, realTimeInfo, fl
 function grantTranslate(grantToDraw, newDraw, realTimeInfo, flightSpeed) {
     var from = funderGeoDict[grantToDraw["funderName"]];
     var to = funderGeoDict[grantToDraw["grantRecipientOrg"]];
-    var movingGrantRadius = logistic_fn(grantToDraw["grantAmount"], minValue=5, maxValue=largestSingleGrant, 0.5, 0.8);
+    var movingGrantRadius = logistic_fn(grantToDraw["grantAmount"], minValue=5, maxValue=largestSingleGrant, 0.5, 0.3);
 
     var route = g.append("path")
                    .attr("fill-opacity", 0)
