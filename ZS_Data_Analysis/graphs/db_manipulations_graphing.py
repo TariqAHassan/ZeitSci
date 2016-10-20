@@ -13,9 +13,10 @@ import pandas as pd
 from tqdm import tqdm
 from pprint import pprint
 from copy import deepcopy
-from statistics import mean
+from statistics import mean, median
 from haversine import haversine
 from calendar import monthrange
+from collections import Counter
 from supplementary_fns import cln
 from itertools import combinations, permutations
 from funding_database_tools import MAIN_FOLDER
@@ -30,41 +31,35 @@ from graphs.graphing_tools import money_printer, org_group
 # Read in Data
 # ------------------------------------------------------------------------------------------------ #
 
-funding = pd.read_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + 'MasterDatabaseRC3.p')
+funding = pd.read_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + 'MasterDatabaseRC5.p')
 tqdm.pandas(desc="status")
 
 # ------------------------------------------------------------------------------------------------ #
 # Add Funder Information
 # ------------------------------------------------------------------------------------------------ #
 
+# Used an jupyter notebook to choose the colors (simulation_color_palette.ipynb).
 funders_dict = {
-       'DOD_CDMRP'      : ['US Department of Defence (DOD)',                                      [38.870833, -77.055833]]
-     , 'DOD_CNRM'       : ['US Department of Defence (DOD)',                                      [38.870833, -77.055833]]
-     , 'DoD_CDMRP'      : ['US Department of Defence (DOD)',                                      [38.870833, -77.055833]]
-     , 'DoD_CNRM'       : ['US Department of Defence (DOD)',                                      [38.870833, -77.055833]]
-     , 'European Union' : ['European Commission (EC)',                                            [50.843611, 4.382777]]
-     , 'HHS_ACF'        : ['US Administration for Children & Families (ACF)',                     [38.886666, -77.014444]]
-     , 'HHS_CDC'        : ['US Centers for Disease Control and Prevention (CDC)',                 [33.798817, -84.325598]]
-     , 'HHS_FDA'        : ['US Food and Drug Administration (FDA)',                               [39.03556, -76.98271]]
+       'DOD_CDMRP'      : ['US Department of Defence (DOD)', [38.870833, -77.055833], "#5fdb57"]
+     , 'DOD_CNRM'       : ['US Department of Defence (DOD)', [38.870833, -77.055833], "#5fdb57"]
+     , 'DoD_CDMRP'      : ['US Department of Defence (DOD)', [38.870833, -77.055833], "#5fdb57"]
+     , 'DoD_CNRM'       : ['US Department of Defence (DOD)', [38.870833, -77.055833], "#5fdb57"]
+     , 'European Union' : ['European Commission (EC)', [50.843611, 4.382777], "#57dbb2"]
+     , 'HHS_ACF'        : ['US Administration for Children & Families (ACF)', [38.886666, -77.014444], "#57db80"]
+     , 'HHS_CDC'        : ['US Centers for Disease Control and Prevention (CDC)', [33.798817, -84.325598], "#db9057"]
+     , 'HHS_FDA'        : ['US Food and Drug Administration (FDA)', [39.03556, -76.98271], "#d357db"]
      , 'HHS_NIDILRR'    : ['US National Institute on Disability, Independent Living, and Rehabilitation Research (NIDILRR)',
-                                                                                                  [38.885939, -77.016469]]
-     , 'HHS_NIH'        : ['US National Institutes of Health (NIH)',                              [39.000443, -77.102394]]
-     , 'NASA'           : ['US National Aeronautics and Space Administration (NASA)',             [38.883, -77.0163]]
-     , 'NSERC'          : ['Natural Sciences and Engineering Research Council of Canada (NSERC)', [45.418267, -75.703119]]
-     , 'NSF'            : ['US National Science Foundation (NSF)',                                [38.88054, -77.110962]]
-     , 'USDA_ARS'       : ['US Department of Agriculture: Agricultural Research Service (ARS)',   [38.886767, -77.030001]]
-     , 'USDA_FS'        : ['US Forest Service (FS)',                                              [38.886767, -77.030001]]
-     , 'USDA_NIFA'      : ['US National Institute of Food and Agriculture (NIFA)',                [38.886767, -77.030001]]
+                                                                                    [38.885939, -77.016469], "#91db57"]
+     , 'HHS_NIH'        : ['US National Institutes of Health (NIH)', [39.000443, -77.102394], "#57a2db"]
+     , 'NASA'           : ['US National Aeronautics and Space Administration (NASA)', [38.883, -77.0163], "#57d3db"]
+     , 'NSERC'          : ['Natural Sciences and Engineering Research Council of Canada (NSERC)',
+                                                                                    [45.418267, -75.703119], "#dbc257"]
+     , 'NSF'            : ['US National Science Foundation (NSF)', [38.88054, -77.110962], "#db5f57"]
+     , 'USDA_ARS'       : ['US Department of Agriculture: Agricultural Research Service (ARS)',
+                                                                                    [38.886767, -77.030001], "#db5780"]
+     , 'USDA_FS'        : ['US Forest Service (FS)', [38.886767, -77.030001], "#c3db57"]
+     , 'USDA_NIFA'      : ['US National Institute of Food and Agriculture (NIFA)', [38.886767, -77.030001], "#6f57db"]
 }
-
-# Use an jupyter notebook to choose the colors (simulation_color_palette.ipynb).
-color_palette = ['#db5f57', '#db9057', '#dbc257', '#c3db57', '#91db57', '#5fdb57', '#57db80', '#57dbb2',
-                 '#57d3db', '#57a2db', '#5770db', '#6f57db', '#a157db', '#d357db', '#db57b2', '#db5780']
-
-c = 0 # Add color for each Funder.
-for k, v in funders_dict.items():
-    funders_dict[k] += [color_palette[c]]
-    c += 1
 
 funding['FunderNameFull'] = funding['Funder'].progress_map(lambda x: funders_dict[x][0])
 funding['latFunder'] = funding['Funder'].progress_map(lambda x: funders_dict[x][1][0])
@@ -105,43 +100,86 @@ def ends_with_checker(x, ends_with_terms=ends_with_terms, override_terms=['unive
 # Ablate
 funding = funding[~(funding['OrganizationName'].map(ends_with_checker))].reset_index(drop=True)
 
+
+# ------------------------------------------------------------------------------------------------ #
+# Clean Organization Name
+# ------------------------------------------------------------------------------------------------ #
+
+# # To remove:
+# # - *school of ...
+# # - *medical school
+# #  -- unless there is an "at"
+# # handle  'School of Medicine University of Rijeka',
+#
+# def starting_trailing_remove(input_str, to_remove, start_or_end):
+#     input_str_cln = input_str.strip()
+#     if start_or_end == 'start':
+#         if any(input_str_cln.startswith(i) for i in to_remove):
+#             return input_str_cln[1:]
+#     elif start_or_end == 'end':
+#         if any(input_str_cln.endswith(i) for i in to_remove):
+#             return input_str_cln[:-1]
+#
+# def tails_cln(input_str, to_remove):
+#     for tail in ['start', 'end']:
+#         input_str = starting_trailing_remove(input_str, to_remove, tail)
+#     return input_str
+#
+# # Remove extra white space and trailing commas and semi colins
+# funding['OrganizationName'] = funding['OrganizationName'].str.strip().map(
+#     lambda x: tails_cln(x, [',', ":", ";"]), na_action="ignore")
+#
+#
+# pprint(funding['OrganizationName'][funding['OrganizationName'].astype(str).str.lower().str.contains("univ")].unique().tolist())
+#
+
 # ------------------------------------------------------------------------------------------------ #
 # Homogenize Lng-Lat by OrganizationName (exact match)
 # ------------------------------------------------------------------------------------------------ #
+
+# This is killing off important database elements. Repair.
 
 org_geos_groupby = funding.groupby(['OrganizationName']).apply(lambda x: list(zip(x['lat'].tolist(), x['lng'].tolist()))).reset_index()
 
 org_geos_groupby = org_geos_groupby[org_geos_groupby[0].map(lambda x: len(set(x)) > 1)].reset_index(drop=True)
 
-def most_central_point(geos_array, valid_centroid=50):
+def most_central_point(geos_array, valid_medoid=30):
     """
     Algorithm to find the point that is most central (i.e., medoid)
     using the haversine formula.
+    Distances are weighted by the number of observations
+    (increases sucessful selection of medoid by 50%)
 
     :param geos_array:
-    :param valid_centroid: min distance to all other points (in KM).
-                           Defaults to 50 km.
+    :param valid_medoid: min for mean distance to all other points / number of observations.
+                         Defaults to 30. If the value is still over 50 after computing the above
+                         weighting metric, it is almost certainly worth removing.
     :return:
     """
+    geos_array_count = dict(Counter(geos_array))
     uniuqe_geos = list(set(geos_array))
 
     coord_dict = dict()
     for i in uniuqe_geos:
         coord_dict[i] = [haversine(i, j) for j in uniuqe_geos if j != i]
 
-    # Compute the mean for each
-    coord_dict_mean = {k: mean(v) for k, v in coord_dict.items()}
+    # Compute the mean for each and divide by the number of times it occured in geos_array
+    coord_dict_mean = {k: mean(v)/float(geos_array_count[k]) for k, v in coord_dict.items()}
 
-    # Find the best fit
+    # Use the most central point as the medoid
     medoid_mean_coord = min(coord_dict_mean, key=coord_dict_mean.get)
 
-    if coord_dict_mean[medoid_mean_coord] <= valid_centroid:
+    if coord_dict_mean[medoid_mean_coord] <= valid_medoid:
         return medoid_mean_coord
     else:
         return np.NaN
 
+# geos_array = list(org_geos_groupby[0][865])
+# len(org_geos_groupby[org_geos_groupby['OrganizationName'].str.contains("Harvard")][0][865])
+# funding[funding['OrganizationName'].astype(str).str.contains("Harvard")]['OrganizationName'].unique()
+
 # Work out the medoid for each duplicate location
-org_geos_groupby['medoid'] = org_geos_groupby[0].map(most_central_point)
+org_geos_groupby['medoid'] = org_geos_groupby[0].progress_map(most_central_point)
 
 # Save in a dict of the form {OrganizationName: medoid}
 multi_geo_dict = dict(zip(org_geos_groupby['OrganizationName'], org_geos_groupby['medoid']))
@@ -243,6 +281,7 @@ funding = funding[~(funding['OrganizationName'].isin(to_remove_flat))].reset_ind
 # ------------------------------------------------------------------------------------------------ #
 # Time Series animation
 # ------------------------------------------------------------------------------------------------ #
+
 # block dates > 2016.
 # min_grant_size = 100000
 
@@ -255,8 +294,6 @@ funding = funding[~(funding['OrganizationName'].isin(to_remove_flat))].reset_ind
 #         random_day_options = np.random.randint(1, high=max_days, size=14)
 #         nested_year_dict[m] = list(random_day_options)
 #     random_days_dict[y] = nested_year_dict
-
-# Merge toOgb by day
 
 top_x_orgs = 100
 min_start_date = "01/01/2013"
@@ -341,7 +378,7 @@ to_export = to_export[(to_export['StartDateDTime'] >= min_start_date) &
                       (to_export['StartDateDTime'] <= time.strftime("%d/%m/%Y"))].reset_index(drop=True)
 
 # Find orgs with the most grants (dollar amount).
-orgs_by_grants = to_export.groupby('OrganizationName').apply(lambda x: sum(x['NormalizedAmount'])).reset_index().dropna()
+orgs_by_grants = to_export.dropna().groupby('OrganizationName').apply(lambda x: sum(x['NormalizedAmount'])).reset_index().dropna()
 orgs_by_grants = orgs_by_grants.sort_values(0, ascending=False).reset_index(drop=True)[0:top_x_orgs]
 
 #Filter to the top x orgs by funding
@@ -401,6 +438,7 @@ to_export = to_export[column_order]
 
 print(to_export.shape[0])
 print(len(to_export.OrganizationName.unique()))
+# print(to_export.OrganizationName.unique())
 
 # ------------------------------------------------------------------------------------------------ #
 
@@ -408,7 +446,6 @@ print(len(to_export.OrganizationName.unique()))
 export_root = MAIN_FOLDER + "/JavaScript/JavaScriptVisualizations/data/"
 to_export.to_csv(export_root + "funding_sample.csv", index=False)
 funder_year_groupby.to_csv(export_root + "funding_yearby_summary.csv", index=False)
-
 
 orgs_by_grants = orgs_by_grants['OrganizationName'].reset_index().rename(columns={'index':'OrganizationRank'})
 orgs_by_grants['OrganizationRank'] += 1
