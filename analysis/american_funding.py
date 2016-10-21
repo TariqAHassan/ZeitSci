@@ -6,11 +6,7 @@
     Python 3.5
 
 """
-
-# ---------------- #
-#  Import Modules  #
-# ---------------- #
-
+# Import Modules
 import os
 import numpy as np
 import pandas as pd
@@ -47,15 +43,6 @@ from funding_database_tools import multi_readin
 
 os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/USA")
 us_files = [i for i in os.listdir() if i.endswith(".csv")]
-
-# to_concat = []
-# for f in us_files:
-#     temp_df = pd.read_csv(f, encoding="ISO-8859-1")
-#     temp_df.columns = [cln(c.lower(), 2) for c in temp_df.columns.tolist()]
-#     to_concat.append(temp_df)
-#
-# us_df = pd.concat(to_concat)
-# us_df.index = range(us_df.shape[0])
 
 us_df = multi_readin(us_files, encoding="ISO-8859-1", dtypes={"Organization_Zip": 'str'})
 tqdm.pandas(desc="status")
@@ -191,11 +178,6 @@ new_col_names = [  "Researcher"
                  , "lng"
 ]
 us_df.columns = new_col_names
-
-# Remove individual researchers
-# us_df = us_df[~us_df.OrganizationName.map(lambda x: "".join(x.lower().split())).str.contains(",phd")]
-# us_df = us_df[~us_df.OrganizationName.map(lambda x: "".join(x.lower().split())).str.contains(",md")]
-# Remove rows with amount == 0?
 
 # Add Currency Column
 us_df["FundCurrency"] = "USD"
