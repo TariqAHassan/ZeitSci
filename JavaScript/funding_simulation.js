@@ -227,8 +227,8 @@ function orgListFormatter(orgList){
     var uniqueOrgList = uniqueCountPreseve(orgList);
     var uniqueOrgListLast = uniqueOrgList[uniqueOrgList.length - 1];
 
-    for (var i in orgList){
-        if (d[orgList[i]] === undefined){
+    for (var i in orgList) {
+        if (d[orgList[i]] === undefined) {
             d[orgList[i]] = 1
         } else {
             d[orgList[i]] += 1
