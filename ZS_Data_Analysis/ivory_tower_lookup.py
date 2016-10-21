@@ -215,7 +215,7 @@ def wiki_uni_extractor(df, save_to, file_name, start=0, continent=None, semi_com
         if partial_saves and row != 0 and row % semi_complete == 0:
             if verbose: print(" ------------ Saving ------------ ")
             csv_name = save_to + "/" + file_name + str(time.time()).replace(".", "_") + ".csv"
-            df.to_csv(csv_name, sep=",")
+            df.to_csv(csv_name, sep=",", index=False)
 
     return df
 
@@ -227,7 +227,7 @@ directory = MAIN_FOLDER + "/Data/WikiPull/Europe/semi_complete"
 final_db = wiki_uni_extractor(wdb, save_to=directory, start=550, file_name=file_name, continent='Europe')
 
 # Save result
-final_db.to_csv(save_to +  "/" + file_name + "_pcomplete_raw.csv", sep = ",")
+final_db.to_csv(directory +  "/" + file_name + "Complete.csv", sep = ",", index=False)
 
 
 

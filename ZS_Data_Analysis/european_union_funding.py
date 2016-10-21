@@ -1,23 +1,25 @@
-'''
+"""
 
     EU Funding
     ~~~~~~~~~~
 
     Python 3.5
+        ...contains starred expression
 
-'''
-
-# ---------------- #
-#  Import Modules  #
-# ---------------- #
-
+"""
+# Import Modules
 import os
 import glob2
+import datetime
+import pycountry
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
+from fuzzywuzzy import process
 from abstract_analysis import *
-from region_abbrevs import European_Countries
 from supplementary_fns import cln
+from easymoney.money import EasyPeasy
+from american_funding_geo import uni_dict, us_zipcode_geo_dict
 
 from funding_database_tools import MAIN_FOLDER
 from funding_database_tools import order_cols
@@ -27,18 +29,18 @@ from funding_database_tools import df_combine
 from funding_database_tools import column_drop
 from funding_database_tools import string_match_list
 
-# Try US postal codes too.
+ep = EasyPeasy()
 
 # ------------------------------------------------------------------------------------------------------------ #
-#                                                European Union                                                #
+# European Union
 # ------------------------------------------------------------------------------------------------------------ #
 
 
 os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/EU")
 
 
-# 1998-2002 dataset excluded because only project funding information
-# is provided -- individual uni. grants are not.
+# 1998-2002 dataset has been excluded because only project
+# funding information is provided -- individual uni. grants are not.
 # Thus, this project includes data from 2002 - 2016.
 
 # Get file names
@@ -69,15 +71,15 @@ def proj_to_org_extractor(project_data_frame, organization_data_frame):
     :param organization_data_frame:
     :return:
     """
-    c = 0
+    c = 0 # ugly counter variable...
     # Faster solutions are possible but this naive approach leaves little room for error.
-    unique_rnc = organization_data_frame.projectrcn.unique()
+    unique_rnc = organization_data_frame['projectrcn'].unique()
     for r in unique_rnc:
         c += 1
-        if c % 1000 == 0: print(round((float(c)/len(organization_data_frame.projectrcn.unique()))*100, 2), "%")
+        if c % 1000 == 0: print(round((float(c)/len(organization_data_frame['projectrcn'].unique()))*100, 2), "%")
 
         df_slice = project_data_frame[project_data_frame.rcn == r]
-        indices = organization_data_frame[organization_data_frame.projectrcn == r].index
+        indices = organization_data_frame[organization_data_frame['projectrcn'] == r].index
         for i in indices:
             organization_data_frame.set_value(i, 'summary', df_slice["objective"].iloc[0])
             organization_data_frame.set_value(i, 'start_date', df_slice["startdate"].iloc[0])
@@ -92,25 +94,27 @@ def proj_to_org_extractor(project_data_frame, organization_data_frame):
 # Rename org.df to EU df.
 eu_df = proj_to_org_extractor(project_data_frame=eu_dfp, organization_data_frame=eu_dfo)
 
+# Start tqdm
+tqdm.pandas(desc="status")
+
 # Add grant_year
 eu_df['grant_year'] = eu_df['start_date'].map(lambda x: x.year)
 
 # Reformat start_date as MM/DD/YYYY
 eu_df['start_date'] = eu_df['start_date'].map(lambda x: str(x.month) + "/" + str(x.day) + "/" + str(x.year))
 
-# Limit to 2016 (the year of this analysis).
-eu_df = eu_df[eu_df['grant_year'].astype(float) <= 2016]
+# Limit to the current year
+eu_df = eu_df[eu_df['grant_year'].astype(float) <= datetime.datetime.now().year]
 
 # Remove rows without either city or postal code information
 eu_df = eu_df[(~eu_df.city.astype(str).isin(["nan", "NaN"])) | (~eu_df.postcode.astype(str).isin(["nan", "NaN"]))]
 
 # Drop row if NA for certian columns
 # eccontribution = European Commission Contribution
-na_drop = ["eccontribution", "country"]
-eu_df = column_drop(eu_df, columns_to_drop=na_drop, drop_type="na")
+eu_df = column_drop(eu_df, columns_to_drop=["eccontribution", "country"], drop_type="na")
 
 # Drop Unneeded Columns
-to_drop = [  "organizationurl"
+to_drop = ["organizationurl"
            , "id"
            , "projectrcn"
            , "projectacronym"
@@ -118,7 +122,10 @@ to_drop = [  "organizationurl"
            , "contacttitle"]
 eu_df = column_drop(eu_df, columns_to_drop=to_drop)
 
-# Import EU GeoLocation Data #
+# ------------------------------------------------------------------#
+# Import EU GeoLocation Data
+# ------------------------------------------------------------------#
+
 eu_ploc = pd.read_csv("../european_postcodes_us_standard.csv")
 eu_cloc = pd.read_csv("../european_cities_us_standard.csv")
 
@@ -212,8 +219,7 @@ def lat_lng_add(data_frame):
     nrow = data_frame.shape[0]
     for i in range(0, nrow):
 
-        if i % 25000 == 0:
-            print(" -------- Lat/Long: %s of %s -------- " % (i, str(nrow)))
+        if i % 25000 == 0: print(" -------- Lat/Long: %s of %s -------- " % (i, str(nrow)))
 
         rslt = eu_loc_lookup(   city = data_frame["city"][i]
                               , postal_code = data_frame["postcode"][i]
@@ -237,9 +243,122 @@ def lat_lng_add(data_frame):
 
 eu_df = lat_lng_add(eu_df)
 
+# ------------------------------------------------------------------#
+# Expand Country Names to Full from Alpha2 Codes
+# ------------------------------------------------------------------#
+
+# Correct Alpha2 Codes in the country column
+
+# Get Data from the EasyMoney module
+em_options = ep.options('all', pretty_print=False).dropna(subset=['Region', 'Alpha2'])
+easymoney_alpha2_dict = dict(zip(em_options['Alpha2'], em_options['Region']))
+
+# Get Data from the pycountry module
+pycountry_alpha2_dict = {i.alpha2: i.name for i in pycountry.countries}
+
+# Special Cases found in the dataset
+eu_country_special_dict = {'AN': 'Netherlands Antilles', 'CS': 'Serbia and Montenegro',
+                           'EL': 'United Kingdom','UK': 'United Kingdom', 'YU': 'Yugoslavia'}
+
+# Merge the above Dictionaries (I believe this requires python >= 3.5).
+merged_alpha2_dict = {**pycountry_alpha2_dict, **easymoney_alpha2_dict, **eu_country_special_dict}
+
+eu_df['country'] = eu_df['country'].map(lambda x: merged_alpha2_dict.get(x.upper(), np.NaN), na_action='ignore')
+
+# ------------------------------------------------------------------#
+# Try american_funding_geo.py for GIS
+# ------------------------------------------------------------------#
+
+# Consider rows with missing lat/lng data
+
+# Check lat and lng are paired
+len(eu_df[(pd.notnull(eu_df['lat'])) & ~(pd.notnull(eu_df['lng']))]) == 0
+
+# Clean needed str columns
+for c in ['shortname', 'name', 'postcode']:
+    eu_df[c] = eu_df[c].astype(str).str.strip()
+
+eu_df['name'] = eu_df['name'].str.lower().str.title().str.replace(",", "").str.strip()
+eu_df['shortname'] = eu_df['shortname'].str.lower().str.title()
+
+# a = eu_df[pd.isnull(eu_df['lat'])].groupby('country').apply(lambda x: list(set(x['name'].tolist())))['United States']
+
+def eu_geo_lookup(geos, zipcode, country, uni, u_id, quality_floor=85):
+    """
+
+    This adds ~27, 000 lat/lngs
+
+    :param geos:
+    :param zipcode:
+    :param country:
+    :param uni:
+    :param quality_floor: match threshold for `fuzzywuzzy`.
+    :return:
+    """
+
+    if u_id != 0 and u_id % 1000 == 0: print("row: ", u_id)
+
+    if all(pd.notnull(i) for i in geos):
+        return geos
+
+    # Init
+    d = dict()
+    country_upper = country.upper()
+    uni_lower = cln(uni).lower().strip()
+    zipcode = cln(zipcode, 2)[:5]
+
+    # Check US Postal Code
+    if country == 'United States' and str(zipcode) != 'nan' and zipcode in us_zipcode_geo_dict:
+        return us_zipcode_geo_dict[zipcode]
+
+    # Check by Uni
+    country_l = [i for i in uni_dict.keys() if country_upper in i]
+    if len(country_l) == 1:
+        d = uni_dict[country_l[0]]
+    elif country_upper in uni_dict['EUROPE']:
+        d = uni_dict['EUROPE'][country_upper]
+
+    if d != {}:
+        if uni_lower in d:
+            return d[uni_lower]
+
+        partial_normal_forward = [i for i in d if uni_lower in i]
+        if len(partial_normal_forward) == 1:
+            return d[partial_normal_forward[0]]
+
+        partial_normal_backward = [j for j in d if j in uni_lower]
+        if len(partial_normal_backward) == 1:
+            return d[partial_normal_backward[0]]
+
+        partial_fuzzy = process.extractOne(uni_lower, list(d.keys()))
+        if partial_fuzzy[1] >= quality_floor:
+            return d[partial_fuzzy[0]]
+
+    return [np.NaN, np.NaN]
+
+# Add temp marker
+eu_df['u_id'] = range(eu_df.shape[0])
+
+lat_lngs2 = eu_df.apply(lambda x: eu_geo_lookup(geos=[x['lat'], x['lng']],
+                                                zipcode=x['postcode'],
+                                                country=x['country'],
+                                                u_id=x['u_id'],
+                                                uni=x['name']), axis=1)
+
+# Put Back in lat/lng columns
+lat_lngs_np = np.array(lat_lngs2.tolist())
+eu_df['lat'] = lat_lngs_np[:,0]
+eu_df['lng'] = lat_lngs_np[:,1]
+
+# Delete marker
+del eu_df['u_id']
+
+# ------------------------------------------------------------------#
+# Clean
+# ------------------------------------------------------------------#
+
 # Remove any entries without lat/lng info
-eu_df = eu_df[pd.notnull(eu_df["lat"])]
-eu_df.index = range(eu_df.shape[0])
+eu_df = eu_df[pd.notnull(eu_df["lat"])].reset_index(drop=True)
 
 # Run an abstract analysis on the summaries
 eu_df.summary = eu_df['summary'].str.replace(r"\s\s+", " ").str.replace(r'[^0-9a-zA-Z\s]', "")
@@ -276,7 +395,7 @@ eu_df['title'] = eu_df['title'].str.replace("\"", "").str.replace("\'", "").map(
 eu_df["FundCurrency"] = "EUR"
 
 # Add Funder Column
-eu_df["Funder"] = "European Union"
+eu_df["Funder"] = "European Commission"
 
 # Add block
 eu_df["OrganizationBlock"] = "Europe"
@@ -311,19 +430,13 @@ eu_df.columns = new_col_names
 eu_df['GrantYear'] = eu_df['GrantYear'].astype(float)
 eu_df['Amount'] = eu_df['Amount'].astype(float)
 
-# Replace OrganizationState Alpha2 code with Natural Name
-eu_df['OrganizationState'] = eu_df['OrganizationState'].replace(European_Countries)
-
 # Order new Columns
 eu_df = eu_df[order_cols]
 
 # EU Data Stabilized #
 
 # Save
-os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/CompleteRegionDatabases")
-eu_df.to_pickle("EuropeanUnionFundingDatabase.p")
-
-
+eu_df.to_pickle(MAIN_FOLDER + "/Data/Governmental_Science_Funding/CompleteRegionDatabases/" + "EuropeanUnionFundingDatabase.p")
 
 
 

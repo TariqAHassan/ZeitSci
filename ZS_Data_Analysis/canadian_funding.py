@@ -29,7 +29,7 @@ from funding_database_tools import column_drop
 
 
 # ------------------------------------------------------------------------------------------------------------ #
-#                                                     Canada                                                   #
+# Canada
 # ------------------------------------------------------------------------------------------------------------ #
 
 
@@ -67,7 +67,7 @@ ca_df.index = range(ca_df.shape[0])
 ca_df.year = ca_df.year.map(lambda x: x.split("-")[0])
 
 # Import
-can_uni_geo = pd.read_csv(MAIN_FOLDER + "/Data/WikiPull/North_America/" + "NorthAmericaUniversitiesComplete.csv")
+can_uni_geo = pd.read_csv(MAIN_FOLDER + "/Data/WikiPull/North_America/Canada/" + "CanadianUniversitiesComplete.csv")
 del can_uni_geo["Unnamed: 0"]
 
 # Limit to canada

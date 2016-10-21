@@ -275,7 +275,7 @@ def wiki_pull_geo_parser(db_path):
     Nested Dict from WikiPull {Country {UNI: GEO}}
     """
     df = pd.read_csv(db_path)
-    df = df.dropna(subset=['lat', 'lng']).reset_index(drop=True).drop('Unnamed: 0', axis=1)
+    df = df.dropna(subset=['lat', 'lng']).reset_index(drop=True)
     df['University'] = df['University'].str.lower()
     df['lat_long'] = df.apply(lambda x: [round(x['lat'], 6), round(x['lng'], 6)], axis=1)
     return  twoD_nested_dict(df, 'Country', 'University', 'lat_long')
@@ -289,6 +289,17 @@ def partial_key_check(partial_key, dictionary):
     keys = list(dictionary.keys())
     key_matches = [i for i in keys if partial_key.lower() in i.lower()]
     return key_matches[0] if len(key_matches) == 1 else np.NaN
+
+def fuzzy_key_match(key, dictionary, quality_floor=90):
+    """
+
+    :param key:
+    :param dictionary:
+    :param quality_floor:
+    :return:
+    """
+    match = process.extractOne(key, list(dictionary.keys()))
+    return match[0] if match[1] >= quality_floor else np.NaN
 
 # Create ISO country Dict.
 two_iso_country_dict = dict()
