@@ -20,7 +20,7 @@ from region_abbrevs import US_states, Canada_prov_terr, European_Countries
 from supplementary_fns import cln
 from easymoney.easy_pandas import twoD_nested_dict
 
-from american_funding_geo import master_geo_locator
+from american_funding_geo import us_master_geo_locator
 
 from funding_database_tools import MAIN_FOLDER
 from funding_database_tools import order_cols
@@ -141,7 +141,7 @@ us_df['organization_zip'] = us_df['organization_zip'].astype(str)
 us_df['organization_zip'] = us_df['organization_zip'].apply(lambda v: v.strip().split("-")[0][:5])
 
 us_df_lat_lng = us_df.progress_apply(
-    lambda x: master_geo_locator(x['organization_zip'], x['organization_name'], x['organization_country']), axis=1)
+    lambda x: us_master_geo_locator(x['organization_zip'], x['organization_name'], x['organization_country']), axis=1)
 us_df_lat_lng_np = np.array(us_df_lat_lng.tolist())
 
 us_df['lat'] = us_df_lat_lng_np[:,0]

@@ -1,16 +1,13 @@
 """
 
-    US Funding GIS
-    ~~~~~~~~~~~~~~
+    Tools to Look for GIS Information Accross a Large number of Databases
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     Python 3.5
         ...i.e., beware of starred expression.
 
 """
-
-# ---------------- #
-#  Import Modules  #
-# ---------------- #
+# Import Modules
 import os
 import numpy as np
 import pandas as pd
@@ -19,12 +16,9 @@ from supplementary_fns import cln
 from easymoney.easy_pandas import twoD_nested_dict
 
 from funding_database_tools import MAIN_FOLDER
-
-
 from funding_database_tools import wiki_pull_geo_parser
-from funding_database_tools import partial_key_check
+from funding_database_tools import partial_key_check, fuzzy_key_match
 from funding_database_tools import remove_accents
-
 
 # --------------------------------------------------------------------------------------- #
 # Zip / Postal Code to Geo Location
@@ -35,15 +29,15 @@ from funding_database_tools import remove_accents
 # Need to Process:
 # - United States    D
 # - Canada           D
-# - South Korea      H
+# - South Korea      P
 # - Europe (Italy)   D
 # - United Kingdom   D
 # - Australia        D
-# - Chile            H
-# - Bermuda          H
+# - Chile            P
+# - Bermuda          P
 #
-# H = Half Done
 # D = Done
+# P = Partial
 
 # --------- United States --------- #
 
@@ -63,7 +57,7 @@ us_zipcode_geo_dict = dict(zip(zipdb['geoid'], zipdb['lat_long']))
 
 # --- Unis --- #
 
-us_uni_geo = pd.read_csv(MAIN_FOLDER + "/Data/WikiPull/North_America/" + "NorthAmericaUniversitiesComplete.csv")
+us_uni_geo = pd.read_csv(MAIN_FOLDER + "/Data/WikiPull/North_America/UnitedStates/" + "UnitedStatesUniversitiesComplete.csv")
 us_uni_geo = us_uni_geo[us_uni_geo['Country'] == "United States of America"]
 us_uni_geo = us_uni_geo.dropna(subset=['lat', 'lng']).reset_index(drop=True)
 us_uni_geo['lat_long'] = us_uni_geo.apply(lambda x: [round(x['lat'], 6), round(x['lng'], 6)], axis=1)
@@ -72,7 +66,7 @@ us_uni_geo_dict = dict(zip(us_uni_geo['University'].str.lower(), us_uni_geo['lat
 
 # --------- Canada --------- #
 
-can_uni_geo = pd.read_csv(MAIN_FOLDER + "/Data/WikiPull/North_America/" + "NorthAmericaUniversitiesComplete.csv")
+can_uni_geo = pd.read_csv(MAIN_FOLDER + "/Data/WikiPull/North_America/Canada/" + "CanadianUniversitiesComplete.csv")
 can_uni_geo = can_uni_geo[can_uni_geo['Country'] == "Canada"]
 can_uni_geo = can_uni_geo.dropna(subset=['lat', 'lng']).reset_index(drop=True)
 can_uni_geo['lat_long'] = can_uni_geo.apply(lambda x: [round(x['lat'], 6), round(x['lng'], 6)], axis=1)
@@ -87,7 +81,7 @@ canada_uni_geo_dict = dict(
 # us_df[us_df['organization_country'].str.lower().str.contains("korea")]
 
 # from https://en.wikipedia.org/wiki/Korea_University
-korea_repub_uni_geo_dict = {"KOREA REP OF": {"korea university": [37.589167, 127.032222]}}
+korea_repub_uni_geo_dict = {"korea university": [37.589167, 127.032222]}
 
 # --------- Europe --------- #
 
@@ -96,7 +90,7 @@ korea_repub_uni_geo_dict = {"KOREA REP OF": {"korea university": [37.589167, 127
 # Missing
 # us_df[us_df['organization_country'].str.lower().str.contains("italy")]['organization_name'].unique()
 
-eu_uni_geo_dict = wiki_pull_geo_parser(db_path=MAIN_FOLDER + "/Data/WikiPull/Europe/" + "EuropeUnivertiesComplete.csv")
+eu_uni_geo_dict = wiki_pull_geo_parser(db_path=MAIN_FOLDER + "/Data/WikiPull/Europe/" + "EuropeanUniversitiesComplete.csv")
 
 # Manually add Universita Degli Studi di Trento to the Italy key
 eu_uni_geo_dict['ITALY'] = {**eu_uni_geo_dict['ITALY'], **{'universita degli studi di trento': [46.069426, 11.121117]}}
@@ -110,18 +104,19 @@ eu_uni_geo_dict['ITALY'] = {**eu_uni_geo_dict['ITALY'], **{'universita degli stu
 # --------- Australia --------- #
 
 # us_df[us_df['organization_country'].str.lower().str.contains("australia")]['organization_name'].unique()
-australia_uni_geo = wiki_pull_geo_parser(db_path=MAIN_FOLDER + "/Data/WikiPull/Oceania/" + "OceaniaUniversities.csv")
+australia_uni_geo_dict = wiki_pull_geo_parser(
+    db_path=MAIN_FOLDER + "/Data/WikiPull/Oceania/" + "OceaniaUniversitiesComplete.csv")['AUSTRALIA']
 
 # --------- Chile --------- #
 
 # Manually Account for this -- Make more robust.
 # us_df[us_df['organization_country'].str.lower().str.contains("chile")]['organization_name'].unique()
-chile_uni_geo = {"CHILE": {'pontificia universidad catolica de chile': [-33.4411, -70.6408]}}
+chile_uni_geo_dict = {'pontificia universidad catolica de chile': [-33.4411, -70.6408]}
 
 # --------- Bermuda --------- #
 
 # us_df[us_df['organization_country'].str.lower().str.contains("bermuda")]['organization_name'].unique()
-bermuda_uni_geo = {"BERMUDA": {"bermuda institute of ocean sciences inc": [32.37, -64.69]}}
+bermuda_uni_geo_dict = {"bermuda institute of ocean sciences inc": [32.37, -64.69]}
 
 # ---------------------------------- Combine ---------------------------------- #
 
@@ -131,10 +126,10 @@ uni_dict = {
     'UNITED STATES': us_uni_geo_dict,
     'CANADA': canada_uni_geo_dict,
     'KOREA REP OF': korea_repub_uni_geo_dict,
-    'EUROPE': eu_uni_geo_dict,  # Italy & the United Kingdom
-    'AUSTRALIA': australia_uni_geo,
-    'CHILE': chile_uni_geo,
-    'BERMUDA': bermuda_uni_geo
+    'EUROPE': eu_uni_geo_dict,                  # Italy & the United Kingdom
+    'AUSTRALIA': australia_uni_geo_dict,
+    'CHILE': chile_uni_geo_dict,
+    'BERMUDA': bermuda_uni_geo_dict
 }
 
 
@@ -165,7 +160,7 @@ def us_geo_locator(zipcode):
         return [np.NaN, np.NaN]
 
 
-def master_geo_locator(zipcode, uni, country):
+def us_master_geo_locator(zipcode, uni, country):
     first_try = us_geo_locator(zipcode)
     if str(first_try[0]) != 'nan':
         return first_try

@@ -4,6 +4,7 @@
     ~~~~~~~~~~
 
     Python 3.5
+        ...contains starred expression
 
 """
 # Import Modules
@@ -14,11 +15,11 @@ import pycountry
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+from fuzzywuzzy import process
 from abstract_analysis import *
 from supplementary_fns import cln
 from easymoney.money import EasyPeasy
-from region_abbrevs import European_Countries
-from american_funding_geo import uni_geo_locator, us_geo_locator, uni_dict, us_zipcode_geo_dict
+from american_funding_geo import uni_dict, us_zipcode_geo_dict
 
 from funding_database_tools import MAIN_FOLDER
 from funding_database_tools import order_cols
@@ -27,8 +28,6 @@ from funding_database_tools import fdb_common_words
 from funding_database_tools import df_combine
 from funding_database_tools import column_drop
 from funding_database_tools import string_match_list
-
-# Try US postal codes too.
 
 ep = EasyPeasy()
 
@@ -40,8 +39,8 @@ ep = EasyPeasy()
 os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/EU")
 
 
-# 1998-2002 dataset excluded because only project funding information
-# is provided -- individual uni. grants are not.
+# 1998-2002 dataset has been excluded because only project
+# funding information is provided -- individual uni. grants are not.
 # Thus, this project includes data from 2002 - 2016.
 
 # Get file names
@@ -72,7 +71,7 @@ def proj_to_org_extractor(project_data_frame, organization_data_frame):
     :param organization_data_frame:
     :return:
     """
-    c = 0
+    c = 0 # ugly counter variable...
     # Faster solutions are possible but this naive approach leaves little room for error.
     unique_rnc = organization_data_frame['projectrcn'].unique()
     for r in unique_rnc:
@@ -284,33 +283,33 @@ eu_df['shortname'] = eu_df['shortname'].str.lower().str.title()
 
 # a = eu_df[pd.isnull(eu_df['lat'])].groupby('country').apply(lambda x: list(set(x['name'].tolist())))['United States']
 
-def eu_geo_lookup(geos, zip, country, uni, uID, quality_floor=85,):
+def eu_geo_lookup(geos, zipcode, country, uni, u_id, quality_floor=85):
     """
 
     This adds ~27, 000 lat/lngs
 
     :param geos:
-    :param zip:
+    :param zipcode:
     :param country:
     :param uni:
-    :param quality_floor:
+    :param quality_floor: match threshold for `fuzzywuzzy`.
     :return:
     """
 
-    if uID % 500 == 0: print("row: ", uID)
+    if u_id != 0 and u_id % 1000 == 0: print("row: ", u_id)
 
-    if all(str(i) != 'nan' for i in geos):
+    if all(pd.notnull(i) for i in geos):
         return geos
 
     # Init
     d = dict()
     country_upper = country.upper()
     uni_lower = cln(uni).lower().strip()
-    zip = cln(zip, 2)[:5]
+    zipcode = cln(zipcode, 2)[:5]
 
     # Check US Postal Code
-    if country == 'United States' and str(zip) != 'nan' and zip in us_zipcode_geo_dict:
-        return us_zipcode_geo_dict[zip]
+    if country == 'United States' and str(zipcode) != 'nan' and zipcode in us_zipcode_geo_dict:
+        return us_zipcode_geo_dict[zipcode]
 
     # Check by Uni
     country_l = [i for i in uni_dict.keys() if country_upper in i]
@@ -338,10 +337,13 @@ def eu_geo_lookup(geos, zip, country, uni, uID, quality_floor=85,):
     return [np.NaN, np.NaN]
 
 # Add temp marker
-eu_df['uID'] = range(eu_df.shape[0])
+eu_df['u_id'] = range(eu_df.shape[0])
 
-lat_lngs2 = eu_df.apply(
-    lambda x: eu_geo_lookup(geos=[x['lat'], x['lng']], zip=x['postcode'], country=x['country'], uID=x['uID'], uni=x['name']), axis=1)
+lat_lngs2 = eu_df.apply(lambda x: eu_geo_lookup(geos=[x['lat'], x['lng']],
+                                                zipcode=x['postcode'],
+                                                country=x['country'],
+                                                u_id=x['u_id'],
+                                                uni=x['name']), axis=1)
 
 # Put Back in lat/lng columns
 lat_lngs_np = np.array(lat_lngs2.tolist())
@@ -349,9 +351,7 @@ eu_df['lat'] = lat_lngs_np[:,0]
 eu_df['lng'] = lat_lngs_np[:,1]
 
 # Delete marker
-del eu_df['uID']
-
-# eu_df[(pd.notnull(eu_df['lat'])) & (eu_df['country'] == 'United States')]['name'].unique()
+del eu_df['u_id']
 
 # ------------------------------------------------------------------#
 # Clean
@@ -430,19 +430,13 @@ eu_df.columns = new_col_names
 eu_df['GrantYear'] = eu_df['GrantYear'].astype(float)
 eu_df['Amount'] = eu_df['Amount'].astype(float)
 
-# Replace OrganizationState Alpha2 code with Natural Name
-eu_df['OrganizationState'] = eu_df['OrganizationState'].replace(European_Countries)
-
 # Order new Columns
 eu_df = eu_df[order_cols]
 
 # EU Data Stabilized #
 
 # Save
-os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/CompleteRegionDatabases")
-eu_df.to_pickle("EuropeanUnionFundingDatabase.p")
-
-
+eu_df.to_pickle(MAIN_FOLDER + "/Data/Governmental_Science_Funding/CompleteRegionDatabases/" + "EuropeanUnionFundingDatabase.p")
 
 
 

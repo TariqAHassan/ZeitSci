@@ -1,11 +1,10 @@
 """
 
-    Develop a Database of Science Funding
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Merge the Various Funding Databases into One
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 """
-
 # Modules
 import re
 import os
@@ -138,32 +137,28 @@ def zeitsci_normalize(amount, amount_state, amount_cur, from_year, amount_block 
     :param base_currency:
     :return:
     """
-    # Get the region
-    if amount_block == None:
-        region = amount_state
-    else:
-        region = amount_block if amount_block in ['United States', 'Canada'] else amount_state
+    region = amount_block if amount_block in ['United States', 'Canada'] else amount_state
 
-    # Handle possible dates beyond DB
-    amount_from_year = from_year
+    # Handle regions not in the DB
     if region not in cpi_dict_max:
         return np.NaN
 
-    if from_year > cpi_dict_max[region]:
-        amount_from_year = cpi_dict_max[region]
+    # Set the inflation rate
+    if from_year <= cpi_dict_max[region]:
+        inflation_rate = zeitsci_cpi(region, from_year, base_year)
+    else:
+        inflation_rate = 1
 
-    # Get inflation rate
-    inflation_rate = zeitsci_cpi(region, amount_from_year, base_year)
     if pd.isnull(inflation_rate):
         return np.NaN
 
     # Adjust for inflation
-    real_amount = inflation_rate * amount
+    real_amount = amount * inflation_rate
 
     # Convert to base currency
     return c.convert(real_amount, amount_cur, base_currency)
 
-def zeitsci_normalize_wrapper(x):
+def zeitsci_grant_normalize_wrapper(x):
 
     if pd.isnull(x['GrantYear']): return np.NaN
     input_dict = {
@@ -181,7 +176,7 @@ def zeitsci_normalize_wrapper(x):
                              , input_dict['from_year']
                              , input_dict['block'])
 
-df['NormalizedAmount'] = df.progress_apply(lambda x: zeitsci_normalize_wrapper(x), axis=1)
+df['NormalizedAmount'] = df.progress_apply(lambda x: zeitsci_grant_normalize_wrapper(x), axis=1)
 
 # Temporary until the above Integration code is rerun.
 df['OrganizationBlock'] = df['OrganizationBlock'].astype(str).str.replace("Italy", "United States")
@@ -309,7 +304,7 @@ df['InstitutionType'] = endowment_type[:,1]
 df['OrganizationName'] = df['OrganizationName'].map(lambda x: x.replace("\"", "") if str(x) != 'nan' else x)
 
 # ------------------------------------------------------------------------- #
-#                         Integrate University Ranking                      #
+# Integrate University Ranking
 # ------------------------------------------------------------------------- #
 
 # Have not found usable data source for this.
@@ -317,10 +312,9 @@ df['OrganizationName'] = df['OrganizationName'].map(lambda x: x.replace("\"", ""
 
 
 # ------------------------------------------------------------------------- #
-#                                    Save                                   #
+# Save
 # ------------------------------------------------------------------------- #
 
-# Save
 df.to_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + 'MasterDatabaseRC' + str(RC) +'.p')
 
 
