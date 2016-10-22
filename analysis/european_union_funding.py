@@ -19,7 +19,7 @@ from fuzzywuzzy import process
 from abstract_analysis import *
 from supplementary_fns import cln
 from easymoney.money import EasyPeasy
-from american_funding_geo import uni_dict, us_zipcode_geo_dict
+from aggregated_geo_info import master_geo_lookup
 
 from funding_database_tools import MAIN_FOLDER
 from funding_database_tools import order_cols
@@ -283,67 +283,14 @@ eu_df['shortname'] = eu_df['shortname'].str.lower().str.title()
 
 # a = eu_df[pd.isnull(eu_df['lat'])].groupby('country').apply(lambda x: list(set(x['name'].tolist())))['United States']
 
-def eu_geo_lookup(geos, zipcode, country, uni, u_id, quality_floor=85):
-    """
-
-    This adds ~27, 000 lat/lngs
-
-    :param geos:
-    :param zipcode:
-    :param country:
-    :param uni:
-    :param quality_floor: match threshold for `fuzzywuzzy`.
-    :return:
-    """
-
-    if u_id != 0 and u_id % 1000 == 0: print("row: ", u_id)
-
-    if all(pd.notnull(i) for i in geos):
-        return geos
-
-    # Init
-    d = dict()
-    country_upper = country.upper()
-    uni_lower = cln(uni).lower().strip()
-    zipcode = cln(zipcode, 2)[:5]
-
-    # Check US Postal Code
-    if country == 'United States' and str(zipcode) != 'nan' and zipcode in us_zipcode_geo_dict:
-        return us_zipcode_geo_dict[zipcode]
-
-    # Check by Uni
-    country_l = [i for i in uni_dict.keys() if country_upper in i]
-    if len(country_l) == 1:
-        d = uni_dict[country_l[0]]
-    elif country_upper in uni_dict['EUROPE']:
-        d = uni_dict['EUROPE'][country_upper]
-
-    if d != {}:
-        if uni_lower in d:
-            return d[uni_lower]
-
-        partial_normal_forward = [i for i in d if uni_lower in i]
-        if len(partial_normal_forward) == 1:
-            return d[partial_normal_forward[0]]
-
-        partial_normal_backward = [j for j in d if j in uni_lower]
-        if len(partial_normal_backward) == 1:
-            return d[partial_normal_backward[0]]
-
-        partial_fuzzy = process.extractOne(uni_lower, list(d.keys()))
-        if partial_fuzzy[1] >= quality_floor:
-            return d[partial_fuzzy[0]]
-
-    return [np.NaN, np.NaN]
-
 # Add temp marker
 eu_df['u_id'] = range(eu_df.shape[0])
 
-lat_lngs2 = eu_df.apply(lambda x: eu_geo_lookup(geos=[x['lat'], x['lng']],
-                                                zipcode=x['postcode'],
-                                                country=x['country'],
-                                                u_id=x['u_id'],
-                                                uni=x['name']), axis=1)
+lat_lngs2 = eu_df.apply(lambda x: master_geo_lookup(geos=[x['lat'], x['lng']],
+                                                    zipcode=x['postcode'],
+                                                    country=x['country'],
+                                                    u_id=x['u_id'],
+                                                    uni=x['name']), axis=1)
 
 # Put Back in lat/lng columns
 lat_lngs_np = np.array(lat_lngs2.tolist())

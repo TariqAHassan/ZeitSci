@@ -11,9 +11,9 @@
 import os
 import numpy as np
 import pandas as pd
+from fuzzywuzzy import process
 from abstract_analysis import *
 from supplementary_fns import cln
-from easymoney.easy_pandas import twoD_nested_dict
 
 from funding_database_tools import MAIN_FOLDER
 from funding_database_tools import wiki_pull_geo_parser
@@ -160,15 +160,60 @@ def us_geo_locator(zipcode):
         return [np.NaN, np.NaN]
 
 
-def us_master_geo_locator(zipcode, uni, country):
-    first_try = us_geo_locator(zipcode)
-    if str(first_try[0]) != 'nan':
-        return first_try
-    elif country.upper() in uni_dict:
-        return uni_geo_locator(uni, country)
-    else:
-        return [np.NaN, np.NaN]
+def master_geo_lookup(geos, zipcode, country, uni, u_id=0, quality_floor=85):
+    """
 
+    This adds ~27, 000 lat/lngs
+
+    :param geos:
+    :param zipcode:
+    :param country:
+    :param uni:
+    :param u_id:
+    :param quality_floor: match threshold for `fuzzywuzzy`.
+    :return:
+    """
+
+    if u_id != 0 and u_id % 1000 == 0:
+        print("row: ", u_id)
+
+    if all(pd.notnull(i) for i in geos):
+        return geos
+
+    # Init
+    d = dict()
+    country_upper = country.upper()
+    uni_lower = cln(uni).lower().strip()
+    zipcode = cln(zipcode, 2)[:5]
+
+    # Check US Postal Code
+    if country == 'United States' and str(zipcode) != 'nan' and zipcode in us_zipcode_geo_dict:
+        return us_zipcode_geo_dict[zipcode]
+
+    # Check by Uni
+    country_l = [i for i in uni_dict.keys() if country_upper in i]
+    if len(country_l) == 1:
+        d = uni_dict[country_l[0]]
+    elif country_upper in uni_dict['EUROPE']:
+        d = uni_dict['EUROPE'][country_upper]
+
+    if d != {}:
+        if uni_lower in d:
+            return d[uni_lower]
+
+        partial_normal_forward = [i for i in d if uni_lower in i]
+        if len(partial_normal_forward) == 1:
+            return d[partial_normal_forward[0]]
+
+        partial_normal_backward = [j for j in d if j in uni_lower]
+        if len(partial_normal_backward) == 1:
+            return d[partial_normal_backward[0]]
+
+        partial_fuzzy = process.extractOne(uni_lower, list(d.keys()))
+        if partial_fuzzy[1] >= quality_floor:
+            return d[partial_fuzzy[0]]
+
+    return [np.NaN, np.NaN]
 
 
 

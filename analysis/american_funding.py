@@ -13,24 +13,14 @@ import pandas as pd
 from tqdm import tqdm
 from abstract_analysis import *
 from region_abbrevs import US_states, Canada_prov_terr, European_Countries
-from supplementary_fns import cln
-from easymoney.easy_pandas import twoD_nested_dict
 
-from american_funding_geo import us_master_geo_locator
+from aggregated_geo_info import uni_dict, uni_geo_locator, us_geo_locator, master_geo_lookup
 
 from funding_database_tools import MAIN_FOLDER
 from funding_database_tools import order_cols
 from funding_database_tools import titler
-from funding_database_tools import df_combine
 from funding_database_tools import comma_reverse
 from funding_database_tools import column_drop
-from funding_database_tools import string_match_list
-from funding_database_tools import remove_accents
-from funding_database_tools import wiki_pull_geo_parser
-from funding_database_tools import try_dict_lookup
-from funding_database_tools import year_columns
-from funding_database_tools import partial_key_check
-from funding_database_tools import two_iso_country_dict
 from funding_database_tools import multi_readin
 
 # ------------------------------------------------------------------------------------------------------------ #
@@ -55,7 +45,7 @@ def total_merge(fy_total, fy_total_sub):
     else:
         return np.nan
 
-us_df['fy_merged'] = us_df.apply(lambda x: total_merge(x['fy_total_cost'], x['fy_total_cost_sub_projects']), axis = 1)
+us_df['fy_merged'] = us_df.apply(lambda x: total_merge(x['fy_total_cost'], x['fy_total_cost_sub_projects']), axis=1)
 
 # Drop Unneeded Columns
 to_drop = [  "congressional_district"
@@ -81,12 +71,12 @@ na_drop = [  "fy"
            , "organization_country"
            , "organization_name"
            , "organization_state"]
-us_df = column_drop(us_df, columns_to_drop = na_drop, drop_type = "na")
+us_df = column_drop(us_df, columns_to_drop=na_drop, drop_type = "na")
 
 # Merge agency and department; drop both after.
 us_df["fundingsource"] = us_df['department'] + "_" + us_df['agency']
-us_df.drop("agency", axis = 1, inplace = True)
-us_df.drop("department", axis = 1, inplace = True)
+us_df.drop("agency", axis=1, inplace=True)
+us_df.drop("department", axis=1, inplace=True)
 
 # Clean up fundingsource
 def funding_sources(fs):
@@ -120,15 +110,36 @@ us_df['organization_country'] = us_df['organization_country'].str.replace("\t", 
 us_df['organization_city'] = us_df.organization_city.apply(lambda v: v.strip())
 
 # Drop duplicates.
-us_df.drop_duplicates(keep = "first", inplace=True)
+us_df.drop_duplicates(keep="first", inplace=True)
 us_df.reset_index(drop=True, inplace=True)
 
 # Cean the Dataframe zip codes
 us_df['organization_zip'] = us_df['organization_zip'].astype(str)
 us_df['organization_zip'] = us_df['organization_zip'].apply(lambda v: v.strip().split("-")[0][:5])
 
+def us_geo_lookup(geos, zipcode, uni, country):
+    """
+
+    :param geos:
+    :param zipcode:
+    :param uni:
+    :param country: 
+    :return: 
+    """
+    first_try = us_geo_locator(zipcode)
+    if str(first_try[0]) != 'nan':
+        return first_try
+    elif country.upper() in uni_dict:
+        return uni_geo_locator(uni, country)
+    else:
+        return master_geo_lookup(geos, zipcode, country, uni)
+        # ^ Somewhat awkward, but this was added after the EU Script was finished.
+        # Thus, it was simply appended, rather than substituted, to insure prior gains are conserved.
+
 us_df_lat_lng = us_df.progress_apply(
-    lambda x: us_master_geo_locator(x['organization_zip'], x['organization_name'], x['organization_country']), axis=1)
+    lambda x: us_geo_lookup(
+        [np.NaN, np.NaN], x['organization_zip'], x['organization_name'], x['organization_country']),
+    axis=1)
 us_df_lat_lng_np = np.array(us_df_lat_lng.tolist())
 
 us_df['lat'] = us_df_lat_lng_np[:,0]
@@ -138,32 +149,30 @@ us_df['lng'] = us_df_lat_lng_np[:,1]
 # see: http://stackoverflow.com/questions/38284615/speed-up-pandas-dataframe-lookup/38284860#38284860
 
 # Drop entries for which location information could not be obtained
-us_df = us_df[pd.notnull(us_df["lat"])]
+us_df = us_df.dropna(subset=['lat', 'lng']).reset_index(drop=True)
 
 # lower col names
 us_df.columns = [c.lower() for c in us_df.columns]
-us_df.index = range(us_df.shape[0])
 
 # deploy comma_reverse()
-us_df['contact_pi_project_leader'] = [comma_reverse(i) for i in us_df['contact_pi_project_leader'].tolist()]
+us_df['contact_pi_project_leader'] = us_df['contact_pi_project_leader'].map(comma_reverse)
 
 # Correct organization_city; not perfect, but close enough
-us_df['organization_city'] = [i.lower().title() for i in us_df['organization_city'].tolist()]
+us_df['organization_city'] = us_df['organization_city'].astype(str).str.lower().str.title()
 
 # Correct Keywords
-keywords = us_df['project_terms'].tolist()
-us_df['project_terms'] = [i.strip().lower().split(";") if isinstance(i, str) else np.NaN for i in keywords]
+us_df['project_terms'] = us_df['project_terms'].progress_map(lambda x: x.strip().lower().split(";"), na_action='ignore')
 
 # Correct the titles...will take a moment
-us_df['project_title'] = [titler(i) for i in us_df.project_title.tolist()]
+us_df['project_title'] = us_df['project_title'].progress_map(titler, na_action='ignore')
 
 # Correct the organization_name; not perfect, but close enough
-us_df['organization_name'] = [titler(i) for i in us_df.organization_name.tolist()]
+us_df['organization_name'] = us_df['organization_name'].progress_map(titler, na_action='ignore')
 
 del us_df["organization_zip"]
 
 # Rename Columns
-new_col_names = [  "Researcher"
+us_df.columns = ["Researcher"
                  , "GrantYear"
                  , "OrganizationCity"
                  , "OrganizationBlock"
@@ -177,13 +186,12 @@ new_col_names = [  "Researcher"
                  , "lat"
                  , "lng"
 ]
-us_df.columns = new_col_names
 
 # Add Currency Column
-us_df["FundCurrency"] = "USD"
+us_df["FundCurrency"] = pd.Series("USD", index=us_df.index)
 
 # Set Organization Block Name to 'United States'.
-us_df['OrganizationBlock'] = "United States"
+us_df['OrganizationBlock'] = pd.Series("United States", index=us_df.index)
 
 # Correct OrganizationState: USA, Canada and Europe.
 for d in [US_states, Canada_prov_terr, European_Countries]:
@@ -197,7 +205,7 @@ us_df['Amount'] = us_df['Amount'].astype(float)
 # us_df['Amount'] = us_df['Amount'].map(lambda x: x if str(x) == 'nan' or x >= 0 else x*-1)
 
 # Refresh index
-us_df.reset_index(drop=True, inplace=True)
+us_df = us_df.reset_index(drop=True)
 
 # Order Columns
 us_df = us_df[order_cols]
