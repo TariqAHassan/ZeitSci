@@ -17,15 +17,17 @@ from tqdm import tqdm
 
 from abstract_analysis import *
 from currency_converter import CurrencyConverter
+
+from funding_database_tools import titler
 from funding_database_tools import MAIN_FOLDER
 from funding_database_tools import multi_readin
 
 from easymoney.money import EasyPeasy
-from easymoney.easy_pandas import strlist_to_list, twoD_nested_dict
+from easymoney.easy_pandas import strlist_to_list, twoD_nested_dict, pandas_print_full
 from sources.world_bank_interface import _world_bank_pull_wrapper as wbpw
 
 # Release Candidate
-RC = 5
+RC = 6
 
 # Goal:
 # A dataframe with the following columns:
@@ -42,9 +44,9 @@ RC = 5
 #       Collaborators                 X  -- based on pubmed 2000-2016 download
 #       keywords
 #       Institution
-#       Endowment                        -- use wikipedia universties database
-#       InstitutionType                  -- use wikipedia universties database (i.e., public or private)
-#       InstitutionRanking            V  -- Ranking of the institution (read: uni). QS Data avaliable; usage rights unkown.
+#       Endowment                        -- use wikipedia universities database
+#       InstitutionType                  -- use wikipedia universities database (i.e., public or private)
+#       InstitutionRanking            V  -- Ranking of the institution (read: uni). QS Data available; usage Prohibitive.
 #       InstutionCountry
 #       City/NearestCity
 #       lng
@@ -77,9 +79,7 @@ def alphanum(input_str, chars=chars):
     """
     return re.sub(r'[' + chars + ']', '', input_str)
 
-
 os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/CompleteRegionDatabases")
-
 
 # ------------------------------------------------------------------------- #
 # Integrate Funding Data from around the World
@@ -179,43 +179,79 @@ def zeitsci_grant_normalize_wrapper(x):
 df['NormalizedAmount'] = df.progress_apply(lambda x: zeitsci_grant_normalize_wrapper(x), axis=1)
 
 # Temporary until the above Integration code is rerun.
-df['OrganizationBlock'] = df['OrganizationBlock'].astype(str).str.replace("Italy", "United States")
+# df['OrganizationBlock'] = df['OrganizationBlock'].astype(str).str.replace("Italy", "United States")
 
 # ------------------------------------------------------------------------- #
-#                          Post Integration Processing                      #
+# Clean OrganizationName
 # ------------------------------------------------------------------------- #
 
-# Peak at Keywords
+# Clean the OrganizationName
+df['OrganizationName'] = df['OrganizationName'].map(cln).str.replace("\"","").str.strip().progress_apply(titler)
 
-# keyword_funding_dict = defaultdict(list)
-# for i in range(df.shape[0]):
-#     keywords = df['Keywords'][i]
-#     amount = df['NormalizedAmount'][i]
-#
-#     if not str(keywords) == 'nan' and not str(amount) == 'nan':
-#         for k in keywords:
-#             keyword_funding_dict[k].append(amount)
-#
-#     if i % 10000 == 0:
-#         print(round(i/float(df.shape[0])*100, 2), "%")
-#
-#
-# sum_keywords = {k: sum(v) for k, v in keyword_funding_dict.items()}
-#
-# kdf = pd.DataFrame({
-#     'amount': list(sum_keywords.values()),
-#     'keywords' : list(sum_keywords.keys())})
-#
-#
-# kdf = kdf.sort_values('amount', ascending=False)
-# kdf.reset_index(drop=True, inplace=True)
-#
-#
-# kdf[kdf.keywords == 'rat']
-# df[df['Researcher'].map(lambda x: True if 'raymond klein' in str(x).lower() else False)]
+# Search and Block terms
+to_block = ['centre', 'center', 'hospital']
+search_terms = ['school of', 'medical', 'faculty', 'department']
+query = "|".join(map(re.escape, search_terms))
+
+# List subsidiaries
+possible_subsidiaries = df['OrganizationName'][
+    (df['OrganizationName'].astype(str).str.lower().str.contains(query))].unique().tolist()
+possible_subsidiaries_cln = [i for i in possible_subsidiaries if not any(x in i.lower() for x in to_block)]
+
+def subsidiary_checker(principals, subsidiaries):
+    """
+    Check for subsidiaries in principal Orgs.
+    """
+    subsidiaries_dict = dict()
+    for k in tqdm(subsidiaries):
+        matches = [j for j in principals if " " in j and j.lower().title() in k.lower().title()]
+        if len(matches) == 1 and matches[0] != k:
+            subsidiaries_dict[k] = matches[0]
+    return subsidiaries_dict
+
+unique_orgs = [i for i in df['OrganizationName'].unique().tolist() if i not in possible_subsidiaries]
+
+subsidiaries_dict = subsidiary_checker(unique_orgs, possible_subsidiaries_cln )
+
+# Subsidiaries
+df['OrganizationSubsidiary'] = df['OrganizationName'].map(
+                                                lambda x: x if x in subsidiaries_dict else np.NaN, na_action='ignore')
+
+# Principal Orgs
+df['OrganizationName'] = df['OrganizationName'].replace(subsidiaries_dict)
+
+# pandas_print_full(pd.DataFrame(list(subsidiaries_dict.items())))
+
+# Reorder
+df = df[list(df.columns)[:8] + ['OrganizationSubsidiary'] + list(df.columns[8:-1])]
+
+# Remove unneeded punctuation
+def starting_or_trailing_remove(input_str, to_remove, start_or_end):
+    input_str_cln = input_str.strip()
+    if start_or_end == 'start':
+        if any(input_str_cln.startswith(i) for i in to_remove):
+            return input_str_cln[1:]
+    elif start_or_end == 'end':
+        if any(input_str_cln.endswith(i) for i in to_remove):
+            return input_str_cln[:-1]
+
+    # Default
+    return input_str
+
+def tails_cln(input_str, to_remove):
+    for tail in ['start', 'end']:
+        input_str = starting_or_trailing_remove(input_str, to_remove, tail)
+    return input_str
+
+punc_rmv = [".", ",", ":", ";"]
+df['OrganizationSubsidiary'] = df['OrganizationSubsidiary'].progress_map(lambda x: tails_cln(x, punc_rmv), na_action="ignore")
+df['OrganizationName'] = df['OrganizationName'].progress_map(lambda x: tails_cln(x, punc_rmv), na_action="ignore")
+
+# Fix Md --> MD (Medical Doctor).
+df['OrganizationName'] = df['OrganizationName'].astype(str).str.replace(" Md ", " MD ").str.replace(" Md,", " MD,")
 
 # ------------------------------------------------------------------------- #
-#                        Integrate University Endowment                     #
+# Integrate University Endowment
 # ------------------------------------------------------------------------- #
 
 os.chdir(MAIN_FOLDER + "/Data/WikiPull")
@@ -301,20 +337,13 @@ df['Endowment'] = endowment_type[:,0]
 # Add InstitutionType information to the DF
 df['InstitutionType'] = endowment_type[:,1]
 
-df['OrganizationName'] = df['OrganizationName'].map(lambda x: x.replace("\"", "") if str(x) != 'nan' else x)
-
-# ------------------------------------------------------------------------- #
-# Integrate University Ranking
-# ------------------------------------------------------------------------- #
-
-# Have not found usable data source for this.
-# QS does publish the data as a .xlsx, but usage rights are currently unknown.
-
+df['OrganizationName'] = df['OrganizationName'].map(lambda x: x.replace("\"", ""), na_action='ignore')
 
 # ------------------------------------------------------------------------- #
 # Save
 # ------------------------------------------------------------------------- #
 
+print("Saving...")
 df.to_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + 'MasterDatabaseRC' + str(RC) +'.p')
 
 
