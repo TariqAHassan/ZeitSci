@@ -11,8 +11,6 @@
 // 1. http://techslides.com/d3-map-starter-kit
 // 2. http://www.tnoda.com/blog/2014-04-02
 
-//To do: filter legend elements by agencies in the database passed.
-
 //----------------------------------------------------------------------------------------//
 
 //General Setup
@@ -35,28 +33,40 @@ var div = d3.select("body").append("div")
                            .attr("class", "tooltip")
                            .style("opacity", 0);
 
+//----------------------------------------------------------------------------------------//
+
 //Init
+
+//Variables and Constants
 var topo, projection, path, defs, filter, feMerge, text, legend, svgLwr, gLwr, svg, funderLayer, g;
-var legendBoxHeight = 200;
+var currentYear = "";
+var legendBoxHeight = 240;
 var largestSingleGrant = 0;
 var largestTotalGrantByOrg = 0;
+
+//Arrays
 var dateRealTime = [];
+var fundersPresentInDB = [];
+
+//Objects
 var funderColors = {};
 var funderGeoDict = {};
+var funderYearByYear = {};
 var recipientRankings = {};
-var fundersPresentInDB = [];
 var abbreviationFunderName = {};
 var funderNameAbbreviation = {};
 var funderColorsAbbreviation = {};
 var fundingAgencyFlightStatus = {};
+
+//----------------------------------------------------------------------------------------//
 
 setup(width, height);
 function setup(width, height){
     dateRealTime = [];
 
     projection = d3.geo.mercator()
-                       .translate([(width/1.45), (height/1)])
-                       .scale(width / 1.35 / Math.PI);
+                       .translate([(width/1.55), (height/0.95)])
+                       .scale(width / 1.30 / Math.PI);
 
     path = d3.geo.path().projection(projection);
 
@@ -130,7 +140,7 @@ function showTooltip(d, i, tooltipObj, info, offsetL, offsetT){
                         "top:"+(mouse[1]+offsetT)+"px"
         )
         .html(info)
-        .style("font-size", "35px");
+        .style("font-size", "45px");
 }
 
 function hideTooltip(d, i, tooltipObj){
@@ -205,10 +215,10 @@ function dateChecker(newDate, oldDate) {
 
 //Tooltip Funders Summary
 
-function uniqueCountPreseve(inputList) {
+function uniqueCountPreserve(inputList) {
     //See: http://stackoverflow.com/a/22011372/4898004
     //This is a very nice little algorithm for sorting
-    //array elements by the number of their occurences
+    //array elements by the number of their occurrences
     //Returns an array of uniques.
     var map = inputList.reduce(function (p, c) {
         p[c] = (p[c] || 0) + 1;
@@ -224,7 +234,7 @@ function orgListFormatter(orgList){
 
     var d = {};
     var tail = "";
-    var uniqueOrgList = uniqueCountPreseve(orgList);
+    var uniqueOrgList = uniqueCountPreserve(orgList);
     var uniqueOrgListLast = uniqueOrgList[uniqueOrgList.length - 1];
 
     for (var i in orgList) {
@@ -310,8 +320,8 @@ function delta(grantMovement, path) {
 function terrestrialPoints(newDraw, grantToDraw, realTimeInfo){
 
     //Model Params
-    var c = 2.9;
-    var k = 0.1; //increase to 0.8
+    var c = 0.65;
+    var k = 0.1;
     var sizeFloor = 1.5;
 
     //Get the current zoom level
@@ -321,7 +331,7 @@ function terrestrialPoints(newDraw, grantToDraw, realTimeInfo){
     var locID = grantToDraw["recipientUniqueGeo"];
     var destination = grantToDraw["grantRecipientOrg"];
 
-    var funderAbbreiv = grantToDraw["funderName"].match(/\((.*?)\)/)[1];
+    // var funderAbbreiv = grantToDraw["funderName"].match(/\((.*?)\)/)[1];
     //Construct the info for the Point
 
     // var s = d3.event.scale; //Add to adjust radius based on current zoom
@@ -332,7 +342,7 @@ function terrestrialPoints(newDraw, grantToDraw, realTimeInfo){
     // if (scaledRadius < sizeFloor){scaledRadius += sizeFloor}
 
     //Get the Agency that has given the most to the current institution
-    var largestContributorColor = funderColorsAbbreviation[uniqueCountPreseve(realTimeInfo[locID][1])[0]];
+    var largestContributorColor = funderColorsAbbreviation[uniqueCountPreserve(realTimeInfo[locID][1])[0]];
 
     if (newDraw === true) {
         var institution = g.append("g").attr("class", "institution");
@@ -369,16 +379,20 @@ function terrestrialPoints(newDraw, grantToDraw, realTimeInfo){
 
 function legendCircleActivityScaler(grantToDraw){
         var status = fundingAgencyFlightStatus[grantToDraw['funderName']];
-        if (status == 0){var transitionRate = 450;} else {var transitionRate = 300;}
+        if (status == 0){
+            var transitionRate = 450;
+        } else {
+            var transitionRate = 300;
+        }
 
         d3.selectAll('#container2')
             .select("#" + grantToDraw["funderName"].match(/\((.*?)\)/)[1] + "_legend_circle_glower")
             .transition()
             .duration(transitionRate)
             .attr("r", function (d, i){
-                var radius = d3.select(this).datum();
+                var radius = d3.select(this).datum()["radius"];
                 if (status > 0) {
-                    return radius*1.5;
+                    return radius * 1.5;
                 }
                 else {return 0;}
             })
@@ -410,9 +424,15 @@ function transition(grantMovement, route, grantToDraw, newDraw, realTimeInfo, fl
 }
 
 function grantTranslate(grantToDraw, newDraw, realTimeInfo, flightSpeed) {
+
+    //Model Params
+    var k = 0.7;
+    var c = 0.3;
+    var minValue = 7;
+
     var from = funderGeoDict[grantToDraw["funderName"]];
     var to = funderGeoDict[grantToDraw["grantRecipientOrg"]];
-    var movingGrantRadius = logistic_fn(grantToDraw["grantAmount"], minValue=5, maxValue=largestSingleGrant, 0.5, 0.3);
+    var movingGrantRadius = logistic_fn(grantToDraw["grantAmount"], minValue, largestSingleGrant, k, c);
 
     var route = g.append("path")
                    .attr("fill-opacity", 0)
@@ -494,7 +514,12 @@ function grantTranslateMaster(arrayOfGrantsToDraw, movementRate, flightSpeed){
                     return currentDate;
                 }
             });
+        //Update the Current Year
+        if (currentYear != newDateToDraw.slice(-4)) {
+            currentYear = newDateToDraw.slice(-4)
         }
+        }
+
         // Stop when complete...
         if (complete === true){
             //Remove all glow on exit.
@@ -515,17 +540,31 @@ function grantTranslateMaster(arrayOfGrantsToDraw, movementRate, flightSpeed){
 
 // Constructing the Initial Map
 
-function legendTooltipInfo(name){
-    var title = abbreviationFunderName[name].replace(/\((.*?)\)/, "").trim();
-    var fullTooltip = "<strong>" + title + "</strong>";
+function legendTooltipInfo(name, taskType){
+    var fullName = abbreviationFunderName[name];
+    var title = fullName.replace(/\((.*?)\)/, "").trim();
+    var yearlyFunderInfo = funderYearByYear[currentYear];
+
+    if (yearlyFunderInfo.hasOwnProperty(fullName)){
+        if (taskType === 1){return true;}
+        var totalGrants = accounting.formatMoney(yearlyFunderInfo[fullName][0]) + " USD"
+        var percent = yearlyFunderInfo[fullName][1] + "%";
+    } else {
+        if (taskType === 1){return false;}
+        var totalGrants = "$0.00" + " USD"
+        var percent = "0.00%"
+    }
+    var totalGrantsInfo = "<em>" + "Total Grants Starting in " + currentYear + ": " + "</em>" + totalGrants + "</br>" + " (~" + percent + " of total)"
+
+    var fullTooltip = "<strong>" + title + "</strong>" + "</br>" + totalGrantsInfo + "</br>";
     return fullTooltip;
 }
 
 function legendGenerator(legend, currentWidth){
 
-    var yCircleSpace = 70;
-    var yTextSpace = yCircleSpace*1.2;
-    var legendCircleSize = 30;
+    var yCircleSpace = 95;
+    var yTextSpace = yCircleSpace * 1.2;
+    var legendCircleSize = 40;
 
     var legendToDraw = {}
     for (var key in funderColors){
@@ -551,12 +590,12 @@ function legendGenerator(legend, currentWidth){
                 .style("fill", fColor)
                 .attr("id", abbreiv + "_legend_circle_" + legendCircleTypes[t])
                 .attr("r", legendCircleSize)
-                .datum(legendCircleSize)
+                .datum({"radius" : legendCircleSize, "name" : abbreiv.split("_")[0]})
                 .on("mousemove", function (d, i) {
                     var name = d3.select(this).attr("id").split("_")[0];
                     var offsetL = -document.getElementById("container2").offsetLeft;
-                    var offsetT = legendBoxHeight - legendBoxHeight/4;
-                    showTooltip(d, i, tooltipContainer2, legendTooltipInfo(name), offsetL, offsetT);
+                    var offsetT = legendBoxHeight - legendBoxHeight/1.2;
+                    showTooltip(d, i, tooltipContainer2, legendTooltipInfo(name, 0), offsetL, offsetT);
                     //Scale Corresponding Map point up
                     d3.selectAll(".funderpoints")
                         .select("#" + name)
@@ -564,7 +603,7 @@ function legendGenerator(legend, currentWidth){
                         .duration(250)
                         .attr("r", function (d, i){
                             var s = zoom.scale();
-                            return pointScale(d3.select(this).datum(), s) * 2.5;
+                            return pointScale(d3.select(this).datum(), s) * 4.5;
                         });
                 })
                 .on("mouseout", function (d, i) {
@@ -590,7 +629,7 @@ function legendGenerator(legend, currentWidth){
             .attr("dy", ".35em")
             .attr("text-anchor", "middle")
             .style("font", "Lucida Grande")
-            .style("font-size", "40px")
+            .style("font-size", "45px")
             .style("opacity", 1)
             .text(abbreiv);
 
@@ -621,9 +660,20 @@ function individualGrantExtractor(d, amount, recipientUniqueGeo, orgFundingInfoT
     return {"gmovement" : gmovement, "orgLocation" : orgLocation}
 }
 
+function objConcat(object1, object2) {
+    for (var i in object2) {
+        if (object2.hasOwnProperty(i)) {
+            object1[i] = object2[i];
+        }
+    }
+    return object1;
+}
+
+
 function drawMain(simulationSpeed, flightSpeed) {
     var startDate = "";
 
+    var yearsInDb = [];
     var routesToDraw = [];
     var grantMovements = [];
     var orgFundingInfoTemp = {};
@@ -657,8 +707,25 @@ function drawMain(simulationSpeed, flightSpeed) {
                 })
             });
 
+            //Add Summary Information for each Agency for each Year
+            d3.csv("data/funding_yearby_summary.csv", function(error, funder) {
+                funder.forEach(function (d) {
+                    //Set the starting year
+                    if (currentYear === ""){currentYear = d['Year']}
+
+                    var funderInfoObj = {};
+                    funderInfoObj[d['FunderNameFull']] = [parseFloat(d['TotalGrants']), d['PercentTotalGrants']];
+
+                    if (!(funderYearByYear.hasOwnProperty(d['Year']))){
+                        funderYearByYear[d['Year']] = funderInfoObj;
+                    } else {
+                        funderYearByYear[d['Year']] = objConcat(funderYearByYear[d['Year']], funderInfoObj)
+                    }
+                })
+            });
+
             //Add Funding Information
-            d3.csv("data/funding_sample.csv", function(error, grant){
+            d3.csv("data/funding_simulation_data.csv", function(error, grant){
                 grant.forEach(function (d) {
 
                     //Get the Current Grant
@@ -769,7 +836,7 @@ function addFunderPoints(lat, lon, amount, name, color, infoOverride, opacity, o
 
 //General Mechanics
 var simulationSpeed = 0.01;
-var flightSpeed = 9.5;
+var flightSpeed = 7;
 
 function redraw() {
     //to do:
@@ -783,7 +850,7 @@ function redraw() {
 }
 
 function pointScale(amount, zoomScale){
-    // var rawFloor = 0.09;
+    var rawFloor = 1;
     var size = amount * (5/zoomScale);
 
     if (size > amount) {

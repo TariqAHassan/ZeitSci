@@ -344,7 +344,7 @@ df['OrganizationName'] = df['OrganizationName'].map(lambda x: x.replace("\"", ""
 # ------------------------------------------------------------------------- #
 
 print("Saving...")
-df.to_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + 'MasterDatabaseRC' + str(RC) +'.p')
+df.to_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + "MasterDatabaseRC" + str(RC) + ".p")
 
 
 
