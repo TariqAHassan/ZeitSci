@@ -163,7 +163,7 @@ def us_geo_locator(zipcode):
 def master_geo_lookup(geos, zipcode, country, uni, u_id=0, quality_floor=85):
     """
 
-    This adds ~27, 000 lat/lngs
+    This adds ~27, 000 lat/lngs for the EU Dataset.
 
     :param geos:
     :param zipcode:

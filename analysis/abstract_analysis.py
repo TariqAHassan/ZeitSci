@@ -1,17 +1,12 @@
-'''
+"""
 
 Tools for the Analysis of Abstracts
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Python 3.5
 
-'''
-
-
-# ---------------- #
-#  Import Modules  #
-# ---------------- #
-
+"""
+# Import Modules
 import re
 import string
 import numpy as np
@@ -35,8 +30,7 @@ def abstract_en(abstract):
     :param abstract:
     :return:
     """
-
-    if len(abstract) == 0:
+    if not len(abstract):
         return "NA"
 
     language_guess = detect(abstract)
