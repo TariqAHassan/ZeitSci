@@ -20,18 +20,17 @@ from collections import Counter
 from supplementary_fns import cln
 from itertools import combinations, permutations
 from funding_database_tools import MAIN_FOLDER
+from easymoney.easy_pandas import pandas_print_full
 from graphs.graphing_tools import money_printer, org_group
 
 # To Do:
 # - add year-by-year funding info for each org -- make proportional to all the money moving around that year.
-# - remove funders from OrgName column.
-# - shorten fundernamefull for export
 
 # ------------------------------------------------------------------------------------------------ #
 # Read in Data
 # ------------------------------------------------------------------------------------------------ #
 
-funding = pd.read_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + 'MasterDatabaseRC5.p')
+funding = pd.read_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + 'MasterDatabaseRC6.p')
 tqdm.pandas(desc="status")
 
 # ------------------------------------------------------------------------------------------------ #
@@ -40,25 +39,25 @@ tqdm.pandas(desc="status")
 
 # Used an jupyter notebook to choose the colors (simulation_color_palette.ipynb).
 funders_dict = {
-       'DOD_CDMRP'      : ['US Department of Defence (DOD)', [38.870833, -77.055833], "#5fdb57"]
-     , 'DOD_CNRM'       : ['US Department of Defence (DOD)', [38.870833, -77.055833], "#5fdb57"]
-     , 'DoD_CDMRP'      : ['US Department of Defence (DOD)', [38.870833, -77.055833], "#5fdb57"]
-     , 'DoD_CNRM'       : ['US Department of Defence (DOD)', [38.870833, -77.055833], "#5fdb57"]
-     , 'European Union' : ['European Commission (EC)', [50.843611, 4.382777], "#57dbb2"]
-     , 'HHS_ACF'        : ['US Administration for Children & Families (ACF)', [38.886666, -77.014444], "#57db80"]
-     , 'HHS_CDC'        : ['US Centers for Disease Control and Prevention (CDC)', [33.798817, -84.325598], "#db9057"]
-     , 'HHS_FDA'        : ['US Food and Drug Administration (FDA)', [39.03556, -76.98271], "#d357db"]
-     , 'HHS_NIDILRR'    : ['US National Institute on Disability, Independent Living, and Rehabilitation Research (NIDILRR)',
+       'DOD_CDMRP'           : ['US Department of Defence (DOD)', [38.870833, -77.055833], "#5fdb57"]
+     , 'DOD_CNRM'            : ['US Department of Defence (DOD)', [38.870833, -77.055833], "#5fdb57"]
+     , 'DoD_CDMRP'           : ['US Department of Defence (DOD)', [38.870833, -77.055833], "#5fdb57"]
+     , 'DoD_CNRM'            : ['US Department of Defence (DOD)', [38.870833, -77.055833], "#5fdb57"]
+     , 'European Commission' : ['European Commission (EC)', [50.843611, 4.382777], "#57dbb2"]
+     , 'HHS_ACF'             : ['US Administration for Children & Families (ACF)', [38.886666, -77.014444], "#57db80"]
+     , 'HHS_CDC'             : ['US Centers for Disease Control and Prevention (CDC)', [33.798817, -84.325598], "#db9057"]
+     , 'HHS_FDA'             : ['US Food and Drug Administration (FDA)', [39.03556, -76.98271], "#d357db"]
+     , 'HHS_NIDILRR'         : ['US National Institute on Disability, Independent Living, and Rehabilitation Research (NIDILRR)',
                                                                                     [38.885939, -77.016469], "#91db57"]
-     , 'HHS_NIH'        : ['US National Institutes of Health (NIH)', [39.000443, -77.102394], "#57a2db"]
-     , 'NASA'           : ['US National Aeronautics and Space Administration (NASA)', [38.883, -77.0163], "#57d3db"]
-     , 'NSERC'          : ['Natural Sciences and Engineering Research Council of Canada (NSERC)',
+     , 'HHS_NIH'             : ['US National Institutes of Health (NIH)', [39.000443, -77.102394], "#57a2db"]
+     , 'NASA'                : ['US National Aeronautics and Space Administration (NASA)', [38.883, -77.0163], "#57d3db"]
+     , 'NSERC'               : ['Natural Sciences and Engineering Research Council of Canada (NSERC)',
                                                                                     [45.418267, -75.703119], "#dbc257"]
-     , 'NSF'            : ['US National Science Foundation (NSF)', [38.88054, -77.110962], "#db5f57"]
-     , 'USDA_ARS'       : ['US Department of Agriculture: Agricultural Research Service (ARS)',
+     , 'NSF'                 : ['US National Science Foundation (NSF)', [38.88054, -77.110962], "#db5f57"]
+     , 'USDA_ARS'            : ['US Department of Agriculture: Agricultural Research Service (ARS)',
                                                                                     [38.886767, -77.030001], "#db5780"]
-     , 'USDA_FS'        : ['US Forest Service (FS)', [38.886767, -77.030001], "#c3db57"]
-     , 'USDA_NIFA'      : ['US National Institute of Food and Agriculture (NIFA)', [38.886767, -77.030001], "#6f57db"]
+     , 'USDA_FS'             : ['US Forest Service (FS)', [38.886767, -77.030001], "#c3db57"]
+     , 'USDA_NIFA'           : ['US National Institute of Food and Agriculture (NIFA)', [38.886767, -77.030001], "#6f57db"]
 }
 
 funding['FunderNameFull'] = funding['Funder'].progress_map(lambda x: funders_dict[x][0])
@@ -66,7 +65,7 @@ funding['latFunder'] = funding['Funder'].progress_map(lambda x: funders_dict[x][
 funding['lngFunder'] = funding['Funder'].progress_map(lambda x: funders_dict[x][1][1])
 
 # ------------------------------------------------------------------------------------------------ #
-# Remove Organization that are outside of the scope. **Move this to funding_database_merge.py**
+# Remove Organization that are outside of the scope.
 # ------------------------------------------------------------------------------------------------ #
 
 # Note: these terms may be resulting in false positives with non-English names.
@@ -98,46 +97,11 @@ def ends_with_checker(x, ends_with_terms=ends_with_terms, override_terms=['unive
         return False
 
 # Ablate
-funding = funding[~(funding['OrganizationName'].map(ends_with_checker))].reset_index(drop=True)
-
-
-# ------------------------------------------------------------------------------------------------ #
-# Clean Organization Name
-# ------------------------------------------------------------------------------------------------ #
-
-# # To remove:
-# # - *school of ...
-# # - *medical school
-# #  -- unless there is an "at"
-# # handle  'School of Medicine University of Rijeka',
-#
-# def starting_trailing_remove(input_str, to_remove, start_or_end):
-#     input_str_cln = input_str.strip()
-#     if start_or_end == 'start':
-#         if any(input_str_cln.startswith(i) for i in to_remove):
-#             return input_str_cln[1:]
-#     elif start_or_end == 'end':
-#         if any(input_str_cln.endswith(i) for i in to_remove):
-#             return input_str_cln[:-1]
-#
-# def tails_cln(input_str, to_remove):
-#     for tail in ['start', 'end']:
-#         input_str = starting_trailing_remove(input_str, to_remove, tail)
-#     return input_str
-#
-# # Remove extra white space and trailing commas and semi colins
-# funding['OrganizationName'] = funding['OrganizationName'].str.strip().map(
-#     lambda x: tails_cln(x, [',', ":", ";"]), na_action="ignore")
-#
-#
-# pprint(funding['OrganizationName'][funding['OrganizationName'].astype(str).str.lower().str.contains("univ")].unique().tolist())
-#
+funding = funding[~(funding['OrganizationName'].progress_map(ends_with_checker))].reset_index(drop=True)
 
 # ------------------------------------------------------------------------------------------------ #
 # Homogenize Lng-Lat by OrganizationName (exact match)
 # ------------------------------------------------------------------------------------------------ #
-
-# This is killing off important database elements. Repair.
 
 org_geos_groupby = funding.groupby(['OrganizationName']).apply(lambda x: list(zip(x['lat'].tolist(), x['lng'].tolist()))).reset_index()
 
@@ -146,13 +110,12 @@ org_geos_groupby = org_geos_groupby[org_geos_groupby[0].map(lambda x: len(set(x)
 def most_central_point(geos_array, valid_medoid=30):
     """
     Algorithm to find the point that is most central (i.e., medoid)
-    using the haversine formula.
-    Distances are weighted by the number of observations
-    (increases sucessful selection of medoid by 50%)
+    using the haversine formula. Distances are weighted by the number
+    of observations (increases sucessful selection of a medoid from the pool by 50%).
 
     :param geos_array:
     :param valid_medoid: min for mean distance to all other points / number of observations.
-                         Defaults to 30. If the value is still over 50 after computing the above
+                         Defaults to 30. If the value is still over 30 after computing the above
                          weighting metric, it is almost certainly worth removing.
     :return:
     """
@@ -174,10 +137,6 @@ def most_central_point(geos_array, valid_medoid=30):
     else:
         return np.NaN
 
-# geos_array = list(org_geos_groupby[0][865])
-# len(org_geos_groupby[org_geos_groupby['OrganizationName'].str.contains("Harvard")][0][865])
-# funding[funding['OrganizationName'].astype(str).str.contains("Harvard")]['OrganizationName'].unique()
-
 # Work out the medoid for each duplicate location
 org_geos_groupby['medoid'] = org_geos_groupby[0].progress_map(most_central_point)
 
@@ -186,6 +145,13 @@ multi_geo_dict = dict(zip(org_geos_groupby['OrganizationName'], org_geos_groupby
 
 # Swap out duplicates
 def geo_swap(org_name, current_geo, lat_or_lng):
+    """
+
+    :param org_name:
+    :param current_geo:
+    :param lat_or_lng:
+    :return:
+    """
     if str(org_name) == 'nan' or str(current_geo) == 'nan':
         return np.NaN
     elif org_name in multi_geo_dict:
@@ -217,6 +183,10 @@ unique_geo_names = funding.groupby('UniqueGeo').apply(lambda x: x['OrganizationN
 unique_geo_names_duplicates = unique_geo_names[unique_geo_names[0].map(lambda x: len(sclwr(x))) > 1]
 
 def unique_order_preseve(input_list):
+    """
+    Get unique items in a list and
+    preserve their order.
+    """
     input_no_dup = list()
     for i in input_list:
         if i not in input_no_dup:
@@ -239,67 +209,15 @@ to_remove_flat = [i for s in to_remove for i in s]
 funding = funding[~(funding['OrganizationName'].isin(to_remove_flat))].reset_index(drop=True)
 
 # ------------------------------------------------------------------------------------------------ #
-# Create a Summary of Science Funding Orgs. in the Database.
-# ------------------------------------------------------------------------------------------------ #
-
-# funders_info = pd.DataFrame(list(funders_dict.values()))
-# funders_info.rename(columns={2: "colour"}, inplace=True)
-# funders_info['lat'] = list(map(lambda x: x[0], funders_info[1]))
-# funders_info['lng'] = list(map(lambda x: x[1], funders_info[1]))
-# del funders_info[1]
-# funders_info.rename(columns={0:'funder'}, inplace=True)
-#
-# funders_info = funders_info.sort_values("funder").drop_duplicates('funder').reset_index(drop=True)
-# funders_info = funders_info[['funder', 'lat', 'lng', 'colour']]
-#
-# funders_info.to_csv(MAIN_FOLDER + "JavaScript/JavaScriptVisualizations/data/" + "funder_db.csv", index=False)
-
-# ------------------------------------------------------------------------------------------------ #
-# Group by Organization
-# ------------------------------------------------------------------------------------------------ #
-
-# funding_gb = funding.reset_index(drop=True)
-# funding_gb.drop(["Keywords"], inplace=True, axis=1)
-#
-# funding_gb_org = org_group(funding_gb, additiona_cols=['FunderNameFull', 'latFunder', 'lngFunder'])
-#
-# funding_gb_org['OrganizationName'] = funding_gb_org['OrganizationName'].str.replace("\"", "")
-#
-# funding_gb_org = funding_gb_org[~funding_gb_org['OrganizationName'].map(
-#     lambda x: any(i in str(x) for i in ['Inc', 'Llc', "Company", "Corporation"]))].reset_index(drop=True)
-#
-# os.chdir(MAIN_FOLDER+"/JavaScript/JavaScriptVisualizations/data")
-#
-# # Limit to $20,000,000 (2015 USD) and up
-# funding_gb_org_cln = funding_gb_org[(funding_gb_org['NormalizedAmount'].astype(float) > 50000000)].drop(
-#                                     ['Researcher', 'GrantYear'], axis=1)
-#
-# funding_gb_org_cln['NormalizedAmount'] = funding_gb_org_cln['NormalizedAmount'].progress_map(
-#                                             lambda x: money_printer(x, "USD", 2015))
-# funding_gb_org_cln.to_csv("science_funding.csv", index=False)
-
-# ------------------------------------------------------------------------------------------------ #
 # Time Series animation
 # ------------------------------------------------------------------------------------------------ #
 
-# block dates > 2016.
-# min_grant_size = 100000
-
-# More sophisticated random day generator
-# random_days_dict = dict()
-# for y in range(int(min_start_date.split("/")[2]), int(to_export['StartDate'].max().split("/")[2])):
-#     nested_year_dict = dict()
-#     for m in range(1, 12+1):
-#         max_days = monthrange(y, m)[1]
-#         random_day_options = np.random.randint(1, high=max_days, size=14)
-#         nested_year_dict[m] = list(random_day_options)
-#     random_days_dict[y] = nested_year_dict
-
 top_x_orgs = 100
-min_start_date = "01/01/2013"
+min_start_date = "01/01/2010"
+max_start_date = time.strftime("%d/%m/%Y")
 required_terms = []
-# required_terms = ['unive', 'ecole', 'polytechnique']
-# removed for now: school, acad, hospit, medical, istit, labra, obser, clinic,  centre, center, college.
+# required_terms = ['unive', 'ecole', 'polytechnique', 'school', 'acad', 'hospit', 'medical', 'istit', 'labra', 'obser',
+# 'clinic', 'centre', 'center', 'college']
 
 def contains_required_term(x, required_terms=required_terms):
     if not len(required_terms): return True
@@ -309,6 +227,9 @@ def contains_required_term(x, required_terms=required_terms):
 to_export = funding[funding['OrganizationName'].map(contains_required_term)].reset_index(drop=True)
 
 def date_zero_correct(input_str):
+    """
+    Add a Zero to days and months less than 10.
+    """
     if input_str[0] != "0" and float(input_str) < 10:
         return "0" + input_str
     else:
@@ -353,7 +274,7 @@ to_export = to_export[pd.notnull(to_export['StartDate'])].reset_index(drop=True)
 # --- Spread Canadian Data over the whole year --- #
 def random_day_month_swap(input_date, block, looking_for='Canada'):
     """
-    To do: decrease number of possible days.
+    Random Day Generator
     """
     if block != looking_for or input_date[0:5] != "01/01":
         return input_date
@@ -371,27 +292,44 @@ def random_day_month_swap(input_date, block, looking_for='Canada'):
 to_export['StartDate'] = to_export.apply(lambda x: random_day_month_swap(x['StartDate'], x['OrganizationBlock']), axis=1)
 
 # ---------------------------------------------------------- #
+# Drop StartDate to month temporal resolution
+# ---------------------------------------------------------- #
+
+date_format = "%m/%Y"
+to_export['StartDate'] = to_export['StartDate'].map(lambda x: x[3:])
+
+# ---------------------------------------------------------- #
+# Restrict
+# ---------------------------------------------------------- #
 
 # Restrict to a date range
-to_export['StartDateDTime'] = pd.to_datetime(to_export['StartDate'], format="%d/%m/%Y").order()
+to_export['StartDateDTime'] = pd.to_datetime(to_export['StartDate'], format=date_format).sort_values()
 to_export = to_export[(to_export['StartDateDTime'] >= min_start_date) &
-                      (to_export['StartDateDTime'] <= time.strftime("%d/%m/%Y"))].reset_index(drop=True)
+                      (to_export['StartDateDTime'] <= max_start_date)].reset_index(drop=True)
+
+# Remove Rows without Normalized Grant
+to_export = to_export.dropna(subset=['NormalizedAmount']).reset_index(drop=True)
 
 # Find orgs with the most grants (dollar amount).
 orgs_by_grants = to_export.dropna().groupby('OrganizationName').apply(lambda x: sum(x['NormalizedAmount'])).reset_index().dropna()
 orgs_by_grants = orgs_by_grants.sort_values(0, ascending=False).reset_index(drop=True)[0:top_x_orgs]
 
+
+# 100 /19938 * 100
+# orgs_by_grants[0].sum()/funding['NormalizedAmount'].sum() * 100
+
 #Filter to the top x orgs by funding
 to_export = to_export[to_export['OrganizationName'].isin(orgs_by_grants['OrganizationName'].tolist())].reset_index(drop=True)
 
 # too long for the legend...come back and fix later.
-to_export = to_export[~(to_export['FunderNameFull'].str.contains("NIDILRR"))]
+# to_export = to_export[~(to_export['FunderNameFull'].str.contains("NIDILRR"))]
 
-# ------------------------------------------------------------------------------------------------ #
-
+# ---------------------------------------------------------- #
 # Agg by FunderNameFull by year
+# ---------------------------------------------------------- #
+
 funder_year_groupby = deepcopy(to_export)
-funder_year_groupby['StartYear'] = funder_year_groupby['StartDate'].map(lambda x: x.split("/")[2]).astype(int)
+funder_year_groupby['StartYear'] = funder_year_groupby['StartDate'].map(lambda x: x.split("/")[1]).astype(int)
 
 funder_year_groupby = funder_year_groupby.groupby(['FunderNameFull', 'StartYear']).apply(lambda x: sum(x['NormalizedAmount'].tolist())).reset_index()
 funder_year_groupby.rename(columns={0:'TotalGrants'}, inplace=True)
@@ -441,9 +379,12 @@ print(len(to_export.OrganizationName.unique()))
 # print(to_export.OrganizationName.unique())
 
 # ------------------------------------------------------------------------------------------------ #
-
 # Exports
-export_root = MAIN_FOLDER + "/JavaScript/JavaScriptVisualizations/data/"
+# ------------------------------------------------------------------------------------------------ #
+
+# to_export_name
+
+export_root = MAIN_FOLDER + "/visualizations/data/"
 to_export.to_csv(export_root + "funding_sample.csv", index=False)
 funder_year_groupby.to_csv(export_root + "funding_yearby_summary.csv", index=False)
 
@@ -452,31 +393,86 @@ orgs_by_grants['OrganizationRank'] += 1
 orgs_by_grants.to_csv(export_root + "organization_rankings.csv", index=False)
 
 # ------------------------------------------------------------------------------------------------ #
+# Create a Summary of Science Funding Orgs. in the Database.
+# ------------------------------------------------------------------------------------------------ #
 
-# ------------
-# Scratch Work
-# ------------
-
-print(len(to_export.OrganizationName.unique()))
-
-# tester = deepcopy(funding[funding['OrganizationBlock'] == 'Europe'])
-# n_amount_groupby = tester.groupby('OrganizationName').apply(lambda x: sum(x['NormalizedAmount'].tolist())).reset_index()
-# print(round(float(n_amount_groupby[0].max()), 1))
-# Groupby       Normal        Real USD
-# Name:      3161183583.1 | $3789172600.4
-# UniqueGeo: 3258690632.6 | $3904925835.0
-
-tester2 = deepcopy(to_export)
-
-n_amount_groupby = tester2.groupby('OrganizationName').apply(lambda x: sum(x['NormalizedAmount'].tolist())).reset_index()
-print(round(float(n_amount_groupby[0].max()), 1))
+# funders_info = pd.DataFrame(list(funders_dict.values()))
+# funders_info.rename(columns={2: "colour"}, inplace=True)
+# funders_info['lat'] = list(map(lambda x: x[0], funders_info[1]))
+# funders_info['lng'] = list(map(lambda x: x[1], funders_info[1]))
+# del funders_info[1]
+# funders_info.rename(columns={0:'funder'}, inplace=True)
+#
+# funders_info = funders_info.sort_values("funder").drop_duplicates('funder').reset_index(drop=True)
+# funders_info = funders_info[['funder', 'lat', 'lng', 'colour']]
+#
+# funders_info.to_csv(MAIN_FOLDER + "JavaScript/JavaScriptVisualizations/data/" + "funder_db.csv", index=False)
 
 
-to_export['NormalizedAmount'].max()
-to_export['NormalizedAmount'].sum()
 
-#18,256,493,155.84
-#59,003,607.15
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
