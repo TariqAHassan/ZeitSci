@@ -103,7 +103,8 @@ funding = funding[~(funding['OrganizationName'].progress_map(ends_with_checker))
 # Homogenize Lng-Lat by OrganizationName (exact match)
 # ------------------------------------------------------------------------------------------------ #
 
-org_geos_groupby = funding.groupby(['OrganizationName']).apply(lambda x: list(zip(x['lat'].tolist(), x['lng'].tolist()))).reset_index()
+org_geos_groupby = funding.groupby(['OrganizationName']).apply(
+                                                lambda x: list(zip(x['lat'].tolist(), x['lng'].tolist()))).reset_index()
 
 org_geos_groupby = org_geos_groupby[org_geos_groupby[0].map(lambda x: len(set(x)) > 1)].reset_index(drop=True)
 
@@ -311,9 +312,8 @@ to_export = to_export[(to_export['StartDateDTime'] >= min_start_date) &
 to_export = to_export.dropna(subset=['NormalizedAmount']).reset_index(drop=True)
 
 # Find orgs with the most grants (dollar amount).
-orgs_by_grants = to_export.dropna().groupby('OrganizationName').apply(lambda x: sum(x['NormalizedAmount'])).reset_index().dropna()
+orgs_by_grants = to_export.groupby('OrganizationName').apply(lambda x: sum(x['NormalizedAmount'].tolist())).reset_index()
 orgs_by_grants = orgs_by_grants.sort_values(0, ascending=False).reset_index(drop=True)[0:top_x_orgs]
-
 
 # 100 /19938 * 100
 # orgs_by_grants[0].sum()/funding['NormalizedAmount'].sum() * 100
@@ -331,16 +331,30 @@ to_export = to_export[to_export['OrganizationName'].isin(orgs_by_grants['Organiz
 funder_year_groupby = deepcopy(to_export)
 funder_year_groupby['StartYear'] = funder_year_groupby['StartDate'].map(lambda x: x.split("/")[1]).astype(int)
 
-funder_year_groupby = funder_year_groupby.groupby(['FunderNameFull', 'StartYear']).apply(lambda x: sum(x['NormalizedAmount'].tolist())).reset_index()
-funder_year_groupby.rename(columns={0:'TotalGrants'}, inplace=True)
+funder_year_groupby = funder_year_groupby.groupby(['FunderNameFull', 'StartYear']).apply(
+                                                            lambda x: sum(x['NormalizedAmount'].tolist())).reset_index()
 
+funder_year_groupby = funder_year_groupby.rename(columns={0:'TotalGrants'})
+
+# Work out proportion of grants given by Org
 org_year_byyear = funder_year_groupby.groupby('StartYear').apply(lambda x: sum(x['TotalGrants'])).to_dict()
-funder_year_groupby['PropTotalGrants'] = funder_year_groupby.apply(lambda x: x['TotalGrants']/org_year_byyear[x['StartYear']], axis=1)
+funder_year_groupby['PercentTotalGrants'] = funder_year_groupby.apply(lambda x: x['TotalGrants']/org_year_byyear[x['StartYear']], axis=1)
 
-funder_year_groupby = funder_year_groupby.sort_values('StartYear').reset_index(drop=True)
+# Convert Proportion to Percent and round to value to one decimal place of precision.
+funder_year_groupby['PercentTotalGrants'] = funder_year_groupby['PercentTotalGrants'].map(lambda x: x * 100).round(2).astype(float)
+
+# Drop Rows for funders with ~zero grants awarded in a given year.
+funder_year_groupby = funder_year_groupby[funder_year_groupby['PercentTotalGrants'] > 0].reset_index(drop=True)
+
+# Format as str.
+funder_year_groupby['PercentTotalGrants'] = funder_year_groupby['PercentTotalGrants'].astype(str).map(
+                                                                lambda x: x + "0" if len(x.split(".")[1]) != 2 else x)
+
+# Rename StartYear
+funder_year_groupby = funder_year_groupby.rename(columns={"StartYear":"Year"}).sort_values('Year').reset_index(drop=True)
 
 # Check
-# funder_year_groupby.groupby('StartYear')['PropTotalGrants'].sum()
+# funder_year_groupby.groupby('StartYear')['PercentTotalGrants'].sum()
 
 # ------------------------------------------------------------------------------------------------ #
 
@@ -374,39 +388,45 @@ column_order = ['uID'] + allowed_columns
 #Order Columns
 to_export = to_export[column_order]
 
-print(to_export.shape[0])
-print(len(to_export.OrganizationName.unique()))
-# print(to_export.OrganizationName.unique())
-
-# ------------------------------------------------------------------------------------------------ #
-# Exports
-# ------------------------------------------------------------------------------------------------ #
-
-# to_export_name
-
-export_root = MAIN_FOLDER + "/visualizations/data/"
-to_export.to_csv(export_root + "funding_sample.csv", index=False)
-funder_year_groupby.to_csv(export_root + "funding_yearby_summary.csv", index=False)
-
-orgs_by_grants = orgs_by_grants['OrganizationName'].reset_index().rename(columns={'index':'OrganizationRank'})
-orgs_by_grants['OrganizationRank'] += 1
-orgs_by_grants.to_csv(export_root + "organization_rankings.csv", index=False)
+print("# rows:", to_export.shape[0])
+print("# Organizations:", len(to_export.OrganizationName.unique()))
 
 # ------------------------------------------------------------------------------------------------ #
 # Create a Summary of Science Funding Orgs. in the Database.
 # ------------------------------------------------------------------------------------------------ #
 
-# funders_info = pd.DataFrame(list(funders_dict.values()))
-# funders_info.rename(columns={2: "colour"}, inplace=True)
-# funders_info['lat'] = list(map(lambda x: x[0], funders_info[1]))
-# funders_info['lng'] = list(map(lambda x: x[1], funders_info[1]))
-# del funders_info[1]
-# funders_info.rename(columns={0:'funder'}, inplace=True)
-#
-# funders_info = funders_info.sort_values("funder").drop_duplicates('funder').reset_index(drop=True)
-# funders_info = funders_info[['funder', 'lat', 'lng', 'colour']]
-#
-# funders_info.to_csv(MAIN_FOLDER + "JavaScript/JavaScriptVisualizations/data/" + "funder_db.csv", index=False)
+funders_info = pd.DataFrame(list(funders_dict.values()))
+funders_info.rename(columns={2: "colour"}, inplace=True)
+funders_info['lat'] = list(map(lambda x: x[0], funders_info[1]))
+funders_info['lng'] = list(map(lambda x: x[1], funders_info[1]))
+del funders_info[1]
+funders_info.rename(columns={0:'funder'}, inplace=True)
+
+funders_info = funders_info.sort_values("funder").drop_duplicates('funder')
+funders_info = funders_info[funders_info['funder'].isin(to_export['FunderNameFull'].tolist())].reset_index(drop=True)
+
+funders_info = funders_info[['funder', 'lat', 'lng', 'colour']]
+
+# ------------------------------------------------------------------------------------------------ #
+# Exports
+# ------------------------------------------------------------------------------------------------ #
+
+export_dir = MAIN_FOLDER + "/visualizations/data/"
+to_export_name = "funding_simulation_data" + ".csv"
+
+# 1.
+to_export.to_csv(export_dir + to_export_name, index=False)
+
+# 2.
+funder_year_groupby.to_csv(export_dir + "funding_yearby_summary.csv", index=False)
+
+# 3.
+orgs_by_grants = orgs_by_grants['OrganizationName'].reset_index().rename(columns={'index':'OrganizationRank'})
+orgs_by_grants['OrganizationRank'] += 1
+orgs_by_grants.to_csv(export_dir + "organization_rankings.csv", index=False)
+
+# 4.
+funders_info.to_csv(export_dir + "funder_db.csv", index=False)
 
 
 
