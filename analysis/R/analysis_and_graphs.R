@@ -8,6 +8,7 @@ library('lme4')
 library('ggvis')
 library('cowplot')
 library('ggplot2')
+library('scales')
 library('reshape2')
 source("data_sources.R")
 options(scipen=5)
@@ -45,6 +46,9 @@ resid_analysis <- function(data_frame, model){
     par(mfrow = c(1,1))
 }
 
+# From http://www.cookbook-r.com/Graphs/Plotting_means_and_error_bars_(ggplot2)/
+source("r_cookBook_helper_fns.R")
+
 # ------------------------------------------------ #
 
 # Import
@@ -60,6 +64,10 @@ df <- df[df$Grant > 0, ]
 df['Grant'] <- as.numeric(df$Grant)
 df['Endowment'] <- as.numeric(df$Endowment)
 
+# ------------------------------------------------ #
+# Linear Mixed Effects Model of Grants
+# ------------------------------------------------ #
+
 # DataFrame For Model Building
 df_m <- df[!(is.na(df$InstitutionType)) & !(is.na(df$OrganizationBlock)) & !(is.na(df$Endowment)), ]
 
@@ -67,13 +75,6 @@ df_m <- df[!(is.na(df$InstitutionType)) & !(is.na(df$OrganizationBlock)) & !(is.
 df_m$InstitutionType <- as.factor(df_m$InstitutionType)
 df_m$OrganizationBlock <- as.factor(df_m$OrganizationBlock)
 
-# ------------------------------------------------ #
-# Linear Mixed Effects Model of Grants
-# ------------------------------------------------ #
-
-# Summary
-agg = data.frame(aggregate(round(Grant, 2) ~ GrantYear, data = df, FUN = 'sum'))
-colnames(agg) <- c('Year', 'Grant')
 
 # Construct a General Model 
 m <- lmer(Grant ~ GrantYear + OrganizationBlock + InstitutionType + (1|Researcher),
@@ -92,12 +93,14 @@ AIC(m)
 summary(m)
 
 # --------------------------------------------------------
-# Plots
+# Plots - Exploratory
 # --------------------------------------------------------
+
+df_plotting <- df[!(is.na(df$Grant)) & (df$GrantYear < 2016),]
 
 # Grant Density
 
-ggplot(df[!(is.na(df$Grant)),], aes(Grant)) +
+ggplot(df_plotting, aes(Grant)) +
     geom_density(aes(fill = OrganizationBlock, color = OrganizationBlock), alpha = 0.25, na.rm=TRUE) +
     scale_x_continuous(limits=c(0, 750000), breaks = seq(0, 750000, 150000), expand = c(0, 0)) +
     scale_y_continuous(limits=c(0, 0.00005), expand = c(0, 0)) +
@@ -113,20 +116,62 @@ ggplot(df[!(is.na(df$Grant)),], aes(Grant)) +
           panel.background = element_blank()
     ) 
 
-#
+# ---------------------------
+# Break on Public Vs. Private
+# ---------------------------
+
+# Time Series
+agg_inst <- data.frame(aggregate(round(Grant, 2) ~ GrantYear + InstitutionType, data = df, FUN = 'sum'))
+colnames(agg_inst) <- c('Year', 'InstitutionType', 'Grant')
+
+ggplot(agg_inst, aes(x = Year, y = Grant, color = InstitutionType)) +
+    geom_point(alpha = 0.75, size = 3.5) + 
+    scale_x_continuous(limits = c(2000, 2015)) +
+    scale_y_continuous(limits=c(0, 8000000000), breaks = seq(0, 8000000000, 2000000000)) 
+
+# ---------------------------
+# Break on Block
+# ---------------------------
+
+agg_block <- data.frame(aggregate(round(Grant, 2) ~ GrantYear + OrganizationBlock
+                                  , data = df[df$GrantYear >= 2010 & df$GrantYear < 2016,]
+                                  , FUN = 'sum'))
+colnames(agg_block) <- c('Year', 'OrganizationBlock', 'Grant')
+
+# Define Scaling Information
+scalar <- 10^(floor(log10(max(agg_block$Grant))) - 1) 
+breaks = seq(0, max(agg_block$Grant), length.out = 6)
+
+# see: # http://stackoverflow.com/a/28160040/4898004
+formatted_labels <- format(round(breaks / scalar), trim = TRUE) 
+
+ggplot(agg_block, aes(x = factor(Year), y = Grant, fill = OrganizationBlock)) +
+    geom_bar(stat = "identity", position = 'dodge', alpha = 0.85) + 
+    ylab("Grants (Billions of USD)") +
+    labs(fill = "Funding Block") + 
+    scale_y_continuous(breaks = breaks, labels = formatted_labels, expand = c(0,0)) +
+    scale_x_discrete(expand = c(0,0))
+
+# Mean
+agg_block_mean <- data.frame(aggregate(round(Grant, 2) ~ GrantYear + OrganizationBlock
+                                  , data = df[df$GrantYear >= 2010 & df$GrantYear < 2016,]
+                                  , FUN = 'mean'))
+colnames(agg_block_mean) <- c('Year', 'OrganizationBlock', 'Grant')
 
 
+# Compute CIs for the data
+agg_block_mean_cis <- summarySEwithin(df_plotting, measurevar="Grant", withinvars="GrantYear",
+                                      idvar="OrganizationBlock", na.rm=FALSE, conf.interval=.95)
 
-
-
-
-
-
-
-
-
-
-
+ggplot(agg_block_mean, aes(x = factor(Year), y = Grant, fill = OrganizationBlock)) +
+    geom_bar(stat = "identity", position = 'dodge', alpha = 0.85) + 
+    ylab("Grants (Billions of USD)") +
+    labs(fill = "Funding Block") + 
+    scale_y_continuous(breaks = breaks, labels = formatted_labels, expand = c(0,0)) +
+    scale_x_discrete(expand = c(0,0)) + 
+    geom_errorbar(aes(ymin=len-ci, ymax=len+ci),
+                  width=.2,                    # Width of the error bars
+                  position=position_dodge(.9))
 
 
 
