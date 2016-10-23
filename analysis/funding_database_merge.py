@@ -340,6 +340,49 @@ df['InstitutionType'] = endowment_type[:,1]
 df['OrganizationName'] = df['OrganizationName'].map(lambda x: x.replace("\"", ""), na_action='ignore')
 
 # ------------------------------------------------------------------------- #
+# Date Correct
+# ------------------------------------------------------------------------- #
+
+def date_zero_correct(input_str):
+    """
+    Add a Zero to days and months less than 10.
+    """
+    if input_str[0] != "0" and float(input_str) < 10:
+        return "0" + input_str
+    else:
+        return input_str
+
+def date_correct(input_date):
+    """
+    Formats input to DD/MM/YYYY
+    """
+    input_split = input_date.split("/")
+    if len(input_split) == 0 or len(input_split[-1]) != 4:
+        return np.NaN
+
+    if len(input_split) == 1 and len(input_split[0]) == 4 and input_split[0].isdigit():
+        return "01/01/" + input_split[0]
+    elif len(input_split) == 2 and float(input_split[0]) <= 12:
+        month = date_zero_correct(input_split[0])
+        year = input_split[1]
+        return "/".join(("01", month, year))
+    elif len(input_split) == 3:
+        if float(input_split[0]) > 12 and float(input_split[1]) <= 12:
+            day = date_zero_correct(input_split[0])
+            month = date_zero_correct(input_split[1])
+        elif float(input_split[0]) <= 12:
+            month = date_zero_correct(input_split[0])
+            day = date_zero_correct(input_split[1])
+        else:
+            return np.NaN
+        year = input_split[2]
+        return "/".join([day, month, year])
+    else:
+        return np.NaN
+
+df['StartDate'] = df['StartDate'].astype(str).progress_map(date_correct)
+
+# ------------------------------------------------------------------------- #
 # Save
 # ------------------------------------------------------------------------- #
 
