@@ -8,7 +8,6 @@ library('lme4')
 library('ggvis')
 library('cowplot')
 library('ggplot2')
-library('scales')
 library('reshape2')
 source("data_sources.R")
 options(scipen=5)
@@ -50,15 +49,14 @@ resid_analysis <- function(data_frame, model){
 source("r_cookBook_helper_fns.R")
 
 # ------------------------------------------------ #
-
-# Import
+setwd("~/Google Drive/Programming Projects/ZeitSci/analysis/R")
 setwd(paste0(MAIN_FOLDER(), "R"))
 
 # Read in Data
 df <- read.csv("funding_data.csv", na.strings=c("","NA", "NAN", 'nan', 'NaN'))
 
 # Strange
-df <- df[df$Grant > 0, ]
+df <- df[df$Grant > 0 & df$GrantYear <= 2015, ]
 
 # Conversions
 df['Grant'] <- as.numeric(df$Grant)
@@ -96,7 +94,7 @@ summary(m)
 # Plots - Exploratory
 # --------------------------------------------------------
 
-df_plotting <- df[!(is.na(df$Grant)) & (df$GrantYear < 2016),]
+df_plotting <- df[!(is.na(df$Grant)),]
 
 # Grant Density
 
@@ -120,14 +118,29 @@ ggplot(df_plotting, aes(Grant)) +
 # Break on Public Vs. Private
 # ---------------------------
 
-# Time Series
-agg_inst <- data.frame(aggregate(round(Grant, 2) ~ GrantYear + InstitutionType, data = df, FUN = 'sum'))
-colnames(agg_inst) <- c('Year', 'InstitutionType', 'Grant')
+# Data on ~ 56% of Entries in the Database
+nrow(df[!(is.na(df$InstitutionType)),]) / nrow(df[(is.na(df$InstitutionType)),])
+# ---------------------------
 
-ggplot(agg_inst, aes(x = Year, y = Grant, color = InstitutionType)) +
-    geom_point(alpha = 0.75, size = 3.5) + 
-    scale_x_continuous(limits = c(2000, 2015)) +
-    scale_y_continuous(limits=c(0, 8000000000), breaks = seq(0, 8000000000, 2000000000)) 
+# Over time -- From 2007 and on because of Small N in 2000-2007
+agg_inst <- data.frame(aggregate(round(Grant, 2) ~ GrantYear + InstitutionType
+                                 , data = df[df$GrantYear > 2007,]
+                                 , FUN = function(x){c(m = median(x), c = length(x))}))
+colnames(agg_inst) <- c('Year', 'InstitutionType', 'Grant')
+agg_inst$metric <- data.frame(agg_inst$Grant)$m
+agg_inst$count <- data.frame(agg_inst$Grant)$c
+agg_inst <- data.frame(subset(agg_inst, select = -Grant))
+agg_inst$prop <- apply(agg_inst[, c('Year', 'count')], 1, FUN = function(x){
+    prop <- x[[2]]/sum(agg_inst$count[agg_inst$Year == x[[1]]])
+    return(prop)
+})
+
+agg_inst$weighted_median <- agg_inst$metric * agg_inst$prop
+
+ggplot(agg_inst, aes(x = Year, y = metric, fill = InstitutionType, color = InstitutionType)) +
+    geom_bar(stat = "identity", position = 'dodge', alpha = 0.85) + 
+    scale_y_continuous(expand = c(0,0)) +
+    scale_x_continuous(breaks = seq(min(agg_inst$Year), max(agg_inst$Year)), expand = c(0,0))
 
 # ---------------------------
 # Break on Block
@@ -152,26 +165,6 @@ ggplot(agg_block, aes(x = factor(Year), y = Grant, fill = OrganizationBlock)) +
     scale_y_continuous(breaks = breaks, labels = formatted_labels, expand = c(0,0)) +
     scale_x_discrete(expand = c(0,0))
 
-# Mean
-agg_block_mean <- data.frame(aggregate(round(Grant, 2) ~ GrantYear + OrganizationBlock
-                                  , data = df[df$GrantYear >= 2010 & df$GrantYear < 2016,]
-                                  , FUN = 'mean'))
-colnames(agg_block_mean) <- c('Year', 'OrganizationBlock', 'Grant')
-
-
-# Compute CIs for the data
-agg_block_mean_cis <- summarySEwithin(df_plotting, measurevar="Grant", withinvars="GrantYear",
-                                      idvar="OrganizationBlock", na.rm=FALSE, conf.interval=.95)
-
-ggplot(agg_block_mean, aes(x = factor(Year), y = Grant, fill = OrganizationBlock)) +
-    geom_bar(stat = "identity", position = 'dodge', alpha = 0.85) + 
-    ylab("Grants (Billions of USD)") +
-    labs(fill = "Funding Block") + 
-    scale_y_continuous(breaks = breaks, labels = formatted_labels, expand = c(0,0)) +
-    scale_x_discrete(expand = c(0,0)) + 
-    geom_errorbar(aes(ymin=len-ci, ymax=len+ci),
-                  width=.2,                    # Width of the error bars
-                  position=position_dodge(.9))
 
 
 
