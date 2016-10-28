@@ -304,9 +304,6 @@ del eu_df['u_id']
 # Clean
 # ------------------------------------------------------------------#
 
-# Remove any entries without lat/lng info
-eu_df = eu_df[pd.notnull(eu_df["lat"])].reset_index(drop=True)
-
 # Run an abstract analysis on the summaries
 eu_df.summary = eu_df['summary'].str.replace(r"\s\s+", " ").str.replace(r'[^0-9a-zA-Z\s]', "")
 

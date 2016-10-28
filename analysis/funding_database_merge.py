@@ -15,6 +15,8 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+import dask.dataframe as dd
+from unidecode import unidecode
 from abstract_analysis import *
 from currency_converter import CurrencyConverter
 
@@ -185,6 +187,8 @@ df['NormalizedAmount'] = df.progress_apply(lambda x: zeitsci_grant_normalize_wra
 # Clean OrganizationName
 # ------------------------------------------------------------------------- #
 
+# To fix: The Medical University of South Carolina =/= University of South Carolina.
+
 # Clean the OrganizationName
 df['OrganizationName'] = df['OrganizationName'].map(cln).str.replace("\"","").str.strip().progress_apply(titler)
 
@@ -338,6 +342,22 @@ df['Endowment'] = endowment_type[:,0]
 df['InstitutionType'] = endowment_type[:,1]
 
 df['OrganizationName'] = df['OrganizationName'].map(lambda x: x.replace("\"", ""), na_action='ignore')
+
+# ------------------------------------------------------------------------- #
+# Clean the Keywords (will take a while).
+# ------------------------------------------------------------------------- #
+
+def keyword_cln(x):
+    if str(x) == 'nan':
+        return np.NaN
+    joined_x = unidecode(" ".join(x))
+    return word_vector_clean(joined_x)
+
+# df['Keywords'] = df['Keywords'].progress_map(lambda x: keyword_cln(x), na_action='ignore')
+
+# Use Dask to Execute this in Parallel
+dd_df = dd.from_pandas(df[['Keywords']], npartitions=4)
+df['Keywords'] = dd_df.apply(lambda x: keyword_cln(x['Keywords']), axis=1).compute()
 
 # ------------------------------------------------------------------------- #
 # Date Correct

@@ -89,7 +89,6 @@ ca_df['lat'] = ca_df.university.str.lower().map(lambda x: try_dict_lookup(can_ci
 # Add city information #
 # -------------------- #
 
-
 os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/Canada")
 
 # Import
@@ -103,9 +102,6 @@ missing_can_cities_dict = dict(zip(can_uni_cities['Name'].str.lower(), can_uni_c
 
 # Populate the city Column
 ca_df['city'] = ca_df['university'].str.lower().map(lambda x: try_dict_lookup(missing_can_cities_dict, x))
-
-# Drop rows without geo information
-ca_df = column_drop(ca_df, columns_to_drop=["lat", "city"], drop_type='na')
 
 # Correct Researcher Name
 ca_df.researcher = ca_df.researcher.map(lambda x: comma_reverse(x))
