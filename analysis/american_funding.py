@@ -148,9 +148,6 @@ us_df['lng'] = us_df_lat_lng_np[:,1]
 # Many thanks to @miraculixx over on Stack Overflow.
 # see: http://stackoverflow.com/questions/38284615/speed-up-pandas-dataframe-lookup/38284860#38284860
 
-# Drop entries for which location information could not be obtained
-us_df = us_df.dropna(subset=['lat', 'lng']).reset_index(drop=True)
-
 # lower col names
 us_df.columns = [c.lower() for c in us_df.columns]
 

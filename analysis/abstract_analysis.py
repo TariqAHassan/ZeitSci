@@ -1,9 +1,9 @@
 """
 
-Tools for the Analysis of Abstracts
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Tools for the Analysis of Abstracts
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Python 3.5
+    Python 3.5
 
 """
 # Import Modules
@@ -45,6 +45,8 @@ def abstract_en(abstract):
 def word_vector_clean(input_str, RTokenizer=RTokenizer):
     """
 
+    Unidecode?
+
     Gets the most common words in a string
     Refinements:
         1. Removal of stop Words.
@@ -54,7 +56,6 @@ def word_vector_clean(input_str, RTokenizer=RTokenizer):
     :param str_vector:
     :return:
     """
-
     # Make all chars lower case
     lower_input_str = input_str.lower()
 

@@ -306,7 +306,16 @@ two_iso_country_dict = dict()
 for country in list(pycountry.countries):
     two_iso_country_dict[country.alpha2] = country.name
 
-
+def unique_order_preseve(input_list):
+    """
+    Get unique items in a list and
+    preserve their order.
+    """
+    input_no_dup = list()
+    for i in input_list:
+        if i not in input_no_dup:
+            input_no_dup.append(i)
+    return input_no_dup
 
 
 
