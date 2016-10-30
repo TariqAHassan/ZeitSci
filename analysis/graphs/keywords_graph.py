@@ -7,6 +7,7 @@
 
 """
 # Imports
+import re
 import numpy as np
 import pandas as pd
 
@@ -16,6 +17,7 @@ from tqdm import tqdm
 from copy import deepcopy
 from itertools import chain
 from unidecode import unidecode
+from graphs.graphing_data import funders_dict
 from abstract_analysis import word_vector_clean
 from funding_database_tools import MAIN_FOLDER
 from funding_database_tools import unique_order_preseve
@@ -94,40 +96,90 @@ keyword_df_sum = keyword_df_sum.sort_values(by=['NormalizedAmount'], ascending=F
 # Save to Disk
 # ------------------------------------------------------------------------------------------------ #
 
-keyword_df_sum.to_csv(MAIN_FOLDER + "/Data/keyword_databases/" + "keywords_db.csv", index=False, chunksize=500000)
+export_path = MAIN_FOLDER + "/Data/keyword_databases/"
+# keyword_df_sum.to_csv(export_path + "keywords_db.csv", index=False, chunksize=500000)
+
+keyword_df_sum = pd.read_csv(export_path + "keywords_db.csv")
 
 # ------------------------------------------------------------------------------------------------ #
 # Analytic Groupbys
 # ------------------------------------------------------------------------------------------------ #
 
+# Unidecode Org Names
 keyword_df_sum['OrganizationName'] = keyword_df_sum['OrganizationName'].progress_map(unidecode, na_action='ignore')
 
-def amount_groupby(groupby):
-    gb = keyword_df_sum.groupby(groupby)['NormalizedAmount'].sum().reset_index()
+# Add Year Column
+keyword_df_sum['Year'] = keyword_df_sum['StartDate'].progress_map(lambda x: x.split("/")[2], na_action='ignore')
+
+def amount_groupby(groupby, df=None):
+    data_frame = keyword_df_sum if df is None else df
+    gb = data_frame.groupby(groupby)['NormalizedAmount'].sum().reset_index()
     by = ['NormalizedAmount'] if groupby == ['Keywords'] else [i for i in groupby if i != 'Keywords'] + ['NormalizedAmount']
     return gb.sort_values(by=by, ascending=False).reset_index(drop=True)
 
+# ------------------------------------------
 # Most Funded Terms
+# ------------------------------------------
+
 top_funded = amount_groupby(['Keywords'])
 
+# ------------------------------------------
 # Most Funded Terms by Country
+# ------------------------------------------
+
 top_funded_country = amount_groupby(['Keywords', 'OrganizationState'])
 top_funded_country = top_funded_country[top_funded_country['OrganizationState'].map(lambda x: len(x) > 2, na_action='ignore')]
 
-# Most Funded Terms by Org
-top_funded_org = amount_groupby(['Keywords', 'OrganizationName'])
+# ------------------------------------------
+# Most Funded Terms by Org, State and Block
+# ------------------------------------------
 
+top_funded_org = amount_groupby(['Keywords', 'OrganizationName', 'OrganizationState', 'OrganizationBlock'])
+
+# ------------------------------------------
 # Most Funded Terms by Funder
-top_funded_funder = amount_groupby(['Keywords', 'Funder'])
+# ------------------------------------------
 
+top_funder_df = keyword_df_sum[(keyword_df_sum['Year'].astype(float) >= 2000) &
+                                (keyword_df_sum['Year'].astype(float) <= 2015)
+]
+top_funded_funder = amount_groupby(groupby=['Keywords', 'Funder', 'Year'], df=top_funder_df)
 
+def agency_name_simplify(x):
+    return re.findall(r"\(([A-Za-z0-9_]+)\)", x)[0]
 
+top_funded_funder['Funder'] = top_funded_funder['Funder'].map(lambda x: agency_name_simplify(funders_dict[x][0]), na_action='ignore')
 
+# Limit to top 250 keywords for each agency for each year between 2000 and 2015
+top_funded_funder = top_funded_funder.groupby(['Funder', 'Year']).head(2).reset_index(drop=True)
 
+# ------------
+# Agg by Year
+# ------------
 
+top_funded_funder_year = top_funded_funder.groupby(['Keywords', 'Year'])['NormalizedAmount'].sum()\
+                                                            .reset_index().sort_values("Year").reset_index(drop=True)
 
+# ------------------------------------------------------------------------------------------------ #
+# Analytic Groupby Exports
+# ------------------------------------------------------------------------------------------------ #
 
+# General
+top_funded.to_csv(export_path + "general_keywords.csv", index=False)
 
+# Organizations
+org_terms = ['university', 'ecole', 'institute']
+org_search_term = "|".join(org_terms)
+
+orgs = top_funded_org[top_funded_org['OrganizationName'].str.lower().str.contains(org_search_term)].reset_index(drop=True)
+orgs.to_csv(export_path + "organizations_keywords.csv", index=False, chunksize=100000)
+
+# Funders
+top_funded_funder.to_csv(export_path + "funders_keywords.csv", index=False)
+top_funded_funder_year.to_csv(export_path + "funders_keywords_by_year.csv", index=False)
+
+# Countries
+top_funded_country.to_csv(export_path + "countries_keywords.csv", index=False)
 
 
 
