@@ -10,7 +10,6 @@ var agencyRadius, finalAgencySpacer, circle, text;
 var currentYear = -1;
 
 var years = [];
-var angencies = [];
 var keywordByYear = {};
 var yearToYearMapping = {};
 
@@ -91,11 +90,13 @@ function yearText(year, x, y){
 }
 
 function yearCycle(year, drawNew){
-    var yUpper = 600;
-    var yLower = 800;
-    var xPosition = 2200;
-    var yText = yUpper + Math.abs(yLower - yUpper) / 2;
 
+    //Position of Switcher
+    var xPosition = 2500;
+    var yPosition = 1300;
+    var yUpper = yPosition - 100;
+    var yLower = yPosition + 100;
+    var yText = yUpper + Math.abs(yLower - yUpper) / 2; // abs() not really needed here...
 
     if (drawNew == true) {
 
@@ -114,6 +115,7 @@ function yearCycle(year, drawNew){
 
 //----------------------------------------------------------------------------------------
 
+//Agency, Connection and Keyword Drawing
 
 function keywordTransition(year, drawNew){
 
@@ -126,7 +128,9 @@ function keywordTransition(year, drawNew){
     //Remove the old keywords
     d3.selectAll(".keywords").remove();
     d3.selectAll(".connection").remove();
-    keywordYearDraw(year, keywordByYear, finalAgencySpacer, agencyRadius);
+
+    //Draw the keywords
+    keywordYearDraw(year);
 
     for (var d in currentYearData){
         drawConnection(currentYearData[d][0], currentYearData[d][1])
@@ -150,7 +154,7 @@ function mainDraw(){
     var yAgencySpacer = agencyRadius * 2;
     d3.csv("data/funder_db.csv", function(error, funder){
         funder.forEach(function (d) {
-            angencies.push(d["funder"])
+            //Draw the agency circles
             agencyDraw(d["funder"], d["colour"], agencyRadius, yAgencySpacer);
             yAgencySpacer += agencyRadius * 2 + (agencyRadius * 0.75)
         });
@@ -167,9 +171,12 @@ function mainDraw(){
                 currentYear = parseInt(d["Year"])
             }
 
-            var keyword = [d["Keywords"], parseFloat(d["NormalizedAmount"])];
+            var keywordData = [d["Keywords"],
+                           parseFloat(d["NormalizedAmount"]),
+                           parseFloat(d["ScaledAmount"])
+            ];
 
-            keywordByYear = objectNestedListAdd(keywordByYear, d["Year"], keyword);
+            keywordByYear = objectNestedListAdd(keywordByYear, d["Year"], keywordData);
 
             //Add the year
             if (years.indexOf(parseInt(d["Year"])) === -1){
@@ -180,7 +187,11 @@ function mainDraw(){
             //Read in data to connect the keywords to the funders
             d3.csv("keyword_data/funders_keywords.csv", function(error, funderKeywords){
                 funderKeywords.forEach(function (d){
-                    var connectionData = [d['Funder'], d['Keywords'], parseFloat(d['NormalizedAmount'])]
+                    var connectionData = [d['Funder'],
+                                          d['Keywords'],
+                                          parseFloat(d['NormalizedAmount']),
+                                          parseFloat(d['ProportionTotal'])
+                    ]
                     //Update the mapping year to year for the keywords
                     yearToYearMapping = objectNestedListAdd(yearToYearMapping, d['Year'], connectionData)
                 });
@@ -241,47 +252,76 @@ function agencyDraw(agencyName, colour, agencyRadius, yLocation){
 
 }
 
-function keywordDraw(yPosition, id, height){
+function objectKeyAdd(obj, key, newValue){
+    if (!(obj.hasOwnProperty(key))){
+        obj[key] = newValue
+    } else {
+        obj[key] += newValue
+    }
+    return obj
+}
 
-    //FIX: forest / research problem here...
-    var name = id[0]
-    var width = 450;
+
+function keywordDraw(year, yPosition, keyword, height){
+
     var xPosition = 1600;
+    var keywordID = keyword[0];
+    var totalWidth = keyword[2];
 
-    var keywordRect = keywords.append("rect")
-            .attr("class", "keywords")
-            .datum([xPosition, yPosition, height])
-            .attr("x", xPosition)
-            .attr("y", yPosition)
-            .attr("id", name)
-            .attr("width", 450)
-            .attr("height", height)
-            .attr("fill", "navy")
-            .attr("stroke", "black");
+    var barColor;
+    var currentXPosition;
+    var sectionWidth;
+    var numberOfSections = {};
+    var currentXDisplacement = {};
 
+    var currentYearData = yearToYearMapping[year];
+
+    for (var s in currentYearData){
+        var currentEntry = currentYearData[s]
+
+        if (currentEntry[1] == keywordID){
+            numberOfSections = objectKeyAdd(numberOfSections, currentEntry[1], 1)
+            sectionWidth = totalWidth * currentEntry[3]
+            currentXDisplacement = objectKeyAdd(currentXDisplacement, currentEntry[1], sectionWidth)
+
+            barColor = d3.select("#" + currentEntry[0]).datum()[2]
+            currentXPosition = xPosition + currentXDisplacement[currentEntry[1]] - sectionWidth
+
+            keywords.append("rect")
+                    .attr("class", "keywords")
+                    .datum([xPosition, yPosition, height])
+                    .attr("x", currentXPosition)
+                    .attr("y", yPosition)
+                    .attr("id", keywordID + "_" + numberOfSections[currentEntry[1]])
+                    .attr("width", sectionWidth)
+                    .attr("height", height)
+                    .attr("fill", barColor)
+                    .attr("stroke", barColor);
+        }
+    }
     keywords.append("text")
-            .attr("x", xPosition + (width / 3))
-            .attr("y", yPosition + (height / 1.5))
-            .text(name)
-            .style("font", "Lucida Grande")
-            .style("font-size", "45px")
-            .style('fill', 'white');
+        .attr("class", "keywords")
+        .attr("x", currentXPosition + sectionWidth + 15)
+        .attr("y", yPosition + (height / 1.5))
+        .text(keywordID)
+        .style("font", "Lucida Grande")
+        .style("font-size", "45px")
+        .style('fill', 'gray');
 }
 
 function keywordOrder(keywords, middleKeyword){
-    //Works for odd -- fix for even
     var upper_half = keywords.slice(0, middleKeyword).reverse()
     var lower_half = keywords.slice(middleKeyword, keywords.length)
     return lower_half.concat(upper_half);
 }
 
-function keywordYearDraw(year, keywordByYear, agencyLength, agencyRadius){
+function keywordYearDraw(year){
     //Draws the keywords for a given year.
     //  The first half of the keywords are draw below the
     //  midpoint of the agency circles column; the second half are draw above.
     var adjustment, resetAdjustment;
     var keywords = keywordByYear[year];
-    var agencyTrueLength = (agencyLength - agencyRadius*1.5);
+    var agencyTrueLength = (finalAgencySpacer - agencyRadius * 1.5);
     var agencyMidpoint = agencyTrueLength/1.90;
     var middleKeyword = parseInt(keywords.length/2);
     var keywordSpaceFactor = 1.3;
@@ -299,10 +339,10 @@ function keywordYearDraw(year, keywordByYear, agencyLength, agencyRadius){
 
     if (keywords.length % 2 === 0){
         adjustment = -1 * keywordHeight/2;
-        resetAdjustment = 0
+        resetAdjustment = 0;
     } else {
         adjustment = 0;
-        resetAdjustment = -1 * keywordHeight/2
+        resetAdjustment = -1 * keywordHeight/2;
     }
 
     //Reordeer the keyword list for drawing
@@ -317,7 +357,7 @@ function keywordYearDraw(year, keywordByYear, agencyLength, agencyRadius){
         }
 
         //Draw a keyword
-        keywordDraw(ySpacer, keywordsOrdered[k], keywordHeight);
+        keywordDraw(year, ySpacer, keywordsOrdered[k], keywordHeight);
 
         if (keywordCounter < middleKeyword){
             ySpacer += keywordStep
@@ -333,7 +373,7 @@ function drawConnection(agency, keyword){
     var p1 = d3.select("#" + agency).datum();
 
     //The Keyword Location
-    var p2 = d3.select("#" + keyword).datum();
+    var p2 = d3.select("#" + keyword + "_1").datum();
 
     background.append("line")
         .attr("class", "connection")
@@ -351,6 +391,19 @@ function drawConnection(agency, keyword){
 
 
 mainDraw();
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
