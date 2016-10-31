@@ -20,7 +20,7 @@ var bodySelection = d3.select("body");
 
 var svg = bodySelection.append("svg")
                          .attr("width", document.getElementById("container").offsetWidth)
-                         .attr("height", 3000);
+                         .attr("height", 3500);
 
 //background Layer
 var background = svg.append("g");
@@ -54,7 +54,7 @@ function triangleDraw(x, y, size, fill, direction){
                 .attr("d", d3.svg.symbol()
                                     .type("triangle-" + direction)
                                     .size(newSize))
-            //Scale downc
+            //Scale down
             d3.select(this)
                 .transition()
                 .delay(200)
@@ -192,17 +192,30 @@ function mainDraw(){
     });
 }
 
-
-function lineHighlight(abbreviation, selected, notSelected){
+function lineHighlight(abbreviation, adjustments){
+    var selected, notSelected;
     var lines = d3.selectAll(".connection")[0]
+
+    //Loop though all the lines
     for (var i in lines) {
         var current = lines[i].id
         if (current != "") {
             var defaultOpacity = d3.select("#" + current).datum()['opacity'];
+
+            //Determine how to adjust line opacity
+            if (adjustments.constructor === Array){
+                selected = defaultOpacity + adjustments[0];
+                notSelected = defaultOpacity + adjustments[1];
+            } else if (adjustments === "reset"){
+                selected = defaultOpacity;
+                notSelected = defaultOpacity;
+            }
+
+            //Apply opacity change
             if (current.split("_")[0] == abbreviation) {
-                d3.select("#" + current).attr("opacity", defaultOpacity + selected)
+                d3.select("#" + current).attr("opacity", selected)
             } else {
-                d3.select("#" + current).attr("opacity", defaultOpacity + notSelected)
+                d3.select("#" + current).attr("opacity", notSelected)
             }
         }
     }
@@ -220,19 +233,18 @@ function agencyDraw(agencyName, colour, agencyRadius, yLocation){
                              .datum([xLocation, yLocation, colour, agencyRadius])
                              .style("fill", colour)
                              .on("mouseover", function(d){
-                                 lineHighlight(abbreviation, 0.25, -0.25)
+                                 lineHighlight(abbreviation, [0.35, -0.35])
                              })
                             .on("mouseout", function(d){
-                                lineHighlight(abbreviation, 0.25, 0.25)
+                                lineHighlight(abbreviation, "reset")
                             })
 
 }
 
 function keywordDraw(yPosition, id, height){
 
-    //forest / research problem here...
+    //FIX: forest / research problem here...
     var name = id[0]
-
     var width = 450;
     var xPosition = 1600;
 
@@ -256,22 +268,29 @@ function keywordDraw(yPosition, id, height){
             .style('fill', 'white');
 }
 
+function keywordOrder(keywords, middleKeyword){
+    //Works for odd -- fix for even
+    var upper_half = keywords.slice(0, middleKeyword).reverse()
+    var lower_half = keywords.slice(middleKeyword, keywords.length)
+    return lower_half.concat(upper_half);
+}
+
 function keywordYearDraw(year, keywordByYear, agencyLength, agencyRadius){
     //Draws the keywords for a given year.
     //  The first half of the keywords are draw below the
     //  midpoint of the agency circles column; the second half are draw above.
-    var adjustment;
+    var adjustment, resetAdjustment;
     var keywords = keywordByYear[year];
     var agencyTrueLength = (agencyLength - agencyRadius*1.5);
-    var agencyMidpoint = agencyTrueLength/2;
+    var agencyMidpoint = agencyTrueLength/1.90;
     var middleKeyword = parseInt(keywords.length/2);
-    var keywordSpaceFactor = 1.2;
+    var keywordSpaceFactor = 1.3;
 
     //Add half of the rect height to the midpoint
 
     //Use the Length of Agency Column, in combination with the keywordSpaceFactor
     //to work our the max. size a keyword rectange can be.
-    var keywordHeight = agencyTrueLength/(keywordSpaceFactor * keywords.length);
+    var keywordHeight = agencyTrueLength/(keywordSpaceFactor * keywords.length + 2.5);
     var keywordStep = keywordHeight * keywordSpaceFactor;
 
     //Use an Ugly counter variable
@@ -280,22 +299,31 @@ function keywordYearDraw(year, keywordByYear, agencyLength, agencyRadius){
 
     if (keywords.length % 2 === 0){
         adjustment = -1 * keywordHeight/2;
+        resetAdjustment = 0
     } else {
         adjustment = 0;
+        resetAdjustment = -1 * keywordHeight/2
     }
 
+    //Reordeer the keyword list for drawing
+    var keywordsOrdered = keywordOrder(keywords, middleKeyword)
+
     var ySpacer = agencyMidpoint + adjustment;
-    for (var k in keywords){
+    for (var k in keywordsOrdered){
 
         //Reset to the midpoint
         if (keywordCounter == middleKeyword){
-            ySpacer = agencyMidpoint + adjustment;
+            ySpacer = agencyMidpoint - keywordHeight - keywordStep/1.5 - resetAdjustment;
         }
-        //Draw a keyword
-        keywordDraw(ySpacer, keywords[k], keywordHeight);
 
-        if (keywordCounter < middleKeyword){ySpacer += keywordStep}
-        else {ySpacer -= keywordStep}
+        //Draw a keyword
+        keywordDraw(ySpacer, keywordsOrdered[k], keywordHeight);
+
+        if (keywordCounter < middleKeyword){
+            ySpacer += keywordStep
+        } else {
+            ySpacer -= keywordStep
+        }
         keywordCounter += 1;
     }
 }
@@ -317,7 +345,7 @@ function drawConnection(agency, keyword){
         .attr("stroke", p1[2])
         .attr("stroke-width", 25)
         .attr("opacity", 0.50)
-        .datum({'opacity': 0.5});
+        .datum({'opacity': 0.50});
 }
 
 
