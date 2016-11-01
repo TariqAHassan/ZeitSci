@@ -252,6 +252,16 @@ function agencyDraw(agencyName, colour, agencyRadius, yLocation){
 
 }
 
+//----------------------------------------------------------------------------------------
+
+//Keyword Drawing Helper Functions
+
+function keywordOrder(keywords, middleKeyword){
+    var upper_half = keywords.slice(0, middleKeyword).reverse()
+    var lower_half = keywords.slice(middleKeyword, keywords.length)
+    return lower_half.concat(upper_half);
+}
+
 function objectKeyAdd(obj, key, newValue){
     if (!(obj.hasOwnProperty(key))){
         obj[key] = newValue
@@ -261,6 +271,47 @@ function objectKeyAdd(obj, key, newValue){
     return obj
 }
 
+function getMaxNested(inputArray, indexOfInterest){
+    var max_index = -1;
+    var largest_value = -1;
+    for (var i in inputArray){
+        if (inputArray[i][indexOfInterest] > largest_value){
+            largest_value = inputArray[i][indexOfInterest]
+            max_index = i
+        }
+    }
+    return parseInt(max_index)
+}
+
+function indexRemove(inputArray, indexToRemove){
+    //Not clear what is wrong with the splice() method
+    //...but it's acting wierd here.
+    var newArray = [];
+    for (var i in inputArray){
+        if (i != indexToRemove){
+            newArray.push(inputArray[i])
+        }
+    }
+    return newArray
+}
+
+function reorderNestedForMax(inputArray, indexOfInterest){
+    var reordered = [];
+    var indexOfLargestValue;
+
+    for (var i in inputArray){
+        indexOfLargestValue = getMaxNested(inputArray, indexOfInterest)
+
+        reordered.push(inputArray[indexOfLargestValue])
+
+        inputArray = indexRemove(inputArray, indexOfLargestValue)
+    }
+    return reordered
+}
+
+//----------------------------------------------------------------------------------------
+
+//Drawing the keywords
 
 function keywordDraw(year, yPosition, keyword, height){
 
@@ -276,29 +327,41 @@ function keywordDraw(year, yPosition, keyword, height){
 
     var currentYearData = yearToYearMapping[year];
 
+    //Extract only the entries that match the keyword
+    var entriesMatchingKeywordID = [];
     for (var s in currentYearData){
         var currentEntry = currentYearData[s]
-
         if (currentEntry[1] == keywordID){
-            numberOfSections = objectKeyAdd(numberOfSections, currentEntry[1], 1)
-            sectionWidth = totalWidth * currentEntry[3]
-            currentXDisplacement = objectKeyAdd(currentXDisplacement, currentEntry[1], sectionWidth)
-
-            barColor = d3.select("#" + currentEntry[0]).datum()[2]
-            currentXPosition = xPosition + currentXDisplacement[currentEntry[1]] - sectionWidth
-
-            keywords.append("rect")
-                    .attr("class", "keywords")
-                    .datum([xPosition, yPosition, height])
-                    .attr("x", currentXPosition)
-                    .attr("y", yPosition)
-                    .attr("id", keywordID + "_" + numberOfSections[currentEntry[1]])
-                    .attr("width", sectionWidth)
-                    .attr("height", height)
-                    .attr("fill", barColor)
-                    .attr("stroke", barColor);
+            entriesMatchingKeywordID.push(currentEntry)
         }
     }
+
+    //Order from largest to smallest
+    var orderedMatchingEntries = reorderNestedForMax(entriesMatchingKeywordID, 3)
+
+    //Draw each bar
+    for (var s in orderedMatchingEntries){
+        var currentEntry = orderedMatchingEntries[s]
+
+        numberOfSections = objectKeyAdd(numberOfSections, currentEntry[1], 1)
+        sectionWidth = totalWidth * currentEntry[3]
+        currentXDisplacement = objectKeyAdd(currentXDisplacement, currentEntry[1], sectionWidth)
+
+        barColor = d3.select("#" + currentEntry[0]).datum()[2]
+        currentXPosition = xPosition + currentXDisplacement[currentEntry[1]] - sectionWidth
+
+        keywords.append("rect")
+                .attr("class", "keywords")
+                .datum([xPosition, yPosition, height])
+                .attr("x", currentXPosition)
+                .attr("y", yPosition)
+                .attr("id", keywordID + "_" + numberOfSections[currentEntry[1]])
+                .attr("width", sectionWidth)
+                .attr("height", height)
+                .attr("fill", barColor)
+                .attr("stroke", barColor);
+    }
+    //Label the bar
     keywords.append("text")
         .attr("class", "keywords")
         .attr("x", currentXPosition + sectionWidth + 15)
@@ -306,13 +369,8 @@ function keywordDraw(year, yPosition, keyword, height){
         .text(keywordID)
         .style("font", "Lucida Grande")
         .style("font-size", "45px")
+        .style("font-weight", "bold")
         .style('fill', 'gray');
-}
-
-function keywordOrder(keywords, middleKeyword){
-    var upper_half = keywords.slice(0, middleKeyword).reverse()
-    var lower_half = keywords.slice(middleKeyword, keywords.length)
-    return lower_half.concat(upper_half);
 }
 
 function keywordYearDraw(year){
@@ -346,6 +404,7 @@ function keywordYearDraw(year){
     }
 
     //Reordeer the keyword list for drawing
+    //(midpoint --> first; first --> last)
     var keywordsOrdered = keywordOrder(keywords, middleKeyword)
 
     var ySpacer = agencyMidpoint + adjustment;
