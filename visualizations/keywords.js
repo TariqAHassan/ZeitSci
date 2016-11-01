@@ -32,7 +32,7 @@ var yearTransition = svg.append("g");
 
 //Draw Text
 
-function drawText(toAttach, x, y, text, opacity, textOptions){
+function drawText(toAttach, x, y, text, textClass, opacity, textOptions){
     var textProperties = {
         "anchor" : "left",
         "fill" : "gray",
@@ -48,7 +48,7 @@ function drawText(toAttach, x, y, text, opacity, textOptions){
     }
 
     var label = toAttach.append("text")
-                        .attr("class", "agency")
+                        .attr("class", textClass)
                         .attr("x", x)
                         .attr("y", y)
                         .text(text)
@@ -73,6 +73,7 @@ function triangleDraw(x, y, size, fill, direction){
             .type("triangle-" + direction)
             .size(size * 1000)
         )
+        .attr("class", "year")
         .style("fill", fill)
         .datum([size * 1000, direction])
         .on("click", function(d){
@@ -110,7 +111,6 @@ function triangleDraw(x, y, size, fill, direction){
 }
 
 function yearClicker(year, drawNew){
-
     //Position of Clicker
     var textOptions;
     var xPosition = 2750;
@@ -124,7 +124,7 @@ function yearClicker(year, drawNew){
         textOptions = {"anchor" : "middle", "fill" : "black", "size" : "70px", "weight" : "normal"}
 
         //Add the year
-        drawText(yearTransition, xPosition, yText, String(year), 1, textOptions)
+        drawText(yearTransition, xPosition, yText, String(year), "year", 1, textOptions)
 
         //Upper Triangle
         triangleDraw(xPosition, yUpper, 9.5, "green", 'up')
@@ -148,7 +148,7 @@ function keywordTransition(year, drawNew){
     //Get the Data for the current Year
     var currentYearData = yearToYearMapping[year];
 
-    //Remove the old keywords
+    //Remove the old keywords & lines
     d3.selectAll(".keywords").remove();
     d3.selectAll(".connection").remove();
 
@@ -213,7 +213,8 @@ function mainDraw(){
                     var connectionData = [d['Funder'],
                                           d['Keywords'],
                                           parseFloat(d['NormalizedAmount']),
-                                          parseFloat(d['ProportionTotal'])
+                                          parseFloat(d['ProportionTotal']),
+                                          parseFloat(d['ProportionYearlyTop'])
                     ]
                     //Update the mapping year to year for the keywords
                     yearToYearMapping = objectNestedListAdd(yearToYearMapping, d['Year'], connectionData)
@@ -274,27 +275,36 @@ function agencyDraw(agencyName, colour, agencyRadius, yLocation){
                 lineHighlight(abbreviation, "reset")
             })
 
+    //Delete from the DOM after drawing...
     var label = drawText(agencies,
                          xLocation - agencyRadius * 4.5,
                          yLocation + agencyRadius/3.3,
-                         abbreviation, 0, "default")
+                         abbreviation, "agency", 0, "default")
 
     var bbox = label[0][0].getBBox();
 
     drawText(agencies,
              xLocation/2.5 - bbox.width/2,
              yLocation + bbox.height/2.8,
-             abbreviation, 1, "default")
+             abbreviation, "agency", 1, "default")
 }
 
 //----------------------------------------------------------------------------------------
 
-//Keyword Drawing Helper Functions
+//Keyword Helper Functions
 
 function keywordOrder(keywords, middleKeyword){
-    var upper_half = keywords.slice(0, middleKeyword).reverse()
-    var lower_half = keywords.slice(middleKeyword, keywords.length)
-    return lower_half.concat(upper_half);
+    //handle odd number of keywords
+    var breakIndex;
+    if (keywords.length % 2 === 0) {
+        breakIndex = middleKeyword
+    } else {
+        breakIndex = middleKeyword + 1
+    }
+
+    var upperHalf = keywords.slice(0, breakIndex).reverse()
+    var lowerHalf = keywords.slice(breakIndex, keywords.length)
+    return lowerHalf.concat(upperHalf);
 }
 
 function objectKeyAdd(obj, key, newValue){
@@ -366,8 +376,8 @@ function keywordDraw(year, yPosition, keyword, height){
     var currencyAmount = millionBillionScaler(keyword[1]);
 
     var barColor;
-    var currentXPosition;
     var sectionWidth;
+    var currentXPosition;
     var numberOfSections = {};
     var currentXDisplacement = {};
 
@@ -412,8 +422,7 @@ function keywordDraw(year, yPosition, keyword, height){
          currentXPosition + sectionWidth + 15,
          yPosition + (height / 1.5),
          keywordID + " ($" + currencyAmount[0] + currencyAmount[1] + ")",
-         1,
-         "default")
+         "keywords", 1, "default")
 }
 
 function keywordYearDraw(year){
@@ -477,15 +486,25 @@ function drawConnection(agency, keyword){
     //The Keyword Location
     var p2 = d3.select("#" + keyword + "_1").datum();
 
+    //Default Line Width
+    var defaultLineWidth = 85;
+
+    var yearToYearData = yearToYearMapping[currentYear]
+    for (var i in yearToYearData){
+        if (yearToYearData[i][0] == agency && yearToYearData[i][1] == keyword){
+            var widthScale = yearToYearData[i][4]
+        }
+    }
+
     background.append("line")
         .attr("class", "connection")
         .attr("id", agency + "_to_" + keyword)
         .attr("x1", p1[0])
         .attr("y1", p1[1])
-        .attr("x2", p2[0] + p2[0] * 0.005)
+        .attr("x2", p2[0] + p2[0] * 0.004)
         .attr("y2", p2[1] + p2[2]/2)
         .attr("stroke", p1[2])
-        .attr("stroke-width", 25)
+        .attr("stroke-width", defaultLineWidth * widthScale)
         .attr("opacity", 0.50)
         .datum({'opacity': 0.50});
 }
