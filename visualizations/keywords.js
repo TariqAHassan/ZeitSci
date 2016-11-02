@@ -144,111 +144,51 @@ function yearClicker(year, drawNew){
 
 //----------------------------------------------------------------------------------------
 
-//Agency, Connection and Keyword Drawing
-
-function keywordTransition(year, drawNew){
-
-    //Update tracker
-    yearClicker(year, drawNew)
-
-    //Get the Data for the current Year
-    var currentYearData = yearToYearMapping[year];
-
-    //Remove the old keywords & lines
-    d3.selectAll(".keywords").remove();
-    d3.selectAll(".connection").remove();
-
-    //Clean keywords from prior year
-    allSections = [];
-    sectionAgencyTracker = {};
-    keywordSectionTracker = {};
-
-    //Draw the keywords
-    keywordYearDraw(year);
-
-    for (var d in currentYearData){
-        drawConnection(currentYearData[d][0], currentYearData[d][1])
-    }
-}
-
-function objectNestedListAdd(object, key, toAdd){
-    if (!(object.hasOwnProperty(key))){
-        object[key] = [toAdd];
-    } else {
-        var toAppend = object[key];
-        toAppend.push(toAdd);
-        object[key] = toAppend;
-    }
-    return object
-}
-
-function mainDraw(){
-    //Agencies
-    agencyRadius = 65;
-    var yAgencySpacer = agencyRadius * 2.25;
-    d3.csv("data/funder_db.csv", function(error, funder){
-        funder.forEach(function (d) {
-            //Save the color for each agency
-            agencyColors[d["funder"].match(/\((.*?)\)/)[1]] = d["colour"]
-
-            //Draw the agency circles
-            agencyDraw(d["funder"], d["colour"], agencyRadius, yAgencySpacer);
-            yAgencySpacer += agencyRadius * 2.25 + (agencyRadius * 0.75)
-        });
-
-        //Save the final step size
-        finalAgencySpacer = yAgencySpacer;
-
-        //Keywords Aggregated by Year
-        d3.csv("keyword_data/funders_keywords_by_year.csv", function(error, keyword){
-            keyword.forEach(function (d) {
-
-            //Initialize the current year to the starting year
-            if (currentYear === -1){
-                currentYear = parseInt(d["Year"])
-            }
-
-            var keywordData = [d["Keywords"],
-                           parseFloat(d["NormalizedAmount"]),
-                           parseFloat(d["ScaledAmount"])
-            ];
-
-            keywordByYear = objectNestedListAdd(keywordByYear, d["Year"], keywordData);
-
-            //Add the year
-            if (years.indexOf(parseInt(d["Year"])) === -1){
-                years.push(parseInt(d["Year"]))
-            }
-            });
-
-            //Read in data to connect the keywords to the funders
-            d3.csv("keyword_data/funders_keywords.csv", function(error, funderKeywords){
-                funderKeywords.forEach(function (d){
-                    var connectionData = [d['Funder'],
-                                          d['Keywords'],
-                                          parseFloat(d['NormalizedAmount']),
-                                          parseFloat(d['ProportionTotal']),
-                                          parseFloat(d['ProportionYearlyTop'])
-                    ]
-                    //Update the mapping year to year for the keywords
-                    yearToYearMapping = objectNestedListAdd(yearToYearMapping, d['Year'], connectionData)
-                });
-                //Draw the keywords for the first Year
-                keywordTransition(currentYear, true)
-            })
-        })
-    });
-}
-
-//----------------------------------------------------------------------------------------
-
 //Highlighting
 
-function shadeColor2(color, percent) {
-    //See: http://stackoverflow.com/questions/5560248/programmatically-lighten-or-darken-a-hex-color-or-rgb-and-blend-colors
-    //Amazing Answer
-    var f=parseInt(color.slice(1),16),t=percent<0?0:255,p=percent<0?percent*-1:percent,R=f>>16,G=f>>8&0x00FF,B=f&0x0000FF;
-    return "#"+(0x1000000+(Math.round((t-R)*p)+R)*0x10000+(Math.round((t-G)*p)+G)*0x100+(Math.round((t-B)*p)+B)).toString(16).slice(1);
+function lineInAllowedPairs(lineID, keywordAgencyPairs){
+    var lineAllowed = false;
+    var lineSplit = lineID.split("_");
+    var lineAgency = lineSplit[0];
+    var lineKeyword = lineSplit[2];
+
+    var currentPair;
+    for (var p in keywordAgencyPairs){
+        currentPair = keywordAgencyPairs[p]
+        if (lineAgency == currentPair[0] && lineKeyword == currentPair[1]) {
+            lineAllowed = true;
+        }
+    }
+    return lineAllowed
+}
+
+function lineHighlightBar(keywordAgencyPairs, adjustments){
+    var lines = d3.selectAll(".connection")[0];
+    var defaultOpacity, selected, notSelected
+
+    var current;
+    for (var i in lines){
+        current = lines[i].id
+
+        if (current != "") {
+            defaultOpacity = d3.select("#" + current).datum()['opacity'];
+
+            //Determine how to adjust line opacity
+            if (adjustments.constructor === Array) {
+                selected = defaultOpacity + adjustments[0];
+                notSelected = defaultOpacity + adjustments[1];
+            } else if (adjustments === "reset") {
+                selected = defaultOpacity;
+                notSelected = defaultOpacity;
+            }
+
+            if (lineInAllowedPairs(current, keywordAgencyPairs) === true) {
+                 d3.select("#" + current).attr("opacity", selected)
+            } else {
+                 d3.select("#" + current).attr("opacity", notSelected)
+            }
+        }
+    }
 }
 
 function barSectionHighlight(agencyAbbreviation, mouseMovementType){
@@ -314,6 +254,8 @@ function lineHighlightAgency(agencyAbbreviation, adjustments){
 
 //----------------------------------------------------------------------------------------
 
+//Draw circles for the agencies
+
 function agencyDraw(agencyName, colour, agencyRadius, yLocation){
     var xLocation = 350;
     var agencyAbbreviation = agencyName.match(/\((.*?)\)/)[1]
@@ -374,6 +316,17 @@ function objectKeyArrayAdd(obj, key, newValue){
     return obj
 }
 
+function objectNestedListAdd(object, key, toAdd){
+    if (!(object.hasOwnProperty(key))){
+        object[key] = [toAdd];
+    } else {
+        var toAppend = object[key];
+        toAppend.push(toAdd);
+        object[key] = toAppend;
+    }
+    return object
+}
+
 // function objConcat(object1, object2) {
 //     for (var i in object2) {
 //         if (object2.hasOwnProperty(i)) {
@@ -399,6 +352,21 @@ function objectKeyArrayAdd(obj, key, newValue){
 //----------------------------------------------------------------------------------------
 
 //Keyword Helper Functions
+
+function shadeColor2(color, percent) {
+    //See: http://stackoverflow.com/questions/5560248/programmatically-lighten-or-darken-a-hex-color-or-rgb-and-blend-colors
+    //Amazing Answer
+    var f=parseInt(color.slice(1),16),t=percent<0?0:255,p=percent<0?percent*-1:percent,R=f>>16,G=f>>8&0x00FF,B=f&0x0000FF;
+    return "#"+(0x1000000+(Math.round((t-R)*p)+R)*0x10000+(Math.round((t-G)*p)+G)*0x100+(Math.round((t-B)*p)+B)).toString(16).slice(1);
+}
+
+function stringContains(inputString, agency, keyword){
+    if (inputString.indexOf(agency) != -1 && inputString.indexOf(keyword) != -1){
+        return true;
+    } else {
+        return false;
+    }
+}
 
 function keywordOrder(keywords, middleKeyword){
     var breakIndex;
@@ -463,81 +431,20 @@ function millionBillionScaler(amount){
 
 //----------------------------------------------------------------------------------------
 
-//Keyword --> # for bar ID
-
 //Drawing the keywords
 
-function stringContains(inputString, agency, keyword){
-    if (inputString.indexOf(agency) != -1 && inputString.indexOf(keyword) != -1){
-        return true;
-    } else {
-        return false;
+function keywordAgencyPairsGen(keywordID){
+    var agenciesInCurrentBar = keywordAgencyMapping[keywordID];
+
+    var keywordAgencyPairs = [];
+    for (var k in agenciesInCurrentBar){
+        keywordAgencyPairs.push([agenciesInCurrentBar[k], keywordID])
     }
+    return keywordAgencyPairs
 }
 
-function lineInAllowedPairs(lineID, keywordAgencyPairs){
-    var lineAllowed = false;
-    var lineSplit = lineID.split("_");
-    var lineAgency = lineSplit[0];
-    var lineKeyword = lineSplit[2];
-
-    var currentPair;
-    for (var p in keywordAgencyPairs){
-        currentPair = keywordAgencyPairs[p]
-        if (lineAgency == currentPair[0] && lineKeyword == currentPair[1]) {
-            lineAllowed = true;
-        }
-    }
-    return lineAllowed
-}
-
-function lineHighlightBar(keywordAgencyPairs, adjustments){
-    var lines = d3.selectAll(".connection")[0];
-    var defaultOpacity, selected, notSelected
-    
-    var current;
-    for (var i in lines){
-        current = lines[i].id
-        
-        if (current != "") {
-            defaultOpacity = d3.select("#" + current).datum()['opacity'];
-
-            //Determine how to adjust line opacity
-            if (adjustments.constructor === Array) {
-                selected = defaultOpacity + adjustments[0];
-                notSelected = defaultOpacity + adjustments[1];
-            } else if (adjustments === "reset") {
-                selected = defaultOpacity;
-                notSelected = defaultOpacity;
-            }
-            
-            if (lineInAllowedPairs(current, keywordAgencyPairs) === true) {
-                 d3.select("#" + current).attr("opacity", selected)
-            } else {
-                 d3.select("#" + current).attr("opacity", notSelected)
-            }
-        }
-    }
-}
-
-
-
-function keywordDraw(year, yPosition, keyword, height){
-    var xPosition = 1800;
-    var keywordID = keyword[0];
-    var totalWidth = keyword[2];
-    var currencyAmount = millionBillionScaler(keyword[1]);
-
-    var barColor;
-    var sectionWidth;
-    var sectionNumber;
-    var currentXPosition;
-    var numberOfSections = {};
-    var currentXDisplacement = {};
-
-    var currentYearData = yearToYearMapping[year];
-
-    //Extract only the entries that match the keyword
+function matchingKeywordsExtractor(currentYearData, keywordID){
+    //Extract
     var entriesMatchingKeywordID = [];
     for (var s in currentYearData){
         var currentEntry = currentYearData[s]
@@ -545,9 +452,23 @@ function keywordDraw(year, yPosition, keyword, height){
             entriesMatchingKeywordID.push(currentEntry);
         }
     }
+    //Reorder
+    return reorderNestedForMax(entriesMatchingKeywordID, 3)
+}
 
-    //Order sections from largest to smallest
-    var orderedMatchingEntries = reorderNestedForMax(entriesMatchingKeywordID, 3)
+function keywordDraw(year, yPosition, keyword, height){
+    var xPosition = 1800;
+    var keywordID = keyword[0];
+    var totalWidth = keyword[2];
+    var currencyAmount = millionBillionScaler(keyword[1]);
+
+    var barColor, sectionWidth, sectionNumber, currentXPosition;
+    var numberOfSections = {};
+    var currentXDisplacement = {};
+
+    var currentYearData = yearToYearMapping[year];
+
+    var orderedMatchingEntries = matchingKeywordsExtractor(currentYearData, keywordID);
 
     //Draw each bar
     for (var s in orderedMatchingEntries){
@@ -580,21 +501,10 @@ function keywordDraw(year, yPosition, keyword, height){
                 .attr("fill", barColor)
                 .attr("stroke", barColor)
                 .on("mouseover", function(d){
-                    var agenciesInCurrentBar = keywordAgencyMapping[keywordID];
-
-                    var keywordAgencyPairs = [];
-                    for (var k in agenciesInCurrentBar){
-                        keywordAgencyPairs.push([agenciesInCurrentBar[k], keywordID])
-                    }
-                    lineHighlightBar(keywordAgencyPairs, [0.35, -0.35])
+                    lineHighlightBar(keywordAgencyPairsGen(keywordID), [0.35, -0.35])
                 })
                 .on("mouseout", function(d){
-                    var agenciesInCurrentBar = keywordAgencyMapping[keywordID];
-                    var keywordAgencyPairs = [];
-                    for (var k in agenciesInCurrentBar){
-                        keywordAgencyPairs.push([agenciesInCurrentBar[k], keywordID])
-                    }
-                    lineHighlightBar(keywordAgencyPairs, "reset")
+                    lineHighlightBar(keywordAgencyPairsGen(keywordID), "reset")
                 });
 
     }
@@ -605,9 +515,6 @@ function keywordDraw(year, yPosition, keyword, height){
          keywordID + " ($" + currencyAmount[0] + currencyAmount[1] + ")",
          "keywords", 1, "default")
 }
-
-
-
 
 function keywordYearDraw(year){
     //Draws the keywords for a given year.
@@ -692,7 +599,97 @@ function drawConnection(agency, keyword){
         .datum({'opacity': 0.50});
 }
 
+function keywordTransition(year, drawNew){
 
+    //Update tracker
+    yearClicker(year, drawNew)
+
+    //Get the Data for the current Year
+    var currentYearData = yearToYearMapping[year];
+
+    //Remove the old keywords & lines
+    d3.selectAll(".keywords").remove();
+    d3.selectAll(".connection").remove();
+
+    //Clean keywords from prior year
+    allSections = [];
+    sectionAgencyTracker = {};
+    keywordSectionTracker = {};
+
+    //Draw the keywords
+    keywordYearDraw(year);
+
+    for (var d in currentYearData){
+        drawConnection(currentYearData[d][0], currentYearData[d][1])
+    }
+}
+
+
+//----------------------------------------------------------------------------------------
+
+//Main Drawing Function
+
+function mainDraw(){
+    //Agencies
+    agencyRadius = 65;
+    var yAgencySpacer = agencyRadius * 2.25;
+    d3.csv("data/funder_db.csv", function(error, funder){
+        funder.forEach(function (d) {
+            //Save the color for each agency
+            agencyColors[d["funder"].match(/\((.*?)\)/)[1]] = d["colour"]
+
+            //Draw the agency circles
+            agencyDraw(d["funder"], d["colour"], agencyRadius, yAgencySpacer);
+            yAgencySpacer += agencyRadius * 2.25 + (agencyRadius * 0.75)
+        });
+
+        //Save the final step size
+        finalAgencySpacer = yAgencySpacer;
+
+        //Keywords Aggregated by Year
+        d3.csv("keyword_data/funders_keywords_by_year.csv", function(error, keyword){
+            keyword.forEach(function (d) {
+
+            //Initialize the current year to the starting year
+            if (currentYear === -1){
+                currentYear = parseInt(d["Year"])
+            }
+
+            var keywordData = [d["Keywords"],
+                           parseFloat(d["NormalizedAmount"]),
+                           parseFloat(d["ScaledAmount"])
+            ];
+
+            keywordByYear = objectNestedListAdd(keywordByYear, d["Year"], keywordData);
+
+            //Add the year
+            if (years.indexOf(parseInt(d["Year"])) === -1){
+                years.push(parseInt(d["Year"]))
+            }
+            });
+
+            //Read in data to connect the keywords to the funders
+            d3.csv("keyword_data/funders_keywords.csv", function(error, funderKeywords){
+                funderKeywords.forEach(function (d){
+                    var connectionData = [d['Funder'],
+                                          d['Keywords'],
+                                          parseFloat(d['NormalizedAmount']),
+                                          parseFloat(d['ProportionTotal']),
+                                          parseFloat(d['ProportionYearlyTop'])
+                    ]
+                    //Update the mapping year to year for the keywords
+                    yearToYearMapping = objectNestedListAdd(yearToYearMapping, d['Year'], connectionData)
+                });
+                //Draw the keywords for the first Year
+                keywordTransition(currentYear, true)
+            })
+        })
+    });
+}
+
+//----------------------------------------------------------------------------------------
+
+//Generate the Figure
 
 mainDraw();
 
