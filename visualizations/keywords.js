@@ -146,6 +146,19 @@ function yearClicker(year, drawNew){
 
 //Highlighting
 
+function determineAdjustments(adjustments, defaultOpacity){
+    var selected, notSelected;
+    //Determine how to adjust line opacity
+    if (adjustments.constructor === Array) {
+        selected = defaultOpacity + adjustments[0];
+        notSelected = defaultOpacity + adjustments[1];
+    } else if (adjustments === "reset") {
+        selected = defaultOpacity;
+        notSelected = defaultOpacity;
+    }
+    return [selected, notSelected]
+}
+
 function lineInAllowedPairs(lineID, keywordAgencyPairs){
     var lineAllowed = false;
     var lineSplit = lineID.split("_");
@@ -162,30 +175,35 @@ function lineInAllowedPairs(lineID, keywordAgencyPairs){
     return lineAllowed
 }
 
-function lineHighlightBar(keywordAgencyPairs, adjustments){
-    var lines = d3.selectAll(".connection")[0];
-    var defaultOpacity, selected, notSelected
+function increaseOpacityTest(current, testAginst){
+    if (testAginst.constructor === Array){
+        return lineInAllowedPairs(current, testAginst) === true
+    } else {
+        return current.split("_")[0] == testAginst
+    }
+}
 
+
+function lineHighlight(agencyAbbreviation, adjustments){
+    var newOpacities, defaultOpacity;
+    var lines = d3.selectAll(".connection")[0]
+
+    //Loop though all the lines
     var current;
-    for (var i in lines){
+    for (var i in lines) {
         current = lines[i].id
 
         if (current != "") {
+
+            //Get the new line Opacities
             defaultOpacity = d3.select("#" + current).datum()['opacity'];
+            newOpacities = determineAdjustments(adjustments, defaultOpacity);
 
-            //Determine how to adjust line opacity
-            if (adjustments.constructor === Array) {
-                selected = defaultOpacity + adjustments[0];
-                notSelected = defaultOpacity + adjustments[1];
-            } else if (adjustments === "reset") {
-                selected = defaultOpacity;
-                notSelected = defaultOpacity;
-            }
-
-            if (lineInAllowedPairs(current, keywordAgencyPairs) === true) {
-                 d3.select("#" + current).attr("opacity", selected)
+            //Apply opacity change
+            if (increaseOpacityTest(current, agencyAbbreviation) === true) {
+                d3.select("#" + current).attr("opacity", newOpacities[0])
             } else {
-                 d3.select("#" + current).attr("opacity", notSelected)
+                d3.select("#" + current).attr("opacity", newOpacities[1])
             }
         }
     }
@@ -221,37 +239,6 @@ function barSectionHighlight(agencyAbbreviation, mouseMovementType){
     }
 }
 
-function lineHighlightAgency(agencyAbbreviation, adjustments){
-    var selected, notSelected;
-    var lines = d3.selectAll(".connection")[0]
-
-    //Loop though all the lines
-    var current;
-    var defaultOpacity;
-    for (var i in lines) {
-        current = lines[i].id
-        if (current != "") {
-            defaultOpacity = d3.select("#" + current).datum()['opacity'];
-
-            //Determine how to adjust line opacity
-            if (adjustments.constructor === Array) {
-                selected = defaultOpacity + adjustments[0];
-                notSelected = defaultOpacity + adjustments[1];
-            } else if (adjustments === "reset") {
-                selected = defaultOpacity;
-                notSelected = defaultOpacity;
-            }
-            
-            //Apply opacity change
-            if (current.split("_")[0] == agencyAbbreviation) {
-                d3.select("#" + current).attr("opacity", selected)
-            } else {
-                d3.select("#" + current).attr("opacity", notSelected)
-            }
-        }
-    }
-}
-
 //----------------------------------------------------------------------------------------
 
 //Draw circles for the agencies
@@ -270,11 +257,11 @@ function agencyDraw(agencyName, colour, agencyRadius, yLocation){
             .style("fill", colour)
             .on("mouseover", function(d){
                 barSectionHighlight(agencyAbbreviation, "mouseover")
-                lineHighlightAgency(agencyAbbreviation, [0.35, -0.35])
+                lineHighlight(agencyAbbreviation, [0.35, -0.35])
             })
             .on("mouseout", function(d){
                 barSectionHighlight(agencyAbbreviation, "mouseout")
-                lineHighlightAgency(agencyAbbreviation, "reset")
+                lineHighlight(agencyAbbreviation, "reset")
             })
 
     //Delete from the DOM after drawing...
@@ -501,10 +488,10 @@ function keywordDraw(year, yPosition, keyword, height){
                 .attr("fill", barColor)
                 .attr("stroke", barColor)
                 .on("mouseover", function(d){
-                    lineHighlightBar(keywordAgencyPairsGen(keywordID), [0.35, -0.35])
+                    lineHighlight(keywordAgencyPairsGen(keywordID), [0.35, -0.35])
                 })
                 .on("mouseout", function(d){
-                    lineHighlightBar(keywordAgencyPairsGen(keywordID), "reset")
+                    lineHighlight(keywordAgencyPairsGen(keywordID), "reset")
                 });
 
     }
