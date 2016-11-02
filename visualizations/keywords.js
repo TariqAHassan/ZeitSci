@@ -15,6 +15,7 @@ var allSections = [];
 var agencyColors = {};
 var keywordByYear = {};
 var yearToYearMapping = {};
+var keywordAgencyMapping = {};
 var sectionAgencyTracker = {};
 var keywordSectionTracker = {};
 
@@ -52,6 +53,7 @@ function drawText(toAttach, x, y, text, textClass, opacity, textOptions){
             textProperties[k] = textOptions[k];
         }
     }
+
     var label = toAttach.append("text")
                         .attr("class", textClass)
                         .attr("x", x)
@@ -125,7 +127,6 @@ function yearClicker(year, drawNew){
     var yText = yUpper + Math.abs(yLower - yUpper) / 2; // abs() not really needed here...
 
     if (drawNew == true) {
-
         textOptions = {"anchor" : "middle", "fill" : "black", "size" : "70px", "weight" : "normal"}
 
         //Add the year
@@ -280,25 +281,27 @@ function barSectionHighlight(agencyAbbreviation, mouseMovementType){
     }
 }
 
-function lineHighlight(agencyAbbreviation, adjustments){
+function lineHighlightAgency(agencyAbbreviation, adjustments){
     var selected, notSelected;
     var lines = d3.selectAll(".connection")[0]
 
     //Loop though all the lines
+    var current;
+    var defaultOpacity;
     for (var i in lines) {
-        var current = lines[i].id
+        current = lines[i].id
         if (current != "") {
-            var defaultOpacity = d3.select("#" + current).datum()['opacity'];
+            defaultOpacity = d3.select("#" + current).datum()['opacity'];
 
             //Determine how to adjust line opacity
-            if (adjustments.constructor === Array){
+            if (adjustments.constructor === Array) {
                 selected = defaultOpacity + adjustments[0];
                 notSelected = defaultOpacity + adjustments[1];
-            } else if (adjustments === "reset"){
+            } else if (adjustments === "reset") {
                 selected = defaultOpacity;
                 notSelected = defaultOpacity;
             }
-
+            
             //Apply opacity change
             if (current.split("_")[0] == agencyAbbreviation) {
                 d3.select("#" + current).attr("opacity", selected)
@@ -325,11 +328,11 @@ function agencyDraw(agencyName, colour, agencyRadius, yLocation){
             .style("fill", colour)
             .on("mouseover", function(d){
                 barSectionHighlight(agencyAbbreviation, "mouseover")
-                lineHighlight(agencyAbbreviation, [0.35, -0.35])
+                lineHighlightAgency(agencyAbbreviation, [0.35, -0.35])
             })
             .on("mouseout", function(d){
                 barSectionHighlight(agencyAbbreviation, "mouseout")
-                lineHighlight(agencyAbbreviation, "reset")
+                lineHighlightAgency(agencyAbbreviation, "reset")
             })
 
     //Delete from the DOM after drawing...
@@ -464,6 +467,61 @@ function millionBillionScaler(amount){
 
 //Drawing the keywords
 
+function stringContains(inputString, agency, keyword){
+    if (inputString.indexOf(agency) != -1 && inputString.indexOf(keyword) != -1){
+        return true;
+    } else {
+        return false;
+    }
+}
+
+function lineInAllowedPairs(lineID, keywordAgencyPairs){
+    var lineAllowed = false;
+    var lineSplit = lineID.split("_");
+    var lineAgency = lineSplit[0];
+    var lineKeyword = lineSplit[2];
+
+    var currentPair;
+    for (var p in keywordAgencyPairs){
+        currentPair = keywordAgencyPairs[p]
+        if (lineAgency == currentPair[0] && lineKeyword == currentPair[1]) {
+            lineAllowed = true;
+        }
+    }
+    return lineAllowed
+}
+
+function lineHighlightBar(keywordAgencyPairs, adjustments){
+    var lines = d3.selectAll(".connection")[0];
+    var defaultOpacity, selected, notSelected
+    
+    var current;
+    for (var i in lines){
+        current = lines[i].id
+        
+        if (current != "") {
+            defaultOpacity = d3.select("#" + current).datum()['opacity'];
+
+            //Determine how to adjust line opacity
+            if (adjustments.constructor === Array) {
+                selected = defaultOpacity + adjustments[0];
+                notSelected = defaultOpacity + adjustments[1];
+            } else if (adjustments === "reset") {
+                selected = defaultOpacity;
+                notSelected = defaultOpacity;
+            }
+            
+            if (lineInAllowedPairs(current, keywordAgencyPairs) === true) {
+                 d3.select("#" + current).attr("opacity", selected)
+            } else {
+                 d3.select("#" + current).attr("opacity", notSelected)
+            }
+        }
+    }
+}
+
+
+
 function keywordDraw(year, yPosition, keyword, height){
     var xPosition = 1800;
     var keywordID = keyword[0];
@@ -504,6 +562,7 @@ function keywordDraw(year, yPosition, keyword, height){
         sectionNumber = numberOfSections[currentEntry[1]];
 
         //Save which agency has which bar sections
+        objectKeyArrayAdd(keywordAgencyMapping, keywordID, currentEntry[0])
         objectKeyArrayAdd(sectionAgencyTracker, keywordID + "_" + sectionNumber, currentEntry[0])
         objectKeyArrayAdd(keywordSectionTracker, currentEntry[0], keywordID + "_" + sectionNumber)
 
@@ -519,7 +578,25 @@ function keywordDraw(year, yPosition, keyword, height){
                 .attr("width", sectionWidth)
                 .attr("height", height)
                 .attr("fill", barColor)
-                .attr("stroke", barColor);
+                .attr("stroke", barColor)
+                .on("mouseover", function(d){
+                    var agenciesInCurrentBar = keywordAgencyMapping[keywordID];
+
+                    var keywordAgencyPairs = [];
+                    for (var k in agenciesInCurrentBar){
+                        keywordAgencyPairs.push([agenciesInCurrentBar[k], keywordID])
+                    }
+                    lineHighlightBar(keywordAgencyPairs, [0.35, -0.35])
+                })
+                .on("mouseout", function(d){
+                    var agenciesInCurrentBar = keywordAgencyMapping[keywordID];
+                    var keywordAgencyPairs = [];
+                    for (var k in agenciesInCurrentBar){
+                        keywordAgencyPairs.push([agenciesInCurrentBar[k], keywordID])
+                    }
+                    lineHighlightBar(keywordAgencyPairs, "reset")
+                });
+
     }
     //Label the bar
     drawText(keywords,
@@ -528,6 +605,9 @@ function keywordDraw(year, yPosition, keyword, height){
          keywordID + " ($" + currencyAmount[0] + currencyAmount[1] + ")",
          "keywords", 1, "default")
 }
+
+
+
 
 function keywordYearDraw(year){
     //Draws the keywords for a given year.
