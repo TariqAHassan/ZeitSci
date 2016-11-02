@@ -6,12 +6,16 @@
 //----------------------------------------------------------------------------------------
 
 //Initialize
-
+var widestBar = [-1, -1];
 var currentYear = -1;
-var agencyRadius, finalAgencySpacer, circle, text;
+var agencyRadius, finalAgencySpacer, circle, text, agencyXPosition, barXStartingPosition;
 
+//Arrays
 var years = [];
 var allSections = [];
+var minMaxKeywordYSpacers = []
+
+//Objects
 var agencyColors = {};
 var keywordByYear = {};
 var yearToYearMapping = {};
@@ -35,6 +39,7 @@ var infobox = svg.append("g");
 var keywords = svg.append("g");
 var agencies = svg.append("g");
 var yearTransition = svg.append("g");
+var yearTransitionDate = svg.append("g");
 
 //----------------------------------------------------------------------------------------//
 
@@ -64,7 +69,7 @@ function hideTooltip(tooltipObj){
 
 //Draw Text
 
-function drawText(toAttach, x, y, text, textClass, opacity, textOptions){
+function drawText(toAttach, x, y, text, ID, textClass, opacity, textOptions){
     var textProperties = {
         "anchor" : "left",
         "fill" : "gray",
@@ -81,6 +86,7 @@ function drawText(toAttach, x, y, text, textClass, opacity, textOptions){
 
     var label = toAttach.append("text")
                         .attr("class", textClass)
+                        .attr("id", ID)
                         .attr("x", x)
                         .attr("y", y)
                         .text(text)
@@ -99,18 +105,22 @@ function drawText(toAttach, x, y, text, textClass, opacity, textOptions){
 //Date Cycling
 
 function triangleDraw(x, y, size, fill, direction){
+    var sizeScaleFactor = 1800;
+
     yearTransition.append("path")
-        .attr("transform", function(d) { return "translate(" + x + "," + y + ")"; })
         .attr("d", d3.svg.symbol()
             .type("triangle-" + direction)
-            .size(size * 1000)
+            .size(size * sizeScaleFactor)
         )
-        .attr("class", "year")
+        .attr("transform", function(d) {
+            return "translate(" + x + "," + y + ")";
+        })
+        .attr("class", "year" + "_" + direction)
         .style("fill", fill)
-        .datum([size * 1000, direction])
+        .datum([size * sizeScaleFactor, direction])
         .on("click", function(d){
             var currentSize = d3.select(this).datum()[0];
-            var newSize = currentSize * 1.35;
+            var newSize = currentSize * 1.70;
 
             //Scale up
             d3.select(this)
@@ -145,23 +155,23 @@ function triangleDraw(x, y, size, fill, direction){
 function yearClicker(year, drawNew){
     //Position of Clicker
     var textOptions;
-    var xPosition = 2750;
-    var yPosition = 1300;
-    var yUpper = yPosition - 100;
-    var yLower = yPosition + 100;
-    var yText = yUpper + Math.abs(yLower - yUpper) / 2; // abs() not really needed here...
+    var xPosition = barXStartingPosition + widestBar[0]/2;
+    var yPosition = (minMaxKeywordYSpacers[0] + minMaxKeywordYSpacers[1]) / 2;
+    var yText = yPosition
 
+    var yearText, bbox;
     if (drawNew == true) {
-        textOptions = {"anchor" : "middle", "fill" : "black", "size" : "70px", "weight" : "normal"}
+        textOptions = {"anchor" : "middle", "fill" : "gray", "size" : "90px", "weight" : "normal"}
 
         //Add the year
-        drawText(yearTransition, xPosition, yText, String(year), "year", 1, textOptions)
+        yearText = drawText(yearTransitionDate, xPosition, yText, String(year), "current_year", "year", 1, textOptions)
+        bbox = yearText[0][0].getBBox();
 
         //Upper Triangle
-        triangleDraw(xPosition, yUpper, 9.5, "green", 'up')
+        triangleDraw(xPosition, yPosition - bbox.height*1.20, 9.5, "green", 'up')
 
         //Lower Triangle
-        triangleDraw(xPosition, yLower, 9.5, "red", 'down')
+        triangleDraw(xPosition, yPosition + bbox.height*1.20, 9.5, "red", 'down')
     } else {
         d3.select(".year").text(String(year))
     }
@@ -247,7 +257,6 @@ function lineHighlight(agencyAbbreviation, adjustments){
 function barSectionHighlight(agencyAbbreviation, mouseMovementType){
     var agencyColor, hoverChange, notHoverChange;
 
-    //TO DO: FIX hover vars with if [else]
     if (mouseMovementType === "mouseover"){
         hoverChange = 0.08;
         notHoverChange = -0.125;
@@ -289,18 +298,17 @@ function barSectionHighlight(agencyAbbreviation, mouseMovementType){
 //Draw circles for the agencies
 
 function agencyDraw(agencyName, colour, agencyRadius, yLocation){
-    var xLocation = 350;
     var agencyAbbreviation = agencyName.match(/\((.*?)\)/)[1]
     var fullName = agencyName.replace(agencyAbbreviation, "").replace("(","").replace(")","").trim()
 
     agencies.append("circle")
             .attr("class", "agency")
-            .attr("cx", xLocation)
+            .attr("cx", agencyXPosition)
             .attr("cy", yLocation)
             .attr("r", agencyRadius)
             .attr("id", agencyAbbreviation)
             .attr("fill", colour)
-            .datum([xLocation, yLocation, colour, agencyRadius])
+            .datum([agencyXPosition, yLocation, colour, agencyRadius])
             .on("mouseover", function(d){
                 barSectionHighlight(agencyAbbreviation, "mouseover")
                 lineHighlight(agencyAbbreviation, [0.35, -0.35])
@@ -312,15 +320,16 @@ function agencyDraw(agencyName, colour, agencyRadius, yLocation){
 
     //Delete from the DOM after drawing...
     var label = drawText(agencies,
-                         xLocation - agencyRadius * 4.5,
+                         agencyXPosition - agencyRadius * 4.5,
                          yLocation + agencyRadius/3.3,
-                         agencyAbbreviation, "agency", 0, "default")
+                         agencyAbbreviation, agencyAbbreviation,
+                         "agency", 0, "default")
 
     var bbox = label[0][0].getBBox();
 
     keywords.append("text")
         .attr("class", "agency")
-        .attr("x", xLocation/2.5 - bbox.width/2)
+        .attr("x", agencyXPosition/2.5 - bbox.width/2)
         .attr("y", yLocation + bbox.height/25)
         .text(agencyAbbreviation)
         .attr("dy", ".35em")
@@ -331,11 +340,9 @@ function agencyDraw(agencyName, colour, agencyRadius, yLocation){
         .style("opacity", 1)
         .style('fill', "gray")
         .on("mouseover", function(d){
-            showTooltip(d
-                        , tooltipContainer
+            showTooltip(d, tooltipContainer
                         , "<strong>" + fullName + "</strong>"
-                        , -65
-                        , -85)
+                        , -65, -85)
         })
         .on("mouseout", function(d){
             hideTooltip(tooltipContainer)
@@ -513,7 +520,7 @@ function agencyCircleColorAdj(pairs, mouseMovementType){
 }
 
 function keywordDraw(year, yPosition, keyword, height){
-    var xPosition = 1800;
+    barXStartingPosition = barXPositionCalculator();
     var keywordID = keyword[0];
     var totalWidth = keyword[2];
     var currencyAmount = millionBillionScaler(keyword[1]);
@@ -534,7 +541,7 @@ function keywordDraw(year, yPosition, keyword, height){
         currentXDisplacement = objectKeyAdd(currentXDisplacement, currentEntry[1], sectionWidth);
 
         barColor = d3.select("#" + currentEntry[0]).datum()[2]
-        currentXPosition = xPosition + currentXDisplacement[currentEntry[1]] - sectionWidth;
+        currentXPosition = barXStartingPosition + currentXDisplacement[currentEntry[1]] - sectionWidth;
         sectionNumber = numberOfSections[currentEntry[1]];
 
         //Save which agency has which bar sections
@@ -547,7 +554,7 @@ function keywordDraw(year, yPosition, keyword, height){
 
         keywords.append("rect")
                 .attr("class", "keywords")
-                .datum([xPosition, yPosition, height])
+                .datum([barXStartingPosition, yPosition, sectionWidth, height])
                 .attr("x", currentXPosition)
                 .attr("y", yPosition)
                 .attr("id", keywordID + "_" + sectionNumber)
@@ -572,7 +579,7 @@ function keywordDraw(year, yPosition, keyword, height){
          currentXPosition + sectionWidth + 15,
          yPosition + (height / 2),
          keywordID + " ($" + currencyAmount[0] + currencyAmount[1] + ")",
-         "keywords", 1, "default")
+         keywordID, "keywords", 1, "default")
 }
 
 function keywordYearDraw(year){
@@ -609,6 +616,8 @@ function keywordYearDraw(year){
     //(midpoint --> first; first --> last)
     var keywordsOrdered = keywordOrder(keywords, middleKeyword);
 
+    var arrayOfYKeywordSpacers = [agencyMidpoint + adjustment];
+
     var ySpacer = agencyMidpoint + adjustment;
     for (var k in keywordsOrdered){
         //Reset to the midpoint
@@ -624,7 +633,9 @@ function keywordYearDraw(year){
             ySpacer -= keywordStep;
         }
         keywordCounter += 1;
+        arrayOfYKeywordSpacers.push(ySpacer)
     }
+    minMaxKeywordYSpacers = [Math.min.apply(null, arrayOfYKeywordSpacers), Math.max.apply(null, arrayOfYKeywordSpacers)];
 }
 
 function drawConnection(agency, keyword){
@@ -652,7 +663,7 @@ function drawConnection(agency, keyword){
         .attr("x1", p1[0])
         .attr("y1", p1[1])
         .attr("x2", p2[0] + p2[0] * 0.008)
-        .attr("y2", p2[1] + p2[2]/2)
+        .attr("y2", p2[1] + p2[3]/2)
         .attr("stroke", p1[2])
         .attr("stroke-width", defaultLineWidth * widthScale)
         .attr("opacity", 0.50)
@@ -660,9 +671,6 @@ function drawConnection(agency, keyword){
 }
 
 function keywordTransition(year, drawNew){
-
-    //Update tracker
-    yearClicker(year, drawNew)
 
     //Get the Data for the current Year
     var currentYearData = yearToYearMapping[year];
@@ -680,6 +688,9 @@ function keywordTransition(year, drawNew){
     //Draw the keywords
     keywordYearDraw(year);
 
+    //Update tracker
+    yearClicker(year, drawNew)
+
     for (var d in currentYearData){
         drawConnection(currentYearData[d][0], currentYearData[d][1])
     }
@@ -689,8 +700,26 @@ function keywordTransition(year, drawNew){
 
 //Main Drawing Function
 
+function barXPositionCalculator(){
+    // total width - max length + leftSpace + agencyRadius
+    var totalWidth = document.getElementById("container").offsetWidth;
+    var minxBarPosition = agencyXPosition + agencyRadius + 20;
+    var maxXBarPosition = totalWidth * 0.45;
+
+    var start = totalWidth - widestBar[0] - 300;
+
+    if (start > maxXBarPosition) {
+        return parseInt(maxXBarPosition);
+    } else if (start < minxBarPosition) {
+        return parseInt(minxBarPosition);
+    } else {
+        return parseInt(start);
+    }
+}
+
 function mainDraw(){
     //Agencies
+    agencyXPosition = 350
     agencyRadius = 65;
     var yAgencySpacer = agencyRadius * 2.25;
     d3.csv("data/funder_db.csv", function(error, funder){
@@ -715,9 +744,14 @@ function mainDraw(){
                 currentYear = parseInt(d["Year"])
             }
 
+            //Update the widest bar to be drawn
+            if (d["ScaledAmount"] > widestBar[0]){
+                widestBar = [parseFloat(d["ScaledAmount"]), d["Keywords"]]
+            }
+
             var keywordData = [d["Keywords"],
-                           parseFloat(d["NormalizedAmount"]),
-                           parseFloat(d["ScaledAmount"])
+                               parseFloat(d["NormalizedAmount"]),
+                               parseFloat(d["ScaledAmount"])
             ];
 
             keywordByYear = objectNestedListAdd(keywordByYear, d["Year"], keywordData);
