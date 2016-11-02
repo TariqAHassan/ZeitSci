@@ -144,6 +144,17 @@ function yearClicker(year, drawNew){
 
 //----------------------------------------------------------------------------------------
 
+//Shade Color
+
+function shadeColor2(color, percent) {
+    //See: http://stackoverflow.com/questions/5560248/programmatically-lighten-or-darken-a-hex-color-or-rgb-and-blend-colors
+    //Amazing Answer
+    var f=parseInt(color.slice(1),16),t=percent<0?0:255,p=percent<0?percent*-1:percent,R=f>>16,G=f>>8&0x00FF,B=f&0x0000FF;
+    return "#"+(0x1000000+(Math.round((t-R)*p)+R)*0x10000+(Math.round((t-G)*p)+G)*0x100+(Math.round((t-B)*p)+B)).toString(16).slice(1);
+}
+
+//----------------------------------------------------------------------------------------
+
 //Highlighting
 
 function determineAdjustments(adjustments, defaultOpacity){
@@ -183,42 +194,44 @@ function increaseOpacityTest(current, testAginst){
     }
 }
 
-
 function lineHighlight(agencyAbbreviation, adjustments){
     var newOpacities, defaultOpacity;
     var lines = d3.selectAll(".connection")[0]
 
     //Loop though all the lines
-    var current;
+    var currentLine, currentAgency;
     for (var i in lines) {
-        current = lines[i].id
+        currentLine = lines[i].id
+        currentAgency = lines[i].id.split("_")[0]
 
-        if (current != "") {
-
+        if (currentLine != "") {
             //Get the new line Opacities
-            defaultOpacity = d3.select("#" + current).datum()['opacity'];
+            defaultOpacity = d3.select("#" + currentLine).datum()['opacity'];
             newOpacities = determineAdjustments(adjustments, defaultOpacity);
 
             //Apply opacity change
-            if (increaseOpacityTest(current, agencyAbbreviation) === true) {
-                d3.select("#" + current).attr("opacity", newOpacities[0])
+            if (increaseOpacityTest(currentLine, agencyAbbreviation) === true) {
+                d3.select("#" + currentLine).attr("opacity", newOpacities[0])
             } else {
-                d3.select("#" + current).attr("opacity", newOpacities[1])
+                d3.select("#" + currentLine).attr("opacity", newOpacities[1])
             }
         }
     }
 }
 
 function barSectionHighlight(agencyAbbreviation, mouseMovementType){
-    var agencyColor;
-    var hoverChange = 0;
-    var notHoverChange = 0;
+    var agencyColor, hoverChange, notHoverChange;
 
+    //TO DO: FIX hover vars with if [else]
     if (mouseMovementType === "mouseover"){
         hoverChange = 0.08;
-        notHoverChange = -0.12;
+        notHoverChange = -0.125;
+    } else {
+        hoverChange = 0;
+        notHoverChange = 0;
     }
 
+    var changeToUse;
     if (agencyAbbreviation in keywordSectionTracker){
         var keywordBarSections = keywordSectionTracker[agencyAbbreviation];
 
@@ -226,10 +239,14 @@ function barSectionHighlight(agencyAbbreviation, mouseMovementType){
             agencyColor = agencyColors[sectionAgencyTracker[allSections[s]][0]]
 
             if (keywordBarSections.indexOf(allSections[s]) != -1){
-                d3.select("#" + allSections[s]).attr("fill", shadeColor2(agencyColor, hoverChange))
+                changeToUse = hoverChange;
             } else {
-                d3.select("#" + allSections[s]).attr("fill", shadeColor2(agencyColor, notHoverChange))
+                changeToUse = notHoverChange;
             }
+            d3.select("#" + allSections[s])
+                .transition()
+                .duration(125)
+                .attr("fill", shadeColor2(agencyColor, changeToUse))
         }
     } else {
         for (var s in allSections){
@@ -253,8 +270,8 @@ function agencyDraw(agencyName, colour, agencyRadius, yLocation){
             .attr("cy", yLocation)
             .attr("r", agencyRadius)
             .attr("id", agencyAbbreviation)
+            .attr("fill", colour)
             .datum([xLocation, yLocation, colour, agencyRadius])
-            .style("fill", colour)
             .on("mouseover", function(d){
                 barSectionHighlight(agencyAbbreviation, "mouseover")
                 lineHighlight(agencyAbbreviation, [0.35, -0.35])
@@ -311,41 +328,12 @@ function objectNestedListAdd(object, key, toAdd){
         toAppend.push(toAdd);
         object[key] = toAppend;
     }
-    return object
+    return object;
 }
-
-// function objConcat(object1, object2) {
-//     for (var i in object2) {
-//         if (object2.hasOwnProperty(i)) {
-//             object1[i] = object2[i];
-//         }
-//     }
-//     return object1;
-// }
-//
-// function nestedObjectAdd(obj, key, newKey, newValue){
-//     var newObj = {};
-//     newObj[newKey] = newValue
-//
-//     if (!(obj.hasOwnProperty(key))){
-//         obj[key] = newObj;
-//     } else {
-//         var current = obj[key];
-//         obj[key] = objConcat(obj[key], newObj)
-//     }
-//     return obj
-// }
 
 //----------------------------------------------------------------------------------------
 
 //Keyword Helper Functions
-
-function shadeColor2(color, percent) {
-    //See: http://stackoverflow.com/questions/5560248/programmatically-lighten-or-darken-a-hex-color-or-rgb-and-blend-colors
-    //Amazing Answer
-    var f=parseInt(color.slice(1),16),t=percent<0?0:255,p=percent<0?percent*-1:percent,R=f>>16,G=f>>8&0x00FF,B=f&0x0000FF;
-    return "#"+(0x1000000+(Math.round((t-R)*p)+R)*0x10000+(Math.round((t-G)*p)+G)*0x100+(Math.round((t-B)*p)+B)).toString(16).slice(1);
-}
 
 function stringContains(inputString, agency, keyword){
     if (inputString.indexOf(agency) != -1 && inputString.indexOf(keyword) != -1){
@@ -358,12 +346,12 @@ function stringContains(inputString, agency, keyword){
 function keywordOrder(keywords, middleKeyword){
     var breakIndex;
     if (keywords.length % 2 === 0) {
-        breakIndex = middleKeyword
+        breakIndex = middleKeyword;
     } else {
-        breakIndex = middleKeyword + 1
+        breakIndex = middleKeyword + 1;
     }
-    var upperHalf = keywords.slice(0, breakIndex).reverse()
-    var lowerHalf = keywords.slice(breakIndex, keywords.length)
+    var upperHalf = keywords.slice(0, breakIndex).reverse();
+    var lowerHalf = keywords.slice(breakIndex, keywords.length);
     return lowerHalf.concat(upperHalf);
 }
 
@@ -396,13 +384,13 @@ function reorderNestedForMax(inputArray, indexOfInterest){
     var indexOfLargestValue;
 
     for (var i in inputArray){
-        indexOfLargestValue = getMaxNested(inputArray, indexOfInterest)
+        indexOfLargestValue = getMaxNested(inputArray, indexOfInterest);
 
-        reordered.push(inputArray[indexOfLargestValue])
+        reordered.push(inputArray[indexOfLargestValue]);
 
-        inputArray = indexRemove(inputArray, indexOfLargestValue)
+        inputArray = indexRemove(inputArray, indexOfLargestValue);
     }
-    return reordered
+    return reordered;
 }
 
 function millionBillionScaler(amount){
@@ -410,9 +398,9 @@ function millionBillionScaler(amount){
 
     if (scaledAmount.toFixed(1)[0] == "0"){
         scaledAmount = amount/1000000
-        return [scaledAmount.toFixed(1), "M"]
+        return [scaledAmount.toFixed(1), "M"];
     } else {
-         return [scaledAmount.toFixed(1), "B"]
+         return [scaledAmount.toFixed(1), "B"];
     }
 }
 
@@ -443,6 +431,40 @@ function matchingKeywordsExtractor(currentYearData, keywordID){
     return reorderNestedForMax(entriesMatchingKeywordID, 3)
 }
 
+function agencyCircleColorAdj(pairs, mouseMovementType){
+    var agency = [];
+    var hoverChange, notHoverChange;
+
+    if (mouseMovementType === "mouseover"){
+        hoverChange = 0.08;
+        notHoverChange = -0.125;
+    } else {
+        hoverChange = 0;
+        notHoverChange = 0;
+    }
+
+    //Get the agencies which fund the selected keyword
+    for (var i in pairs){
+        if (agency.indexOf(pairs[i][0]) === -1) {
+            agency.push(pairs[i][0]);
+        }
+    }
+
+    // Apply the color changes
+    var changeToUse;
+    for (var a in agencyColors){
+        if (agency.indexOf(a) != -1){
+            changeToUse = hoverChange;
+        } else {
+            changeToUse = notHoverChange;
+        }
+        d3.select("#" + a)
+            .transition()
+            .duration(150)
+            .attr("fill", shadeColor2(agencyColors[a], changeToUse))
+    }
+}
+
 function keywordDraw(year, yPosition, keyword, height){
     var xPosition = 1800;
     var keywordID = keyword[0];
@@ -454,7 +476,6 @@ function keywordDraw(year, yPosition, keyword, height){
     var currentXDisplacement = {};
 
     var currentYearData = yearToYearMapping[year];
-
     var orderedMatchingEntries = matchingKeywordsExtractor(currentYearData, keywordID);
 
     //Draw each bar
@@ -488,10 +509,14 @@ function keywordDraw(year, yPosition, keyword, height){
                 .attr("fill", barColor)
                 .attr("stroke", barColor)
                 .on("mouseover", function(d){
-                    lineHighlight(keywordAgencyPairsGen(keywordID), [0.35, -0.35])
+                    var pairs = keywordAgencyPairsGen(keywordID)
+                    lineHighlight(pairs, [0.35, -0.35])
+                    agencyCircleColorAdj(pairs, "mouseover")
                 })
                 .on("mouseout", function(d){
-                    lineHighlight(keywordAgencyPairsGen(keywordID), "reset")
+                    var pairs = keywordAgencyPairsGen(keywordID)
+                    lineHighlight(pairs, "reset")
+                    agencyCircleColorAdj(pairs, "mouseout")
                 });
 
     }
@@ -510,7 +535,7 @@ function keywordYearDraw(year){
     var adjustment, resetAdjustment;
     var keywords = keywordByYear[year];
     var agencyTrueLength = (finalAgencySpacer - agencyRadius * 1.5);
-    var agencyMidpoint = agencyTrueLength/1.90;
+    var agencyMidpoint = agencyTrueLength/1.825;
     var middleKeyword = parseInt(keywords.length/2);
     var keywordSpaceFactor = 1.3;
 
@@ -573,6 +598,7 @@ function drawConnection(agency, keyword){
         }
     }
 
+    //Draw the line connecting an agency to a keyword
     background.append("line")
         .attr("class", "connection")
         .attr("id", agency + "_to_" + keyword)
@@ -610,7 +636,6 @@ function keywordTransition(year, drawNew){
         drawConnection(currentYearData[d][0], currentYearData[d][1])
     }
 }
-
 
 //----------------------------------------------------------------------------------------
 
