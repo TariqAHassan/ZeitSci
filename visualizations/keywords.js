@@ -251,7 +251,10 @@ function barSectionHighlight(agencyAbbreviation, mouseMovementType){
     } else {
         for (var s in allSections){
             agencyColor = agencyColors[sectionAgencyTracker[allSections[s]][0]]
-            d3.select("#" + allSections[s]).attr("fill", shadeColor2(agencyColor, notHoverChange))
+            d3.select("#" + allSections[s])
+                .transition()
+                .duration(125)
+                .attr("fill", shadeColor2(agencyColor, notHoverChange))
         }
     }
 }
@@ -291,7 +294,7 @@ function agencyDraw(agencyName, colour, agencyRadius, yLocation){
 
     drawText(agencies,
              xLocation/2.5 - bbox.width/2,
-             yLocation + bbox.height/2.8,
+             yLocation + bbox.height/25,
              agencyAbbreviation, "agency", 1, "default")
 }
 
@@ -624,8 +627,9 @@ function keywordTransition(year, drawNew){
     d3.selectAll(".keywords").remove();
     d3.selectAll(".connection").remove();
 
-    //Clean keywords from prior year
+    //Clean keyword data from the prior year
     allSections = [];
+    keywordAgencyMapping = {}
     sectionAgencyTracker = {};
     keywordSectionTracker = {};
 
