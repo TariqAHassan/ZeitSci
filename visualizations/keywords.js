@@ -29,11 +29,36 @@ var svg = bodySelection.append("svg")
 
 //background Layer
 var background = svg.append("g");
+var infobox = svg.append("g");
 
 //Foreground Layers
 var keywords = svg.append("g");
 var agencies = svg.append("g");
 var yearTransition = svg.append("g");
+
+//----------------------------------------------------------------------------------------//
+
+//Tooltip Functionality
+
+var tooltipContainer = d3.select("#container")
+                            .append("div")
+                            .attr("class", "tooltip hidden");
+
+function showTooltip(d, tooltipObj, info, offsetL, offsetT){
+    var mouse = d3.mouse(svg.node()).map(function(d) {
+        return parseInt(d);
+    });
+    tooltipObj.classed("hidden", false)
+        .attr("style", "left:"+(mouse[0]-offsetL)+"px;" +
+                        "top:"+(mouse[1]+offsetT)+"px"
+        )
+        .html(info)
+        .style("font-size", "45px");
+}
+
+function hideTooltip(tooltipObj){
+     tooltipObj.classed("hidden", true);
+}
 
 //----------------------------------------------------------------------------------------
 
@@ -266,6 +291,7 @@ function barSectionHighlight(agencyAbbreviation, mouseMovementType){
 function agencyDraw(agencyName, colour, agencyRadius, yLocation){
     var xLocation = 350;
     var agencyAbbreviation = agencyName.match(/\((.*?)\)/)[1]
+    var fullName = agencyName.replace(agencyAbbreviation, "").replace("(","").replace(")","").trim()
 
     agencies.append("circle")
             .attr("class", "agency")
@@ -292,10 +318,28 @@ function agencyDraw(agencyName, colour, agencyRadius, yLocation){
 
     var bbox = label[0][0].getBBox();
 
-    drawText(agencies,
-             xLocation/2.5 - bbox.width/2,
-             yLocation + bbox.height/25,
-             agencyAbbreviation, "agency", 1, "default")
+    keywords.append("text")
+        .attr("class", "agency")
+        .attr("x", xLocation/2.5 - bbox.width/2)
+        .attr("y", yLocation + bbox.height/25)
+        .text(agencyAbbreviation)
+        .attr("dy", ".35em")
+        .attr("text-anchor", "left")
+        .style("font", "Lucida Grande")
+        .style("font-size", "45px")
+        .style("font-weight", "bold")
+        .style("opacity", 1)
+        .style('fill', "gray")
+        .on("mouseover", function(d){
+            showTooltip(d
+                        , tooltipContainer
+                        , "<strong>" + fullName + "</strong>"
+                        , -65
+                        , -85)
+        })
+        .on("mouseout", function(d){
+            hideTooltip(tooltipContainer)
+        });
 }
 
 //----------------------------------------------------------------------------------------
