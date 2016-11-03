@@ -733,7 +733,7 @@ function mainDraw(){
     var widthAdjustedScaledAmount;
     var currentWidth = document.getElementById("keywordContainer").offsetWidth;
 
-    agencyXPosition = currentWidth * 0.08
+    agencyXPosition = currentWidth * 0.08;
     agencyRadius = currentWidth * 0.01;
     var yAgencySpacer = agencyRadius * 2.25;
     d3.csv("data/funder_db.csv", function(error, funder){
