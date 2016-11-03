@@ -13,7 +13,7 @@ var agencyRadius, finalAgencySpacer, circle, text, agencyXPosition, barXStarting
 //Arrays
 var years = [];
 var allSections = [];
-var minMaxKeywordYSpacers = []
+var minMaxKeywordYSpacers = [];
 
 //Objects
 var agencyColors = {};
@@ -33,13 +33,11 @@ var svg = bodySelection.append("svg")
 
 //background Layer
 var background = svg.append("g");
-var infobox = svg.append("g");
 
 //Foreground Layers
 var keywords = svg.append("g");
 var yearTransition = svg.append("g");
 var yearTransitionDate = svg.append("g");
-var agencyLabels = svg.append("g");
 var agencies = svg.append("g");
 
 //----------------------------------------------------------------------------------------//
@@ -83,10 +81,10 @@ function drawText(toAttach, x, y, text, ID, textClass, opacity, textOptions){
         "fill" : "gray",
         "font" : "Lucida Grande",
         "size" : "45px",
-        "weight" : "bold",
-    }
+        "weight" : "bold"
+    };
 
-    if (!(textOptions == 'default')){
+    if (!(textOptions == "default")){
         for (var k in textOptions){
             textProperties[k] = textOptions[k];
         }
@@ -99,12 +97,12 @@ function drawText(toAttach, x, y, text, ID, textClass, opacity, textOptions){
                         .attr("y", y)
                         .text(text)
                         .attr("dy", ".35em")
-                        .attr("text-anchor", textProperties['anchor'])
-                        .style("font", textProperties['font'])
-                        .style("font-size", textProperties['size'])
-                        .style("font-weight", textProperties['weight'])
+                        .attr("text-anchor", textProperties["anchor"])
+                        .style("font", textProperties["font"])
+                        .style("font-size", textProperties["size"])
+                        .style("font-weight", textProperties["weight"])
                         .style("opacity", opacity)
-                        .style('fill', textProperties['fill']);
+                        .style("fill", textProperties["fill"]);
     return label
 }
 
@@ -137,14 +135,14 @@ function triangleDraw(x, y, size, fill, direction){
                         .duration(100)
                         .attr("d", d3.svg.symbol()
                                             .type("triangle-" + direction)
-                                            .size(newSize))
+                                            .size(newSize));
                     //Scale down
                     d3.select(this)
                         .transition()
                         .delay(200)
                         .attr("d", d3.svg.symbol()
                                             .type("triangle-" + direction)
-                                            .size(currentSize))
+                                            .size(currentSize));
 
                     //Change the current year on button press if permitted
                     if (d3.select(this).datum()[1] == "up"){
@@ -158,13 +156,13 @@ function triangleDraw(x, y, size, fill, direction){
                     }
                     //Update the Year
                     keywordTransition(currentYear, false)
-                })
+                });
     return shape
 }
 
 function yearClicker(year, drawNew){
     //Position of Clicker
-    var textOptions, upperTriangle, yearText, triangleBBox, textBBox;
+    var textOptions, upperTriangle, triangleBBox;
     var currentWidth = document.getElementById("keywordContainer").offsetWidth;
     var xPosition = barXStartingPosition + widestBar[0]/2;
     var yPosition = (minMaxKeywordYSpacers[0] + minMaxKeywordYSpacers[1]) / 2;
@@ -175,15 +173,14 @@ function yearClicker(year, drawNew){
         textOptions = {"anchor" : "start", "fill" : "gray", "size" : textSize, "weight" : "normal"};
 
         //Upper Triangle
-        upperTriangle = triangleDraw(xPosition, yPosition, triangleSize, "green", 'up')
-        triangleBBox = upperTriangle[0][0].getBBox()
+        upperTriangle = triangleDraw(xPosition, yPosition, triangleSize, "green", "up");
+        triangleBBox = upperTriangle[0][0].getBBox();
 
         //Add the year
-        yearText = drawText(yearTransitionDate, xPosition + triangleBBox.width, yPosition, String(year), "current_year", "year", 1, textOptions)
-        textBBox = yearText[0][0].getBBox();
+        drawText(yearTransitionDate, xPosition + triangleBBox.width, yPosition, String(year), "current_year", "year", 1, textOptions);
 
         //Lower Triangle
-        triangleDraw(xPosition, yPosition  + triangleBBox.height , triangleSize, "red", 'down')
+        triangleDraw(xPosition, yPosition  + triangleBBox.height , triangleSize, "red", "down")
     } else {
         d3.select(".year").text(String(year))
     }
@@ -225,7 +222,7 @@ function lineInAllowedPairs(lineID, keywordAgencyPairs){
 
     var currentPair;
     for (var p in keywordAgencyPairs){
-        currentPair = keywordAgencyPairs[p]
+        currentPair = keywordAgencyPairs[p];
         if (lineAgency == currentPair[0] && lineKeyword == currentPair[1]) {
             lineAllowed = true;
         }
@@ -243,17 +240,17 @@ function increaseOpacityTest(current, testAginst){
 
 function lineHighlight(agencyAbbreviation, adjustments){
     var newOpacities, defaultOpacity;
-    var lines = d3.selectAll(".connection")[0]
+    var lines = d3.selectAll(".connection")[0];
 
     //Loop though all the lines
     var currentLine, currentAgency;
     for (var i in lines) {
-        currentLine = lines[i].id
-        currentAgency = lines[i].id.split("_")[0]
+        currentLine = lines[i].id;
+        currentAgency = lines[i].id.split("_")[0];
 
         if (currentLine != "") {
             //Get the new line Opacities
-            defaultOpacity = d3.select("#" + currentLine).datum()['opacity'];
+            defaultOpacity = d3.select("#" + currentLine).datum()["opacity"];
             newOpacities = determineAdjustments(adjustments, defaultOpacity);
 
             //Apply opacity change
@@ -282,7 +279,7 @@ function barSectionHighlight(agencyAbbreviation, mouseMovementType){
         var keywordBarSections = keywordSectionTracker[agencyAbbreviation];
 
         for (var s in allSections){
-            agencyColor = agencyColors[sectionAgencyTracker[allSections[s]][0]]
+            agencyColor = agencyColors[sectionAgencyTracker[allSections[s]][0]];
 
             if (keywordBarSections.indexOf(allSections[s]) != -1){
                 changeToUse = hoverChange;
@@ -297,7 +294,7 @@ function barSectionHighlight(agencyAbbreviation, mouseMovementType){
         }
     } else {
         for (var s in allSections){
-            agencyColor = agencyColors[sectionAgencyTracker[allSections[s]][0]]
+            agencyColor = agencyColors[sectionAgencyTracker[allSections[s]][0]];
             d3.select("#" + allSections[s])
                 .transition()
                 .duration(125)
@@ -312,9 +309,9 @@ function barSectionHighlight(agencyAbbreviation, mouseMovementType){
 //Draw circles for the agencies
 
 function agencyDraw(agencyName, colour, agencyRadius, yLocation){
-    var agencyAbbreviation = agencyName.match(/\((.*?)\)/)[1]
+    var agencyAbbreviation = agencyName.match(/\((.*?)\)/)[1];
     var fontSize = parseInt(document.getElementById("keywordContainer").offsetWidth * 0.0085);
-    var fullName = agencyName.replace(agencyAbbreviation, "").replace("(","").replace(")","").trim()
+    var fullName = agencyName.replace(agencyAbbreviation, "").replace("(","").replace(")","").trim();
 
     agencies.append("circle")
             .attr("class", "agency")
@@ -325,13 +322,13 @@ function agencyDraw(agencyName, colour, agencyRadius, yLocation){
             .attr("fill", colour)
             .datum([agencyXPosition, yLocation, colour, agencyRadius])
             .on("mouseover", function(d){
-                barSectionHighlight(agencyAbbreviation, "mouseover")
+                barSectionHighlight(agencyAbbreviation, "mouseover");
                 lineHighlight(agencyAbbreviation, [0.35, -0.35])
             })
             .on("mouseout", function(d){
-                barSectionHighlight(agencyAbbreviation, "mouseout")
+                barSectionHighlight(agencyAbbreviation, "mouseout");
                 lineHighlight(agencyAbbreviation, "reset")
-            })
+            });
 
     agencies.append("text")
             .attr("class", "agency")
@@ -344,7 +341,7 @@ function agencyDraw(agencyName, colour, agencyRadius, yLocation){
             .style("font-size", String(fontSize) + "px")
             .style("font-weight", "bold")
             .style("opacity", 1)
-            .style('fill', "gray")
+            .style("fill", "gray")
             .on("mouseover", function(d){
                 showTooltip(d, tooltipkeywordContainer
                             , "<strong>" + fullName + "</strong>")
@@ -372,8 +369,8 @@ function objectKeyArrayAdd(obj, key, newValue){
     if (!(obj.hasOwnProperty(key))){
         obj[key] = [newValue]
     } else {
-        updatedArray = obj[key]
-        updatedArray.push(newValue)
+        updatedArray = obj[key];
+        updatedArray.push(newValue);
         obj[key] = updatedArray
     }
     return obj
@@ -419,7 +416,7 @@ function getMaxNested(inputArray, indexOfInterest){
     var largest_value = -1;
     for (var i in inputArray){
         if (inputArray[i][indexOfInterest] > largest_value){
-            largest_value = inputArray[i][indexOfInterest]
+            largest_value = inputArray[i][indexOfInterest];
             max_index = i
         }
     }
@@ -428,7 +425,7 @@ function getMaxNested(inputArray, indexOfInterest){
 
 function indexRemove(inputArray, indexToRemove){
     //Not clear what is wrong with the splice() method
-    //...but it's acting wierd here.
+    //...but it"s acting wierd here.
     var newArray = [];
     for (var i in inputArray){
         if (i != indexToRemove){
@@ -481,7 +478,7 @@ function matchingKeywordsExtractor(currentYearData, keywordID){
     //Extract
     var entriesMatchingKeywordID = [];
     for (var s in currentYearData){
-        var currentEntry = currentYearData[s]
+        var currentEntry = currentYearData[s];
         if (currentEntry[1] == keywordID){
             entriesMatchingKeywordID.push(currentEntry);
         }
@@ -490,7 +487,7 @@ function matchingKeywordsExtractor(currentYearData, keywordID){
     return reorderNestedForMax(entriesMatchingKeywordID, 3)
 }
 
-function agencyCircleColorAdj(pairs, mouseMovementType){
+function agencyCircleColorAdjust(pairs, mouseMovementType){
     var agency = [];
     var hoverChange, notHoverChange;
 
@@ -520,7 +517,7 @@ function agencyCircleColorAdj(pairs, mouseMovementType){
         d3.select("#" + a)
             .transition()
             .duration(150)
-            .attr("fill", shadeColor2(agencyColors[a], changeToUse))
+            .attr("fill", shadeColor2(agencyColors[a], changeToUse));
     }
 }
 
@@ -539,23 +536,23 @@ function keywordDraw(year, yPosition, keyword, height){
 
     //Draw each bar
     for (var s in orderedMatchingEntries){
-        var currentEntry = orderedMatchingEntries[s]
+        var currentEntry = orderedMatchingEntries[s];
 
         numberOfSections = objectKeyAdd(numberOfSections, currentEntry[1], 1);
         sectionWidth = totalWidth * currentEntry[3];
         currentXDisplacement = objectKeyAdd(currentXDisplacement, currentEntry[1], sectionWidth);
 
-        barColor = d3.select("#" + currentEntry[0]).datum()[2]
+        barColor = d3.select("#" + currentEntry[0]).datum()[2];
         currentXPosition = barXStartingPosition + currentXDisplacement[currentEntry[1]] - sectionWidth;
         sectionNumber = numberOfSections[currentEntry[1]];
 
         //Save which agency has which bar sections
-        objectKeyArrayAdd(keywordAgencyMapping, keywordID, currentEntry[0])
-        objectKeyArrayAdd(sectionAgencyTracker, keywordID + "_" + sectionNumber, currentEntry[0])
-        objectKeyArrayAdd(keywordSectionTracker, currentEntry[0], keywordID + "_" + sectionNumber)
+        objectKeyArrayAdd(keywordAgencyMapping, keywordID, currentEntry[0]);
+        objectKeyArrayAdd(sectionAgencyTracker, keywordID + "_" + sectionNumber, currentEntry[0]);
+        objectKeyArrayAdd(keywordSectionTracker, currentEntry[0], keywordID + "_" + sectionNumber);
 
         //Save to array of current sections
-        allSections.push(keywordID + "_" + sectionNumber)
+        allSections.push(keywordID + "_" + sectionNumber);
 
         keywords.append("rect")
                 .attr("class", "keywords")
@@ -568,14 +565,14 @@ function keywordDraw(year, yPosition, keyword, height){
                 .attr("fill", barColor)
                 .attr("stroke", barColor)
                 .on("mouseover", function(d){
-                    var pairs = keywordAgencyPairsGen(keywordID)
-                    lineHighlight(pairs, [0.35, -0.35])
-                    agencyCircleColorAdj(pairs, "mouseover")
+                    var pairs = keywordAgencyPairsGen(keywordID);
+                    lineHighlight(pairs, [0.35, -0.35]);
+                    agencyCircleColorAdjust(pairs, "mouseover")
                 })
                 .on("mouseout", function(d){
-                    var pairs = keywordAgencyPairsGen(keywordID)
-                    lineHighlight(pairs, "reset")
-                    agencyCircleColorAdj(pairs, "mouseout")
+                    var pairs = keywordAgencyPairsGen(keywordID);
+                    lineHighlight(pairs, "reset");
+                    agencyCircleColorAdjust(pairs, "mouseout")
                 });
 
     }
@@ -657,7 +654,7 @@ function drawConnection(agency, keyword){
     var defaultLineWidth = document.getElementById("keywordContainer").offsetWidth * 0.015;
 
     var widthScale;
-    var yearToYearData = yearToYearMapping[currentYear]
+    var yearToYearData = yearToYearMapping[currentYear];
     for (var i in yearToYearData){
         if (yearToYearData[i][0] == agency && yearToYearData[i][1] == keyword){
             widthScale = yearToYearData[i][4]
@@ -675,7 +672,7 @@ function drawConnection(agency, keyword){
         .attr("stroke", p1[2])
         .attr("stroke-width", defaultLineWidth * widthScale)
         .attr("opacity", 0.50)
-        .datum({'opacity': 0.50});
+        .datum({"opacity": 0.50});
 }
 
 function keywordTransition(year, drawNew){
@@ -689,7 +686,7 @@ function keywordTransition(year, drawNew){
 
     //Clean keyword data from the prior year
     allSections = [];
-    keywordAgencyMapping = {}
+    keywordAgencyMapping = {};
     sectionAgencyTracker = {};
     keywordSectionTracker = {};
 
@@ -697,7 +694,7 @@ function keywordTransition(year, drawNew){
     keywordYearDraw(year);
 
     //Update tracker
-    yearClicker(year, drawNew)
+    yearClicker(year, drawNew);
 
     for (var d in currentYearData){
         drawConnection(currentYearData[d][0], currentYearData[d][1])
@@ -742,7 +739,7 @@ function mainDraw(){
     d3.csv("data/funder_db.csv", function(error, funder){
         funder.forEach(function (d) {
             //Save the color for each agency
-            agencyColors[d["funder"].match(/\((.*?)\)/)[1]] = d["colour"]
+            agencyColors[d["funder"].match(/\((.*?)\)/)[1]] = d["colour"];
 
             //Draw the agency circles
             agencyDraw(d["funder"], d["colour"], agencyRadius, yAgencySpacer);
@@ -751,7 +748,7 @@ function mainDraw(){
 
         //Save the final step size
         finalAgencySpacer = yAgencySpacer;
-        svg.attr("height", yAgencySpacer)
+        svg.attr("height", yAgencySpacer);
 
         //Keywords Aggregated by Year
         d3.csv("keyword_data/funders_keywords_by_year.csv", function(error, keyword){
@@ -762,7 +759,7 @@ function mainDraw(){
                 currentYear = parseInt(d["Year"])
             }
 
-            widthAdjustedScaledAmount = barWidthScaler(d["ScaledAmount"])
+            widthAdjustedScaledAmount = barWidthScaler(d["ScaledAmount"]);
             //Update the widest bar to be drawn
             if (d["ScaledAmount"] > widestBar[0]){
                 widestBar = [parseInt(widthAdjustedScaledAmount),
@@ -784,14 +781,14 @@ function mainDraw(){
             //Read in data to connect the keywords to the funders
             d3.csv("keyword_data/funders_keywords.csv", function(error, funderKeywords){
                 funderKeywords.forEach(function (d){
-                    var connectionData = [d['Funder'],
-                                          d['Keywords'],
-                                          parseFloat(d['NormalizedAmount']),
-                                          parseFloat(d['ProportionTotal']),
-                                          parseFloat(d['ProportionYearlyTop'])
-                    ]
+                    var connectionData = [d["Funder"],
+                                          d["Keywords"],
+                                          parseFloat(d["NormalizedAmount"]),
+                                          parseFloat(d["ProportionTotal"]),
+                                          parseFloat(d["ProportionYearlyTop"])
+                    ];
                     //Update the mapping year to year for the keywords
-                    yearToYearMapping = objectNestedListAdd(yearToYearMapping, d['Year'], connectionData)
+                    yearToYearMapping = objectNestedListAdd(yearToYearMapping, d["Year"], connectionData)
                 });
                 //Draw the keywords for the first Year
                 keywordTransition(currentYear, true)
