@@ -15,8 +15,9 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-import dask.dataframe as dd
+from fuzzywuzzy import process
 from unidecode import unidecode
+from datetime import datetime
 from abstract_analysis import *
 from currency_converter import CurrencyConverter
 
@@ -56,13 +57,13 @@ RC = 6
 
 # X = to do (when all country's data are assembled)
 
-# To do: Run an abstract analysis on each keyword/term. This will standardize the terms
+# To do:
+# Handle RB country code in Block;
+# Country codes in OrgState should be moved to OrgBlock
 
-
-# ------------------------------------------------------------------------- #
-#                           General Tools & Information                     #
-# ------------------------------------------------------------------------- #
-
+# -------------------------------------------------------------------------
+# General Tools & Information
+# -------------------------------------------------------------------------
 
 # Special Characters.
 chars = re.escape(string.punctuation)
@@ -83,9 +84,9 @@ def alphanum(input_str, chars=chars):
 
 os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/CompleteRegionDatabases")
 
-# ------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------
 # Integrate Funding Data from around the World
-# ------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------
 
 # Read in Databases
 us_df = pd.read_pickle('AmericanFundingDatabase.p')
@@ -97,9 +98,11 @@ df = us_df.append([eu_df, ca_df])
 df = df.reset_index(drop=True)
 tqdm.pandas(desc="status")
 
-# ------------------------------------------------------------------------- #
+df['OrganizationBlock'] = df['OrganizationBlock'].str.lower().str.title()
+
+# -------------------------------------------------------------------------
 # Normalize Grant Amount
-# ------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------
 
 # Create an instance of CurrencyConverter
 c = CurrencyConverter()
@@ -127,11 +130,10 @@ def zeitsci_cpi(region, year_a, year_b):
 
     return rate
 
-def zeitsci_normalize(amount, amount_state, amount_cur, from_year, amount_block = None, base_year=2015, base_currency='USD'):
+def zeitsci_normalize(amount, amount_state, amount_cur, from_year, base_year=2015, base_currency='USD'):
     """
 
     :param amount:
-    :param amount_block:
     :param amount_state:
     :param amount_cur:
     :param from_year:
@@ -139,15 +141,13 @@ def zeitsci_normalize(amount, amount_state, amount_cur, from_year, amount_block 
     :param base_currency:
     :return:
     """
-    region = amount_block if amount_block in ['United States', 'Canada'] else amount_state
-
     # Handle regions not in the DB
-    if region not in cpi_dict_max:
+    if amount_state not in cpi_dict_max:
         return np.NaN
 
     # Set the inflation rate
-    if from_year <= cpi_dict_max[region]:
-        inflation_rate = zeitsci_cpi(region, from_year, base_year)
+    if from_year <= cpi_dict_max[amount_state]:
+        inflation_rate = zeitsci_cpi(amount_state, from_year, base_year)
     else:
         inflation_rate = 1
 
@@ -164,30 +164,25 @@ def zeitsci_grant_normalize_wrapper(x):
 
     if pd.isnull(x['GrantYear']): return np.NaN
     input_dict = {
-        'state' : x['OrganizationState'],
-        'amount' : x['Amount'],
-        'from_year' : int(x['GrantYear']),
-        'amount_cur' : x['FundCurrency'],
-        'block': x['OrganizationBlock']
+        'amount': x['Amount'],
+        'block' : x['OrganizationBlock'],
+        'amount_cur': x['FundCurrency'],
+        'from_year' : int(x['GrantYear'])
     }
-    if any(pd.isnull(i) for i in input_dict.values()): return np.NaN
+    if any(pd.isnull(i) for i in input_dict.values()):
+        return np.NaN
 
     return zeitsci_normalize(input_dict['amount']
-                             , input_dict['state']
+                             , input_dict['block']
                              , input_dict['amount_cur']
-                             , input_dict['from_year']
-                             , input_dict['block'])
+                             , input_dict['from_year'])
 
 df['NormalizedAmount'] = df.progress_apply(lambda x: zeitsci_grant_normalize_wrapper(x), axis=1)
+# This procedure worked on 99.9% of rows. Acceptable.
 
-# Temporary until the above Integration code is rerun.
-# df['OrganizationBlock'] = df['OrganizationBlock'].astype(str).str.replace("Italy", "United States")
-
-# ------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------
 # Clean OrganizationName
-# ------------------------------------------------------------------------- #
-
-# To fix: The Medical University of South Carolina =/= University of South Carolina.
+# -------------------------------------------------------------------------
 
 # Clean the OrganizationName
 df['OrganizationName'] = df['OrganizationName'].map(cln).str.replace("\"","").str.strip().progress_apply(titler)
@@ -215,11 +210,16 @@ def subsidiary_checker(principals, subsidiaries):
 
 unique_orgs = [i for i in df['OrganizationName'].unique().tolist() if i not in possible_subsidiaries]
 
-subsidiaries_dict = subsidiary_checker(unique_orgs, possible_subsidiaries_cln )
+subsidiaries_dict = subsidiary_checker(unique_orgs, possible_subsidiaries_cln)
+
+# Define Erronous Pairings
+erronous_pair = {'Medical University of South Carolina' : 'University of South Carolina'}
+
+# Remove erronous pairs from the subsidiaries dict
+subsidiaries_dict = {k: v for k, v in subsidiaries_dict.items() if k not in erronous_pair and v != erronous_pair.get(k, True)}
 
 # Subsidiaries
-df['OrganizationSubsidiary'] = df['OrganizationName'].map(
-                                                lambda x: x if x in subsidiaries_dict else np.NaN, na_action='ignore')
+df['OrganizationSubsidiary'] = df['OrganizationName'].map(lambda x: x if x in subsidiaries_dict else np.NaN, na_action='ignore')
 
 # Principal Orgs
 df['OrganizationName'] = df['OrganizationName'].replace(subsidiaries_dict)
@@ -254,9 +254,9 @@ df['OrganizationName'] = df['OrganizationName'].progress_map(lambda x: tails_cln
 # Fix Md --> MD (Medical Doctor).
 df['OrganizationName'] = df['OrganizationName'].astype(str).str.replace(" Md ", " MD ").str.replace(" Md,", " MD,")
 
-# ------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------
 # Integrate University Endowment
-# ------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------
 
 os.chdir(MAIN_FOLDER + "/Data/WikiPull")
 
@@ -267,101 +267,146 @@ university_db = multi_readin(univerties_dbs, unnammed_drop=True)
 # Endowment '['x', 'y', 'z']' --> ['x', 'y', 'z'].
 university_db['endowment'] = university_db['endowment'].map(lambda x: strlist_to_list(x), na_action='ignore')
 
-def endowment_normalizer(x, base_currency='USD'):
+# Rename United States of America to United States
+university_db['country'] = university_db['country'].str.upper().str.replace("UNITED STATES OF AMERICA", "UNITED STATES")
+
+def endowment_normalizer(endowment_list, country, base_currency='USD', assume_recent=True):
     """
 
     :param x: passed from the university_db dataframe
     :param base_currency:
     :return:
     """
-    endowment_list = x['endowment']
     if str(endowment_list) == 'nan':
         return np.NaN
 
+    country = country.lower().title()
     amount = float(endowment_list[0])
     amount_currency = endowment_list[1]
     from_year = int(float(endowment_list[2]))
 
-    if len(str(from_year)) == 4:
-        try:
-            return zeitsci_normalize(amount, x['country'], amount_currency, from_year)
-        except:
+    if len(str(from_year)) != 4:
+        if assume_recent:
+            from_year = datetime.now().year # assume most recent
+        else:
             return np.NaN
 
-    return np.NaN
+    try:
+        return zeitsci_normalize(amount, country, amount_currency, from_year)
+    except:
+        return np.NaN
 
-university_db['normalized_endowment'] = university_db.apply(lambda x: endowment_normalizer(x), axis=1)
+university_db['normalized_endowment'] = university_db.apply(lambda x: endowment_normalizer(x['endowment'], x['country']), axis=1)
 
-# Upper university names and remove special chars
-university_db['university'] = university_db['university'].astype(str).str.upper().map(lambda x: alphanum(x))
-
-# Rename United States of America to United States
-university_db['country'] = university_db['country'].str.upper().str.replace("UNITED STATES OF AMERICA", "UNITED STATES")
+# Upper university names and remove special characters
+university_db['university'] = university_db['university'].astype(str).str.upper().map(lambda x: alphanum(unidecode(x)))
 
 # Create a dictionary of normalized (2015 USD) university endowments
-endowment_dict = twoD_nested_dict(university_db, 'country', 'university', 'normalized_endowment')
+university_db_endowment = university_db[university_db['normalized_endowment'].astype(str) != 'nan'].reset_index(drop=True)
+endowment_dict = twoD_nested_dict(university_db_endowment, 'country', 'university', 'normalized_endowment')
 
 # Create a dictionary of whether or not the institution is public or private
-institution_type_dict = twoD_nested_dict(university_db, 'country', 'university', 'institutiontype')
+university_db_type = university_db[university_db['institutiontype'].astype(str) != 'nan'].reset_index(drop=True)
+institution_type_dict = twoD_nested_dict(university_db_type, 'country', 'university', 'institutiontype')
 
-def institution_information_lookup(institution, block, state):
+# a = df['OrganizationName'][~df['OrganizationName'].astype(str).str.lower().str.contains("university|college")].unique()
+def institution_to_skip(institution):
+    if str(institution) == 'nan' or any(institution.endswith(i) for i in ['Inc', 'Llc', 'Ltd', 'Phd']):
+        return True
+
+    institution_lower = institution.lower()
+    to_skip = ['council', 'management', 'company', 'foundation', 'software', 'limited', 'asociacion', 'associacion',
+               'hospital', 'clinic', 'organisation']
+    if any(i in institution_lower for i in to_skip):
+        return True
+    else:
+        return False
+
+def institution_information_lookup(institution, region, fuzzy_threshold=85):
     """
-
-    :param institution:
-    :param region:
-    :return:
+    Look up Endowment and Institution Type (i.e., public or private) Information.
+    Note: consider costs of increasing fuzzy_threshold.
     """
     # Initialize
+    info_not_found = [np.NaN, np.NaN]
     insts_map = list()
 
     # Check inputs
-    if str(institution) == 'nan' or str(block) == 'nan' or str(state) == 'nan':
-        return np.NaN, np.NaN
+    if str(institution) == 'nan' or str(region) == 'nan':
+        return institution, info_not_found
 
-    # Set Region
-    region = (state if block == 'Europe' else block).upper()
+    region_upper = region.upper()
+    institution_upper = institution.upper()
 
     # Look up in the dict
-    if region in endowment_dict:
-        insts_map = [i for i in endowment_dict[region] if institution in i]
-        if len(insts_map) == 1:
-            return endowment_dict[region][insts_map[0]], institution_type_dict[region][insts_map[0]]
+    if region_upper not in endowment_dict:
+        return institution, info_not_found
 
-    return np.NaN, np.NaN
+    # Check Forwards and Backwards
+    insts_map = [i for i in endowment_dict[region_upper] if (institution_upper in i) or (i in institution_upper)]
 
-# Create a list of lists of the form [[OrganizationName, OrganizationBlock, OrganizationState]]
-institutions = list(zip(*[df['OrganizationName'].str.upper(), df['OrganizationBlock'], df['OrganizationState']]))
+    if len(insts_map) > 1:
+        insts_map = [max(insts_map, key=len)] # look for counter examples for this heuristic
 
-# Run institution_information_lookup on all dataframe entries
-endowment_type = np.array([institution_information_lookup(i[0], i[1], i[2]) for i in institutions])
+    # Check with fuzzy matching
+    if len(insts_map) != 1:
+        fuzzy_match = process.extractOne(institution_upper, endowment_dict[region_upper].keys())
+        if fuzzy_match[1] >= fuzzy_threshold:
+            insts_map = [fuzzy_match[0]]
+        else:
+            return institution, info_not_found
 
-# Add Endowment information to the DF
-df['Endowment'] = endowment_type[:,0]
+    # Look up the information
+    endowment = endowment_dict[region_upper].get(insts_map[0], np.NaN)
+    institution_type = institution_type_dict[region_upper].get(insts_map[0], np.NaN)
+
+    return institution, [endowment, institution_type]
+
+# Create dataframe of unique orgs
+unique_org_df = df.drop_duplicates(subset=['OrganizationName']).reset_index(drop=True)
+unique_org_df = unique_org_df[~unique_org_df['OrganizationName'].map(institution_to_skip)].reset_index(drop=True)
+
+# Run -- Pretty quick (despite being a bit slow to start).
+inst_info = unique_org_df.progress_apply(
+    lambda x: institution_information_lookup(x['OrganizationName'], x['OrganizationBlock']), axis=1
+)
+
+# Convert to a dict
+insitution_info_dict = {k: v for k, v in inst_info}
+
+end_type = df['OrganizationName'].progress_map(lambda x: insitution_info_dict[x] if x in insitution_info_dict else [np.NaN]*2)
 
 # Add InstitutionType information to the DF
-df['InstitutionType'] = endowment_type[:,1]
+df['Endowment'] = [i[0] for i in end_type]
+df['InstitutionType'] = [i[1] for i in end_type]
+
+
+# -------------------------------------------------------------------------
+# Additional String Cleaning and Unidecode
+# -------------------------------------------------------------------------
 
 df['OrganizationName'] = df['OrganizationName'].map(lambda x: x.replace("\"", ""), na_action='ignore')
 
-# ------------------------------------------------------------------------- #
+cols_to_decode = ['ProjectTitle', 'Researcher']
+
+for c in cols_to_decode:
+    df[c] = df[c].progress_map(unidecode, na_action='ignore')
+
+# Handle keywords separately
+df['Keywords'] = df['Keywords'].progress_map(lambda x: unidecode(" ".join(x)), na_action='ignore')
+
+# -------------------------------------------------------------------------
 # Clean the Keywords (will take a while).
-# ------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------
 
 def keyword_cln(x):
-    if str(x) == 'nan':
-        return np.NaN
-    joined_x = unidecode(" ".join(x))
-    return word_vector_clean(joined_x)
+    return [i for i in word_vector_clean(x) if len(i) > 1]
 
-# df['Keywords'] = df['Keywords'].progress_map(lambda x: keyword_cln(x), na_action='ignore')
+df['Keywords'] = df['Keywords'].progress_map(lambda x: "; ".join(keyword_cln(x)), na_action='ignore')
 
-# Use Dask to Execute this in Parallel
-dd_df = dd.from_pandas(df[['Keywords']], npartitions=4)
-df['Keywords'] = dd_df.apply(lambda x: keyword_cln(x['Keywords']), axis=1).compute()
-
-# ------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------
 # Date Correct
-# ------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------
 
 def date_zero_correct(input_str):
     """
@@ -402,12 +447,13 @@ def date_correct(input_date):
 
 df['StartDate'] = df['StartDate'].astype(str).progress_map(date_correct)
 
-# ------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------
 # Save
-# ------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------
 
 print("Saving...")
-df.to_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + "MasterDatabaseRC" + str(RC) + ".p")
+# df.to_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + "MasterDatabaseRC" + str(RC) + ".p")
+df.to_csv(MAIN_FOLDER + "/Data/MasterDatabase/" + "MasterDatabaseRC" + str(RC) + ".csv", index=False)# chunksize=100000)
 
 
 
