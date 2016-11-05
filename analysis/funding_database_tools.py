@@ -64,6 +64,7 @@ order_cols = [
     ,"Amount"
     ,"FundCurrency"
     ,"ProjectTitle"
+    ,"FunderBlock"
     ,"OrganizationName"
     ,"OrganizationCity"
     ,"OrganizationState"   # -> region
@@ -317,7 +318,25 @@ def unique_order_preseve(input_list):
             input_no_dup.append(i)
     return input_no_dup
 
+def greatest_number_of_matches(word_a, candidate_matches):
+    """
 
+    Returns the candidate which contains the greatest number of words also in word_a.
+
+    :param word_a:
+    :param candidate_matches:
+    :return:
+    """
+    word_a_upper = cln(word_a).upper().strip()
+    candidate_matches_split = [[i, cln(i).upper().strip().split(" ")] for i in candidate_matches]
+
+    match_dict = dict()
+    for s in candidate_matches_split:
+        match_dict[s[0]] = len([c for c in s[1] if c in word_a_upper])
+
+    best_match = max(match_dict.keys(), key=lambda k: match_dict[k])
+
+    return best_match
 
 
 
