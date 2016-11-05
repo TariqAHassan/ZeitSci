@@ -121,8 +121,9 @@ ca_df["FundCurrency"] = pd.Series("CAD", index=ca_df.index)
 # Add Funder Column
 ca_df["Funder"] = pd.Series("NSERC", index=ca_df.index)
 
-# Add block
+# Add blocks
 ca_df["OrganizationBlock"] = pd.Series("Canada", index=ca_df.index)
+ca_df["FunderBlock"] = pd.Series("Canada", index=ca_df.index)
 
 # Add Start Date
 ca_df["StartDate"] = ca_df['year'].map(lambda x: "01/01/" + str(x))
@@ -141,6 +142,7 @@ new_col_names = [  "Amount"
                  , "FundCurrency"
                  , "Funder"
                  , "OrganizationBlock"
+                 , "FunderBlock"
                  , "StartDate"]
 
 # Rename columns

@@ -342,7 +342,8 @@ eu_df["FundCurrency"] = "EUR"
 eu_df["Funder"] = "European Commission"
 
 # Add block
-eu_df["OrganizationBlock"] = "Europe"
+eu_df['OrganizationState'] = np.NaN
+eu_df["FunderBlock"] = "Europe"
 
 # Delete Columns
 to_drop2 = ["street", "CoordRes", "summary", "contactfirstnames", "contactlastnames",
@@ -354,7 +355,7 @@ eu_df = column_drop(eu_df, columns_to_drop=to_drop2)
 # Rename Columns
 new_col_names = [ "OrganizationName"
                 , "Amount"
-                , "OrganizationState"
+                , "OrganizationBlock"
                 , "OrganizationCity"
                 , "StartDate"
                 , "ProjectTitle"
@@ -365,7 +366,8 @@ new_col_names = [ "OrganizationName"
                 , "Researcher"
                 , "FundCurrency"
                 , "Funder"
-                , "OrganizationBlock"]
+                , "OrganizationState"
+                , "FunderBlock"]
 
 # Rename Columns
 eu_df.columns = new_col_names

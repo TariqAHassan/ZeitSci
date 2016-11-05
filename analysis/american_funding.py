@@ -187,8 +187,8 @@ us_df.columns = ["Researcher"
 # Add Currency Column
 us_df["FundCurrency"] = pd.Series("USD", index=us_df.index)
 
-# Set Organization Block Name to 'United States'.
-us_df['OrganizationBlock'] = pd.Series("United States", index=us_df.index)
+# Set Funder Block to 'United States'.
+us_df['FunderBlock'] = pd.Series("United States", index=us_df.index)
 
 # Correct OrganizationState: USA, Canada and Europe.
 for d in [US_states, Canada_prov_terr, European_Countries]:
@@ -199,7 +199,7 @@ us_df['GrantYear'] = us_df['GrantYear'].astype(float)
 us_df['Amount'] = us_df['Amount'].astype(float)
 
 # Correct weird case of negative grants.
-# us_df['Amount'] = us_df['Amount'].map(lambda x: x if str(x) == 'nan' or x >= 0 else x*-1)
+us_df['Amount'] = us_df['Amount'].map(lambda x: -1*x if x < 0 else x, na_action='ignore')
 
 # Refresh index
 us_df = us_df.reset_index(drop=True)
