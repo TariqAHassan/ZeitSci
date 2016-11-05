@@ -1,7 +1,7 @@
 """
 
-    Tools for Manipulating the Databases for Graphing
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Tools for Manipulating the Databases for Geo-Mapping
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 """
 # Imports
@@ -18,13 +18,15 @@ from haversine import haversine
 from calendar import monthrange
 from collections import Counter
 from supplementary_fns import cln
+from graphs.graphing_data import funders_dict
 from itertools import combinations, permutations
 from funding_database_tools import MAIN_FOLDER
+from funding_database_tools import unique_order_preseve
 from easymoney.easy_pandas import pandas_print_full
 from graphs.graphing_tools import money_printer, org_group
 
 # To Do:
-# - add year-by-year funding info for each org -- make proportional to all the money moving around that year.
+# Add EU to EC in legend
 
 # ------------------------------------------------------------------------------------------------ #
 # Read in Data
@@ -38,31 +40,19 @@ tqdm.pandas(desc="status")
 # ------------------------------------------------------------------------------------------------ #
 
 # Used an jupyter notebook to choose the colors (simulation_color_palette.ipynb).
-funders_dict = {
-       'DOD_CDMRP'           : ['US Department of Defence (DOD)', [38.870833, -77.055833], "#5fdb57"]
-     , 'DOD_CNRM'            : ['US Department of Defence (DOD)', [38.870833, -77.055833], "#5fdb57"]
-     , 'DoD_CDMRP'           : ['US Department of Defence (DOD)', [38.870833, -77.055833], "#5fdb57"]
-     , 'DoD_CNRM'            : ['US Department of Defence (DOD)', [38.870833, -77.055833], "#5fdb57"]
-     , 'European Commission' : ['European Commission (EC)', [50.843611, 4.382777], "#57dbb2"]
-     , 'HHS_ACF'             : ['US Administration for Children & Families (ACF)', [38.886666, -77.014444], "#57db80"]
-     , 'HHS_CDC'             : ['US Centers for Disease Control and Prevention (CDC)', [33.798817, -84.325598], "#db9057"]
-     , 'HHS_FDA'             : ['US Food and Drug Administration (FDA)', [39.03556, -76.98271], "#d357db"]
-     , 'HHS_NIDILRR'         : ['US National Institute on Disability, Independent Living, and Rehabilitation Research (NIDILRR)',
-                                                                                    [38.885939, -77.016469], "#91db57"]
-     , 'HHS_NIH'             : ['US National Institutes of Health (NIH)', [39.000443, -77.102394], "#57a2db"]
-     , 'NASA'                : ['US National Aeronautics and Space Administration (NASA)', [38.883, -77.0163], "#57d3db"]
-     , 'NSERC'               : ['Natural Sciences and Engineering Research Council of Canada (NSERC)',
-                                                                                    [45.418267, -75.703119], "#dbc257"]
-     , 'NSF'                 : ['US National Science Foundation (NSF)', [38.88054, -77.110962], "#db5f57"]
-     , 'USDA_ARS'            : ['US Department of Agriculture: Agricultural Research Service (ARS)',
-                                                                                    [38.886767, -77.030001], "#db5780"]
-     , 'USDA_FS'             : ['US Forest Service (FS)', [38.886767, -77.030001], "#c3db57"]
-     , 'USDA_NIFA'           : ['US National Institute of Food and Agriculture (NIFA)', [38.886767, -77.030001], "#6f57db"]
-}
 
 funding['FunderNameFull'] = funding['Funder'].progress_map(lambda x: funders_dict[x][0])
+funding['FunderNameAbbrev'] = funding['Funder'].progress_map(lambda x: re.findall('\((.*?)\)', funders_dict[x][0])[0])
 funding['latFunder'] = funding['Funder'].progress_map(lambda x: funders_dict[x][1][0])
 funding['lngFunder'] = funding['Funder'].progress_map(lambda x: funders_dict[x][1][1])
+
+# ------------------------------------------------------------------------------------------------ #
+# Export to .csv for analyses and graphing in R
+# ------------------------------------------------------------------------------------------------ #
+
+save_to = MAIN_FOLDER + "/analysis/R/funding_data.csv"
+exclude_from_r_export = ['lat', 'lng', 'Keywords', 'Amount', 'FunderNameFull', 'latFunder', 'lngFunder']
+funding.drop(exclude_from_r_export, axis=1).fillna("").to_csv(save_to, index=False)
 
 # ------------------------------------------------------------------------------------------------ #
 # Remove Organization that are outside of the scope.
@@ -183,17 +173,6 @@ def sclwr(input_list):
 unique_geo_names = funding.groupby('UniqueGeo').apply(lambda x: x['OrganizationName'].tolist()).reset_index()
 unique_geo_names_duplicates = unique_geo_names[unique_geo_names[0].map(lambda x: len(sclwr(x))) > 1]
 
-def unique_order_preseve(input_list):
-    """
-    Get unique items in a list and
-    preserve their order.
-    """
-    input_no_dup = list()
-    for i in input_list:
-        if i not in input_no_dup:
-            input_no_dup.append(i)
-    return input_no_dup
-
 # Set and each list and preseve order
 unique_geo_names_duplicates[0] = unique_geo_names[0].map(unique_order_preseve)
 
@@ -226,45 +205,6 @@ def contains_required_term(x, required_terms=required_terms):
 
 # Limit to org's that contain required terms (above).
 to_export = funding[funding['OrganizationName'].map(contains_required_term)].reset_index(drop=True)
-
-def date_zero_correct(input_str):
-    """
-    Add a Zero to days and months less than 10.
-    """
-    if input_str[0] != "0" and float(input_str) < 10:
-        return "0" + input_str
-    else:
-        return input_str
-
-def date_correct(input_date):
-    """
-    Formats input to DD/MM/YYYY
-    """
-    input_split = input_date.split("/")
-    if len(input_split) == 0 or len(input_split[-1]) != 4:
-        return np.NaN
-
-    if len(input_split) == 1 and len(input_split[0]) == 4 and input_split[0].isdigit():
-        return "01/01/" + input_split[0]
-    elif len(input_split) == 2 and float(input_split[0]) <= 12:
-        month = date_zero_correct(input_split[0])
-        year = input_split[1]
-        return "/".join(("01", month, year))
-    elif len(input_split) == 3:
-        if float(input_split[0]) > 12 and float(input_split[1]) <= 12:
-            day = date_zero_correct(input_split[0])
-            month = date_zero_correct(input_split[1])
-        elif float(input_split[0]) <= 12:
-            month = date_zero_correct(input_split[0])
-            day = date_zero_correct(input_split[1])
-        else:
-            return np.NaN
-        year = input_split[2]
-        return "/".join([day, month, year])
-    else:
-        return np.NaN
-
-to_export['StartDate'] = to_export['StartDate'].astype(str).map(date_correct)
 
 # Drop invalid start dates
 to_export = to_export[to_export['StartDate'].astype(str).str.count("/") == 2].reset_index(drop=True)
@@ -390,6 +330,8 @@ to_export = to_export[column_order]
 
 print("# rows:", to_export.shape[0])
 print("# Organizations:", len(to_export.OrganizationName.unique()))
+
+#round(to_export.NormalizedAmount.sum()) --> ~ 65 Billion.
 
 # ------------------------------------------------------------------------------------------------ #
 # Create a Summary of Science Funding Orgs. in the Database.

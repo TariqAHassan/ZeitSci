@@ -29,6 +29,13 @@ from supplementary_fns import items_present_test
 from zeitsci_wiki_api import WikiUniversities
 from my_keys import OPENCAGE_KEY, MAIN_FOLDER
 
+# This, generally, works very well...but there are a few bugs.
+# To do:
+# endowment amount extraction getting confused, e.g., Hood College.
+# endowment year extraction getting confused, e.g., Central Connecticut State University
+# getting confused by university brands, e.g., American University -- which exists in multiple nations.
+#   Namely, American Univeristy in Herzegovina.
+
 # ---------------------------------------------------------------- #
 # Import Data   
 # ---------------------------------------------------------------- #

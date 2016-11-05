@@ -45,9 +45,6 @@ def abstract_en(abstract):
 def word_vector_clean(input_str, RTokenizer=RTokenizer):
     """
 
-    Unidecode?
-
-    Gets the most common words in a string
     Refinements:
         1. Removal of stop Words.
         2. Deploy a Lemmatizer to remove common suffixes
