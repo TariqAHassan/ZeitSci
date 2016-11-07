@@ -23,9 +23,31 @@ from funding_database_tools import comma_reverse
 from funding_database_tools import column_drop
 from funding_database_tools import multi_readin
 
-# ------------------------------------------------------------------------------------------------------------ #
-#                                            United States of America                                          #
-# ------------------------------------------------------------------------------------------------------------ #
+# Data Pipline Checklist:
+#     Researcher                    X
+#     Funder                        X
+#     StartDate                     X
+#     GrantYear                     X
+#     Amount                        X
+#     FundCurrency                  X
+#     ProjectTitle                  X
+#     FunderBlock                   X
+#     OrganizationName              X
+#     OrganizationCity              X
+#     OrganizationState             X
+#     OrganizationBlock             X
+#     lat                           X
+#     lng                           X
+#     Keywords                      X
+
+# Legend:
+#     X = Complete
+#     V = Currently Void
+#     P = Partially Stabalized
+
+# ------------------------------------------------------------------------------------------------------------
+# United States of America
+# ------------------------------------------------------------------------------------------------------------
 
 # NOTEs:
 #   1. this code will merge fy_total_cost and fy_total_cost_sub_projects

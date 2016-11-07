@@ -27,6 +27,27 @@ from funding_database_tools import fdb_common_words
 from funding_database_tools import df_combine
 from funding_database_tools import column_drop
 
+# Data Pipline Checklist:
+#     Researcher                    X
+#     Funder                        X
+#     StartDate                     X
+#     GrantYear                     X
+#     Amount                        X
+#     FundCurrency                  X
+#     ProjectTitle                  X
+#     FunderBlock                   X
+#     OrganizationName              X
+#     OrganizationCity              X
+#     OrganizationState             X
+#     OrganizationBlock             X
+#     lat                           X
+#     lng                           X
+#     Keywords                      X
+
+# Legend:
+#     X = Complete
+#     V = Currently Void
+#     P = Partially Stabalized
 
 # ------------------------------------------------------------------------------------------------------------ #
 # Canada
