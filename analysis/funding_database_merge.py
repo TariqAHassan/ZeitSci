@@ -26,6 +26,7 @@ from funding_database_tools import MAIN_FOLDER
 from funding_database_tools import multi_readin
 
 from easymoney.money import EasyPeasy
+from organization_classification import organization_classifier
 from easymoney.easy_pandas import strlist_to_list, twoD_nested_dict, pandas_print_full
 from sources.world_bank_interface import _world_bank_pull_wrapper as wbpw
 
@@ -58,8 +59,9 @@ RC = 6
 # X = to do (when all country's data are assembled)
 
 # To do:
-# Handle RB country code in Block;
-# Country codes in OrgState should be moved to OrgBlock
+#   Handle RB country code in Block;
+#   Country codes in OrgState should be moved to OrgBlock
+# df[df['OrganizationCity'].astype(str).str.contains(",")]['OrganizationCity'].unique()
 
 # -------------------------------------------------------------------------
 # General Tools & Information
@@ -181,6 +183,14 @@ df['NormalizedAmount'] = df.progress_apply(lambda x: zeitsci_grant_normalize_wra
 # This procedure worked on 99.9% of rows. Acceptable.
 
 # -------------------------------------------------------------------------
+# Clean OrganizationCity
+# -------------------------------------------------------------------------
+
+df['OrganizationCity'] = df['OrganizationCity'].map(
+    lambda x: x if "," not in x else x.split(",")[0].strip(), na_action='ignore'
+)
+
+# -------------------------------------------------------------------------
 # Clean OrganizationName
 # -------------------------------------------------------------------------
 
@@ -212,10 +222,10 @@ unique_orgs = [i for i in df['OrganizationName'].unique().tolist() if i not in p
 
 subsidiaries_dict = subsidiary_checker(unique_orgs, possible_subsidiaries_cln)
 
-# Define Erronous Pairings
+# Define erroneous pairings
 erronous_pair = {'Medical University of South Carolina' : 'University of South Carolina'}
 
-# Remove erronous pairs from the subsidiaries dict
+# Remove erroneous pairs from the subsidiaries dict
 subsidiaries_dict = {k: v for k, v in subsidiaries_dict.items() if k not in erronous_pair and v != erronous_pair.get(k, True)}
 
 # Subsidiaries
@@ -224,9 +234,7 @@ df['OrganizationSubsidiary'] = df['OrganizationName'].map(lambda x: x if x in su
 # Principal Orgs
 df['OrganizationName'] = df['OrganizationName'].replace(subsidiaries_dict)
 
-# pandas_print_full(pd.DataFrame(list(subsidiaries_dict.items())))
-
-# Reorder
+# Reorder Columns
 df = df[list(df.columns)[:8] + ['OrganizationSubsidiary'] + list(df.columns[8:-1])]
 
 # Remove unneeded punctuation
@@ -309,7 +317,6 @@ endowment_dict = twoD_nested_dict(university_db_endowment, 'country', 'universit
 university_db_type = university_db[university_db['institutiontype'].astype(str) != 'nan'].reset_index(drop=True)
 institution_type_dict = twoD_nested_dict(university_db_type, 'country', 'university', 'institutiontype')
 
-# a = df['OrganizationName'][~df['OrganizationName'].astype(str).str.lower().str.contains("university|college")].unique()
 def institution_to_skip(institution):
     if str(institution) == 'nan' or any(institution.endswith(i) for i in ['Inc', 'Llc', 'Ltd', 'Phd']):
         return True
@@ -380,20 +387,31 @@ end_type = df['OrganizationName'].progress_map(lambda x: insitution_info_dict[x]
 df['Endowment'] = [i[0] for i in end_type]
 df['InstitutionType'] = [i[1] for i in end_type]
 
-
 # -------------------------------------------------------------------------
-# Additional String Cleaning and Unidecode
+# Additional Cleaning of String Columns (with Unidecode)
 # -------------------------------------------------------------------------
 
 df['OrganizationName'] = df['OrganizationName'].map(lambda x: x.replace("\"", ""), na_action='ignore')
 
-cols_to_decode = ['ProjectTitle', 'Researcher']
+cols_to_decode = ['OrganizationName', 'ProjectTitle', 'Researcher']
 
 for c in cols_to_decode:
     df[c] = df[c].progress_map(unidecode, na_action='ignore')
 
 # Handle keywords separately
 df['Keywords'] = df['Keywords'].progress_map(lambda x: unidecode(" ".join(x)), na_action='ignore')
+
+# -------------------------------------------------------------------------
+# Guess the Category of Organizations
+# -------------------------------------------------------------------------
+# Levels: Educational, Governmental, Individual, Industry, Institute, Medical, NGO, NaN.
+
+# Deploy
+org_category = pd.Series(df['OrganizationName'].unique()).progress_map(lambda x: [x, organization_classifier(x)])
+org_category_dict = {k: v for k, v in org_category}
+
+# Pull org_category_dict mappings into the dataframe
+df['OrganizationCategory'] = df['OrganizationName'].progress_map(lambda x: org_category_dict.get(x, np.NaN))
 
 # -------------------------------------------------------------------------
 # Clean the Keywords (will take a while).
@@ -410,7 +428,7 @@ df['Keywords'] = df['Keywords'].progress_map(lambda x: "; ".join(keyword_cln(x))
 
 def date_zero_correct(input_str):
     """
-    Add a Zero to days and months less than 10.
+    Add a zero to days and months less than 10.
     """
     if input_str[0] != "0" and float(input_str) < 10:
         return "0" + input_str
@@ -448,12 +466,22 @@ def date_correct(input_date):
 df['StartDate'] = df['StartDate'].astype(str).progress_map(date_correct)
 
 # -------------------------------------------------------------------------
+# Remove Improbable Values
+# -------------------------------------------------------------------------
+
+max_grant = 10**9
+max_endowment = 50 * 10**9
+
+df['NormalizedAmount'] = df['NormalizedAmount'].map(lambda x: x if x <= max_grant else np.NaN, na_action='ignore')
+df['Endowment'] = df['Endowment'].map(lambda x: x if x <= max_endowment else np.NaN, na_action='ignore')
+
+# -------------------------------------------------------------------------
 # Save
 # -------------------------------------------------------------------------
 
 print("Saving...")
-# df.to_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + "MasterDatabaseRC" + str(RC) + ".p")
-df.to_csv(MAIN_FOLDER + "/Data/MasterDatabase/" + "MasterDatabaseRC" + str(RC) + ".csv", index=False)# chunksize=100000)
+df.to_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + "MasterDatabaseRC" + str(RC) + ".p")
+# df.to_csv(MAIN_FOLDER + "/Data/MasterDatabase/" + "MasterDatabaseRC" + str(RC) + ".csv", index=False)
 
 
 

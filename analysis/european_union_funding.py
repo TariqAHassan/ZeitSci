@@ -40,8 +40,8 @@ os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/EU")
 
 
 # 1998-2002 dataset has been excluded because only project
-# funding information is provided -- individual uni. grants are not.
-# Thus, this project includes data from 2002 - 2016.
+# funding information is provided -- individual institution grants are not.
+# Thus, this project includes data from 2002 onward.
 
 # Get file names
 eu_data_file_names = list(set([i.replace("~$", "") for i in glob2.glob('**/*.xlsx')]))
@@ -60,9 +60,8 @@ eu_dfo = df_combine(string_match_list(eu_data_file_names, "organ"), file_name_ad
 eu_dfo.file_name = eu_dfo.file_name.str.split("/").str.get(0)
 
 # Get Grant Year and Project Summary from EU_Funding_Projects
-eu_dfo["start_date"] =  pd.Series("", index=eu_dfo.index)
-eu_dfo["summary"]    =  pd.Series("", index=eu_dfo.index)
-eu_dfo["title"]      =  pd.Series("", index=eu_dfo.index)
+for c in ["start_date", "summary", "title"]:
+    eu_dfo[c] = pd.Series("", index=eu_dfo.index)
 
 def proj_to_org_extractor(project_data_frame, organization_data_frame):
     """
@@ -106,25 +105,22 @@ eu_df['start_date'] = eu_df['start_date'].map(lambda x: str(x.month) + "/" + str
 # Limit to the current year
 eu_df = eu_df[eu_df['grant_year'].astype(float) <= datetime.datetime.now().year]
 
-# Remove rows without either city or postal code information
-eu_df = eu_df[(~eu_df.city.astype(str).isin(["nan", "NaN"])) | (~eu_df.postcode.astype(str).isin(["nan", "NaN"]))]
-
 # Drop row if NA for certian columns
 # eccontribution = European Commission Contribution
 eu_df = column_drop(eu_df, columns_to_drop=["eccontribution", "country"], drop_type="na")
 
 # Drop Unneeded Columns
-to_drop = ["organizationurl"
-           , "id"
+to_drop = ["id"
+           , "organizationurl"
            , "projectrcn"
            , "projectacronym"
            , "projectreference"
            , "contacttitle"]
 eu_df = column_drop(eu_df, columns_to_drop=to_drop)
 
-# ------------------------------------------------------------------#
+# ------------------------------------------------------------------
 # Import EU GeoLocation Data
-# ------------------------------------------------------------------#
+# ------------------------------------------------------------------
 
 eu_ploc = pd.read_csv("../european_postcodes_us_standard.csv")
 eu_cloc = pd.read_csv("../european_cities_us_standard.csv")
@@ -150,7 +146,7 @@ postal_and_iso_dict = eu_ploc.groupby('iso').apply(lambda x: x.set_index('zip_an
 
 # City Dict
 eu_cloc["zipped"] = list(zip(eu_cloc.lat, eu_cloc.lng))
-eu_cloc['city'] = eu_cloc.city.str.upper()
+eu_cloc['city'] = eu_cloc['city'].str.upper()
 city_dict = eu_cloc.groupby('iso').apply(lambda x: x.set_index('city')['zipped'].to_dict()).to_dict()
 
 def eu_loc_lookup(city, postal_code, alpha2country, postal_dict, city_dict):
@@ -161,7 +157,11 @@ def eu_loc_lookup(city, postal_code, alpha2country, postal_dict, city_dict):
     :param alpha2country:
     :return: lat, lng
     """
+    # Init
     value = None
+
+    if all(pd.isnull(i) for i in [city, postal_code]):
+        return None
 
     try:
         city = cln(city, 1).strip().upper()
@@ -174,38 +174,41 @@ def eu_loc_lookup(city, postal_code, alpha2country, postal_dict, city_dict):
         return None
 
     # Try Postal Code #
-
-    # Try as is
-    if postal_code in postal_dict.keys():
-        value = postal_dict[postal_code]
-        return value[0], value[1], "postal"
-
-    # Try Clearing the space
-    if cln(postal_code, 2) in postal_dict.keys():
-        value = postal_dict[cln(postal_code, 2)]
-        return value[0], value[1], "postal"
-
-    # Try Zip + " " + ISO Country Code
-    if cln(postal_code, 1).strip() in postal_and_iso_dict.keys():
-        value = postal_and_iso_dict[cln(postal_code, 1).strip()]
-        return value[0], value[1], "postal"
-
-    # Try splitting on " "
-    if postal_code.count(" ") == 1 and postal_code.split(" ")[0] in postal_dict.keys():
-        if list(postal_dict.keys()).count(postal_code.split(" ")[0]) == 1:
-            value = postal_dict[postal_code.split(" ")[0]]
+    if pd.notnull(postal_code):
+        # Try as is
+        if postal_code in postal_dict.keys():
+            value = postal_dict[postal_code]
             return value[0], value[1], "postal"
 
-    # Try splitting on "-"
-    if postal_code.count("-") == 1 and postal_code.split("-")[0] in postal_dict.keys():
-        if list(postal_dict.keys()).count(postal_code.split("-")[0]) == 1:
-            value = postal_dict[postal_code.split("-")[0]]
+        # Try Clearing the space
+        if cln(postal_code, 2) in postal_dict.keys():
+            value = postal_dict[cln(postal_code, 2)]
             return value[0], value[1], "postal"
+
+        # Try Zip + " " + ISO Country Code
+        if cln(postal_code, 1).strip() in postal_and_iso_dict.keys():
+            value = postal_and_iso_dict[cln(postal_code, 1).strip()]
+            return value[0], value[1], "postal"
+
+        # Try splitting on " "
+        if postal_code.count(" ") == 1 and postal_code.split(" ")[0] in postal_dict.keys():
+            if list(postal_dict.keys()).count(postal_code.split(" ")[0]) == 1:
+                value = postal_dict[postal_code.split(" ")[0]]
+                return value[0], value[1], "postal"
+
+        # Try splitting on "-"
+        if postal_code.count("-") == 1 and postal_code.split("-")[0] in postal_dict.keys():
+            if list(postal_dict.keys()).count(postal_code.split("-")[0]) == 1:
+                value = postal_dict[postal_code.split("-")[0]]
+                return value[0], value[1], "postal"
 
     # Try City #
-    try:
-        return city_dict[alpha2country.upper()][city][0], city_dict[alpha2country.upper()][city][1], "city"
-    except:
+    if pd.notnull(city):
+        try:
+            return city_dict[alpha2country.upper()][city][0], city_dict[alpha2country.upper()][city][1], "city"
+        except:
+            return None
+    else:
         return None # give up
 
 def lat_lng_add(data_frame):
@@ -243,9 +246,9 @@ def lat_lng_add(data_frame):
 
 eu_df = lat_lng_add(eu_df)
 
-# ------------------------------------------------------------------#
+# ------------------------------------------------------------------
 # Expand Country Names to Full from Alpha2 Codes
-# ------------------------------------------------------------------#
+# ------------------------------------------------------------------
 
 # Correct Alpha2 Codes in the country column
 
@@ -300,9 +303,9 @@ eu_df['lng'] = lat_lngs_np[:,1]
 # Delete marker
 del eu_df['u_id']
 
-# ------------------------------------------------------------------#
+# ------------------------------------------------------------------
 # Clean
-# ------------------------------------------------------------------#
+# ------------------------------------------------------------------
 
 # Run an abstract analysis on the summaries
 eu_df.summary = eu_df['summary'].str.replace(r"\s\s+", " ").str.replace(r'[^0-9a-zA-Z\s]', "")
