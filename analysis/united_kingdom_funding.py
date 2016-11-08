@@ -21,8 +21,6 @@ from funding_database_tools import MAIN_FOLDER
 from aggregated_geo_info import master_geo_lookup
 from funding_database_tools import fdb_common_words
 
-from pprint import pprint
-
 # Data Pipline Checklist:
 #     Researcher                    X
 #     Funder                        X
@@ -45,9 +43,9 @@ from pprint import pprint
 #     V = Currently Void
 #     P = Partially Stabalized
 
-# ------------------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------------------
 # United Kingdom
-# ------------------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------------------
 
 os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/UK")
 uk_df = pd.read_csv("uk_funding_data.csv")
@@ -109,8 +107,6 @@ def first_name_clean(input_name):
         return input_name_split[0].replace(".", "") + " " + input_name_split[1][0]
     else:
         return input_name.lower().title()
-
-# pprint(sorted(uk_df['pifirstname'].map(first_name_clean, na_action='ignore').unique().tolist()))
 
 # Clean first names
 uk_df['pifirstname'] = uk_df['pifirstname'].map(first_name_clean, na_action='ignore')
