@@ -31,6 +31,28 @@ from funding_database_tools import string_match_list
 
 ep = EasyPeasy()
 
+# Data Pipline Checklist:
+#     Researcher                    X
+#     Funder                        X
+#     StartDate                     X
+#     GrantYear                     X
+#     Amount                        X
+#     FundCurrency                  X
+#     ProjectTitle                  X
+#     FunderBlock                   X
+#     OrganizationName              X
+#     OrganizationCity              X
+#     OrganizationState             X
+#     OrganizationBlock             X
+#     lat                           X
+#     lng                           X
+#     Keywords                      X
+
+# Legend:
+#     X = Complete
+#     V = Currently Void
+#     P = Partially Stabalized
+
 # ------------------------------------------------------------------------------------------------------------ #
 # European Union
 # ------------------------------------------------------------------------------------------------------------ #
