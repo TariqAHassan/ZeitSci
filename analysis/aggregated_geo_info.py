@@ -181,16 +181,19 @@ def master_geo_lookup(geos, zipcode, country, uni, u_id=0, quality_floor=85, upd
     if all(pd.notnull(i) for i in geos):
         return geos
 
-    # Init
-    d = dict()
-    country_upper = country.upper()
-    uni_lower = cln(uni).lower().strip()
-
     # Check US Postal Code
-    if zipcode is not None:
+    if zipcode is not None and str(zipcode) != 'nan':
         zipcode = cln(zipcode, 2)[:5]
         if country == 'United States' and str(zipcode) != 'nan' and zipcode in us_zipcode_geo_dict:
             return us_zipcode_geo_dict[zipcode]
+
+    # Init
+    if any(pd.isnull(i) for i in [country, uni]):
+        return [np.NaN, np.NaN]
+
+    d = dict()
+    country_upper = country.upper()
+    uni_lower = cln(uni).lower().strip()
 
     # Check by Uni
     country_l = [i for i in uni_dict.keys() if country_upper in i]

@@ -25,6 +25,7 @@ from fuzzywuzzy import fuzz    # needed?
 from fuzzywuzzy import process
 from easymoney.easy_pandas import twoD_nested_dict
 
+from unidecode import unidecode
 from abstract_analysis import *
 
 from region_abbrevs import US_states, European_Countries
@@ -338,7 +339,35 @@ def greatest_number_of_matches(word_a, candidate_matches):
 
     return best_match
 
+def first_name_clean(input_name):
+    """
 
+    :param input_name:
+    :return:
+    """
+    if str(input_name).lower() == 'nan':
+        return np.NaN
+    input_name_split = input_name.split(" ")
+    if len(input_name_split) == 3 and all(len(i.replace(".", "")) == 1 for i in input_name_split[1:]):
+        return input_name_split[0] + " " + "".join([i.replace(".", "") for i in input_name_split[1:]])
+    elif len(input_name_split) >= 3:
+        return input_name_split[0] + " " + "".join([i[0] for i in input_name_split[1:]])
+    elif len(input_name_split) == 2:
+        return input_name_split[0].replace(".", "") + " " + input_name_split[1][0]
+    else:
+        return input_name.lower().title()
+
+def col_cln(data_frame, update=True):
+    """
+
+    :param data_frame:
+    :return:
+    """
+    for i, c in enumerate(data_frame.columns):
+        if update:
+            print(str(i) + ": ", c)
+        data_frame[c] = data_frame[c].astype(str).map(lambda x: unidecode(cln(x).strip()), na_action='ignore')
+    return data_frame
 
 
 
