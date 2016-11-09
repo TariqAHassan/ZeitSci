@@ -18,10 +18,9 @@ from supplementary_fns import cln
 from funding_database_tools import titler
 from funding_database_tools import order_cols
 from funding_database_tools import MAIN_FOLDER
+from funding_database_tools import first_name_clean
 from aggregated_geo_info import master_geo_lookup
 from funding_database_tools import fdb_common_words
-
-from pprint import pprint
 
 # Data Pipline Checklist:
 #     Researcher                    X
@@ -45,9 +44,9 @@ from pprint import pprint
 #     V = Currently Void
 #     P = Partially Stabalized
 
-# ------------------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------------------
 # United Kingdom
-# ------------------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------------------
 
 os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/UK")
 uk_df = pd.read_csv("uk_funding_data.csv")
@@ -98,19 +97,6 @@ for c in [i for i in uk_df.columns if i != 'awardpounds']:
 
 # Researcher
 uk_df['pifirstname'] = uk_df['pifirstname'].str.replace(",", "").str.replace(")", "").str.replace("(", "").replace("Dr.", "")
-
-def first_name_clean(input_name):
-    input_name_split = input_name.split(" ")
-    if len(input_name_split) == 3 and all(len(i.replace(".", "")) == 1 for i in input_name_split[1:]):
-        return input_name_split[0] + " " + "".join([i.replace(".", "") for i in input_name_split[1:]])
-    elif len(input_name_split) >= 3:
-        return input_name_split[0] + " " + "".join([i[0] for i in input_name_split[1:]])
-    elif len(input_name_split) == 2:
-        return input_name_split[0].replace(".", "") + " " + input_name_split[1][0]
-    else:
-        return input_name.lower().title()
-
-# pprint(sorted(uk_df['pifirstname'].map(first_name_clean, na_action='ignore').unique().tolist()))
 
 # Clean first names
 uk_df['pifirstname'] = uk_df['pifirstname'].map(first_name_clean, na_action='ignore')

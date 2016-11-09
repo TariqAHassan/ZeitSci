@@ -18,48 +18,58 @@ from tqdm import tqdm
 from fuzzywuzzy import process
 from abstract_analysis import *
 from supplementary_fns import cln
+from supplementary_fns import multi_replace
 from easymoney.money import EasyPeasy
 from aggregated_geo_info import master_geo_lookup
 
 from funding_database_tools import MAIN_FOLDER
 from funding_database_tools import order_cols
 from funding_database_tools import titler
+from funding_database_tools import col_cln
 from funding_database_tools import fdb_common_words
 from funding_database_tools import df_combine
 from funding_database_tools import column_drop
+from funding_database_tools import first_name_clean
 from funding_database_tools import string_match_list
 
 ep = EasyPeasy()
 
 # Data Pipline Checklist:
-#     Researcher                    X
-#     Funder                        X
-#     StartDate                     X
-#     GrantYear                     X
-#     Amount                        X
-#     FundCurrency                  X
-#     ProjectTitle                  X
-#     FunderBlock                   X
-#     OrganizationName              X
-#     OrganizationCity              X
-#     OrganizationState             X
-#     OrganizationBlock             X
+#     Researcher                    X - (o) contactfirstnames + contactlastnames
+#     Funder                        X - OK
+#     StartDate                     X - (p) startdate
+#     GrantYear                     X - (p) call
+#     Amount                        X - (p) ecmaxcontribution
+#     FundCurrency                  X - OK
+#     ProjectTitle                  X - (p) title
+#     FunderBlock                   X - OK
+#     OrganizationName              X - (p) coordinator
+#     OrganizationCity              X - (o) city
+#     OrganizationState             X - (p) coordinatorcountry
+#     OrganizationBlock             X - OK
 #     lat                           X
 #     lng                           X
-#     Keywords                      X
+#     Keywords                      X - (p) objectives
+
 
 # Legend:
 #     X = Complete
 #     V = Currently Void
 #     P = Partially Stabalized
+#     o = EC organization files
+#     p = EC program files
+#     OK = Generated manually
+
+# Start tqdm
+tqdm.pandas(desc="status")
+
+from easymoney.easy_pandas import pandas_print_full
 
 # ------------------------------------------------------------------------------------------------------------ #
 # European Union
 # ------------------------------------------------------------------------------------------------------------ #
 
-
 os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/EU")
-
 
 # 1998-2002 dataset has been excluded because only project
 # funding information is provided -- individual institution grants are not.
@@ -69,76 +79,142 @@ os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/EU")
 eu_data_file_names = list(set([i.replace("~$", "") for i in glob2.glob('**/*.xlsx')]))
 eu_data_file_names.sort(key=lambda x: x.split("-")[0])
 
+# -------------------------------------------------------
 # Read in Project Data (2002-2006, 2007-2013, 2014-2020)
+# -------------------------------------------------------
 eu_dfp = df_combine(string_match_list(eu_data_file_names, "proj"), file_name_add=True)
 eu_dfp.file_name = eu_dfp.file_name.str.split("/").str.get(0)
 
+# Clean the columns
+eu_dfp = col_cln(eu_dfp)
+
+# Remove Project duplicates
+eu_dfp = eu_dfp.drop_duplicates(subset=['rcn', 'reference'])
+
 # Convert ECmaxcontribution to float
-eu_dfp['ecmaxcontribution'] = eu_dfp['ecmaxcontribution'].astype(str).map(lambda x: re.sub("[^0-9]", "", x))
-eu_dfp['ecmaxcontribution'] = eu_dfp['ecmaxcontribution'].map(lambda x: [np.NaN if x.strip() == "" else x.strip()][0]).astype(float)
+eu_dfp['ecmaxcontribution'] = eu_dfp['ecmaxcontribution'].astype(str).map(lambda x: cln(re.sub("[^0-9.]", "", x), 2))
+eu_dfp['ecmaxcontribution'] = eu_dfp['ecmaxcontribution'].progress_map(lambda x: np.NaN if x.strip() == "" else x).astype(float)
 
+# Drop unneed columns
+eu_dfp = eu_dfp.drop(['acronym',
+                      'status',
+                      'programme',
+                      'topics',
+                      'frameworkprogramme',
+                      'enddate',
+                      'projecturl',
+                      'totalcost',
+                      'fundingscheme',
+                      'participants',
+                      'participantcountries',
+                      'subjects'], axis=1)
+
+# -------------------------------------------------------
 # Read in Org. Data (2002-2006, 2007-2013, 2014-2020)
+# -------------------------------------------------------
+
 eu_dfo = df_combine(string_match_list(eu_data_file_names, "organ"), file_name_add=True)
-eu_dfo.file_name = eu_dfo.file_name.str.split("/").str.get(0)
+eu_dfo['file_name'] = eu_dfo['file_name'].str.split("/").str.get(0)
 
-# Get Grant Year and Project Summary from EU_Funding_Projects
-for c in ["start_date", "summary", "title"]:
-    eu_dfo[c] = pd.Series("", index=eu_dfo.index)
+# Clean the columns
+eu_dfo = col_cln(eu_dfo)
 
-def proj_to_org_extractor(project_data_frame, organization_data_frame):
+# eu_dfo = eu_dfo[~eu_dfo['role'].str.lower().isin(['participant', 'beneficiary'])].reset_index(drop=True)
+
+# Process Researcher
+def researcher(first, last):
+    if str(last) != 'nan':
+        last_name = " ".join([i.lower().title() if i.isupper() else i for i in last.split()]).strip()
+        if str(first) != 'nan':
+            return (first.strip() + " " + last_name).strip()
+        else:
+            return last_name.strip()
+    else:
+        return np.NaN
+
+eu_dfo['contactfirstnames'] = eu_dfo['contactfirstnames'].progress_map(first_name_clean)
+eu_dfo['Researcher'] = eu_dfo.progress_apply(lambda x: researcher(x['contactfirstnames'], x['contactlastnames']), axis=1)
+del eu_dfo['contactfirstnames']
+del eu_dfo['contactlastnames']
+
+# -------------------------------------------------------
+# Pull Select eu_dfo Infoformation into eu_dfp
+# -------------------------------------------------------
+
+# From Org: Researcher, City, Postal Code
+org_coordinator = eu_dfo[eu_dfo['role'] == 'coordinator']
+
+# Upper names for matching
+org_coordinator['name'] = org_coordinator['name'].str.upper()
+eu_dfp['coordinator'] = eu_dfp['coordinator'].str.upper()
+
+# Zip select eu_dfo information
+select_org_info = zip(*[org_coordinator[i] for i in ['projectrcn', 'name', 'city', 'postcode', 'Researcher']])
+
+# Convert eu_dfo infoformation into a dict
+org_dict = {(project, name): [c, p, r] for project, name, c, p, r in select_org_info}
+
+def org_extractor(x):
+    """
+    Wrapper Function for org_dict.
+
+    :param x: row with 'rcn' and 'coordinator'.
+    :return: [City, Postal Code, Researcher]
+    """
+    return org_dict.get((x['rcn'], x['coordinator']), [np.NaN]*3)
+
+# Look up coordinator in Org
+org_info = eu_dfp.progress_apply(org_extractor, axis=1)
+
+# Add Researcher Info
+eu_dfp['city'] = [c[0] for c in org_info]
+
+# Add Researcher Info
+eu_dfp['postcode'] = [p[1] for p in org_info]
+
+# Add Researcher Info
+eu_dfp['Researcher'] = [r[2] for r in org_info]
+
+# Remove the 'rcn' and 'reference' columns
+eu_dfp = eu_dfp.drop(['rcn', 'reference'], axis=1)
+
+# ------------------------------------------------------------------
+# Correct Date Information
+# ------------------------------------------------------------------
+
+def call_year_extract(c, ignore="H2020"):
     """
 
-    :param project_data_frame:
-    :param organization_data_frame:
+    Use a statemachine-esk approach to harvest the year
+
+    :param c:
     :return:
     """
-    c = 0 # ugly counter variable...
-    # Faster solutions are possible but this naive approach leaves little room for error.
-    unique_rnc = organization_data_frame['projectrcn'].unique()
-    for r in unique_rnc:
-        c += 1
-        if c % 1000 == 0: print(round((float(c)/len(organization_data_frame['projectrcn'].unique()))*100, 2), "%")
+    year = ""
+    for l in c.replace(ignore, ""):
+        if l.isdigit() and len(year) < 4:
+            year += l
+        elif not l.isdigit() and len(year) < 4:
+            year = ""
+            
+    return year if len(year) == 4 else np.NaN
 
-        df_slice = project_data_frame[project_data_frame.rcn == r]
-        indices = organization_data_frame[organization_data_frame['projectrcn'] == r].index
-        for i in indices:
-            organization_data_frame.set_value(i, 'summary', df_slice["objective"].iloc[0])
-            organization_data_frame.set_value(i, 'start_date', df_slice["startdate"].iloc[0])
-            organization_data_frame.set_value(i, 'title', df_slice["title"].iloc[0])
+eu_dfp['grant_year'] = eu_dfp['call'].map(call_year_extract, na_action='ignore')
 
-            # for 2002-2006, the ECcontribution was in the projects file...
-            if "2002-2006" in set(df_slice.file_name.tolist()):
-                organization_data_frame.set_value(i, 'eccontribution', df_slice["ecmaxcontribution"].iloc[0])
+# Drop call
+eu_dfp = eu_dfp.drop(['call'], axis=1)
 
-    return organization_data_frame
+# Reformat startdate as MM/DD/YYYY
+eu_dfp['startdate'] = pd.to_datetime(eu_dfp['startdate']).map(lambda x: "/".join(map(str, [x.month, x.day, x.year])))
 
-# Rename org.df to EU df.
-eu_df = proj_to_org_extractor(project_data_frame=eu_dfp, organization_data_frame=eu_dfo)
+# ------------------------------------------------------------------
+# Define eu_df
+# ------------------------------------------------------------------
 
-# Start tqdm
-tqdm.pandas(desc="status")
-
-# Add grant_year
-eu_df['grant_year'] = eu_df['start_date'].map(lambda x: x.year)
-
-# Reformat start_date as MM/DD/YYYY
-eu_df['start_date'] = eu_df['start_date'].map(lambda x: str(x.month) + "/" + str(x.day) + "/" + str(x.year))
-
-# Limit to the current year
-eu_df = eu_df[eu_df['grant_year'].astype(float) <= datetime.datetime.now().year]
-
-# Drop row if NA for certian columns
-# eccontribution = European Commission Contribution
-eu_df = column_drop(eu_df, columns_to_drop=["eccontribution", "country"], drop_type="na")
-
-# Drop Unneeded Columns
-to_drop = ["id"
-           , "organizationurl"
-           , "projectrcn"
-           , "projectacronym"
-           , "projectreference"
-           , "contacttitle"]
-eu_df = column_drop(eu_df, columns_to_drop=to_drop)
+# Drop row if NaN for certian columns
+# ecmaxcontribution = European Commission Contribution
+eu_dfp = eu_dfp.rename(columns={"coordinatorcountry":"country"})
+eu_df = column_drop(eu_dfp, columns_to_drop=["ecmaxcontribution"], drop_type="na")
 
 # ------------------------------------------------------------------
 # Import EU GeoLocation Data
@@ -244,7 +320,7 @@ def lat_lng_add(data_frame):
     nrow = data_frame.shape[0]
     for i in range(0, nrow):
 
-        if i % 25000 == 0: print(" -------- Lat/Long: %s of %s -------- " % (i, str(nrow)))
+        if i % 5000 == 0: print(" -------- Lat/Long: %s of %s -------- " % (i, str(nrow)))
 
         rslt = eu_loc_lookup(   city = data_frame["city"][i]
                               , postal_code = data_frame["postcode"][i]
@@ -285,7 +361,7 @@ pycountry_alpha2_dict = {i.alpha2: i.name for i in pycountry.countries}
 eu_country_special_dict = {'AN': 'Netherlands Antilles', 'CS': 'Serbia and Montenegro',
                            'EL': 'United Kingdom','UK': 'United Kingdom', 'YU': 'Yugoslavia'}
 
-# Merge the above Dictionaries (I believe this requires python >= 3.5).
+# Merge the above Dictionaries (this technique requires python > 3.4).
 merged_alpha2_dict = {**pycountry_alpha2_dict, **easymoney_alpha2_dict, **eu_country_special_dict}
 
 eu_df['country'] = eu_df['country'].map(lambda x: merged_alpha2_dict.get(x.upper(), np.NaN), na_action='ignore')
@@ -299,66 +375,60 @@ eu_df['country'] = eu_df['country'].map(lambda x: merged_alpha2_dict.get(x.upper
 # Check lat and lng are paired
 len(eu_df[(pd.notnull(eu_df['lat'])) & ~(pd.notnull(eu_df['lng']))]) == 0
 
-# Clean needed str columns
-for c in ['shortname', 'name', 'postcode']:
-    eu_df[c] = eu_df[c].astype(str).str.strip()
-
-eu_df['name'] = eu_df['name'].str.lower().str.title().str.replace(",", "").str.strip()
-eu_df['shortname'] = eu_df['shortname'].str.lower().str.title()
+# Clean up the coordinator column
+eu_df['coordinator'] = eu_df['coordinator'].map(
+    lambda x: " ".join([i.lower().title() if "." not in i else i for i in x.split()])
+)
 
 # a = eu_df[pd.isnull(eu_df['lat'])].groupby('country').apply(lambda x: list(set(x['name'].tolist())))['United States']
 
-# Add temp marker
 eu_df['u_id'] = range(eu_df.shape[0])
-
 lat_lngs2 = eu_df.apply(lambda x: master_geo_lookup(geos=[x['lat'], x['lng']],
                                                     zipcode=x['postcode'],
                                                     country=x['country'],
                                                     u_id=x['u_id'],
-                                                    uni=x['name']), axis=1)
+                                                    uni=x['coordinator']), axis=1)
+
+# Delete marker
+del eu_df['u_id']
 
 # Put Back in lat/lng columns
 lat_lngs_np = np.array(lat_lngs2.tolist())
 eu_df['lat'] = lat_lngs_np[:,0]
 eu_df['lng'] = lat_lngs_np[:,1]
 
-# Delete marker
-del eu_df['u_id']
+# ------------------------------------------------------------------
+# Clean City
+# ------------------------------------------------------------------
+
+city_info_remove = ["NO - 5020"]
+eu_df['city'] = eu_df['city'].map(
+    lambda x: "".join([c for c in multi_replace(x, city_info_remove) if not c.isdigit()]).strip(), na_action='ignore'
+)
 
 # ------------------------------------------------------------------
-# Clean
+# Keywords
 # ------------------------------------------------------------------
 
 # Run an abstract analysis on the summaries
-eu_df.summary = eu_df['summary'].str.replace(r"\s\s+", " ").str.replace(r'[^0-9a-zA-Z\s]', "")
+eu_df['objective'] = eu_df['objective'].str.replace(r"\s\s+", " ").str.replace(r'[^0-9a-zA-Z\s]', "").str.strip()
 
-# Only interested in the keywords, for now
-eu_df["Keywords"] = fdb_common_words(summary_series=eu_df['summary'], update_after=1000)
+# Harvest Keywords
+eu_df["Keywords"] = fdb_common_words(summary_series=eu_df['objective'], update_after=1000)
 
-# Merge Author Names
-eu_df["contactfirstnames"] = eu_df["contactfirstnames"].astype(str)
-eu_df["contactlastnames"] = eu_df["contactlastnames"].astype(str)
-eu_df.index = range(eu_df.shape[0])
-
-def researcher(first, last):
-    if str(first) != 'nan' and str(last) != 'nan':
-        return first.strip() + " " + last.strip()
-    elif str(last).strip() != 'nan':
-        return last.strip()
-    else:
-        return np.NaN
-
-# Create a Researcher Column
-eu_df["Researcher"] = eu_df.apply(lambda x: researcher(x['contactfirstnames'], x['contactlastnames']), axis = 1)
+# ------------------------------------------------------------------
+# Additional String Cleaning
+# ------------------------------------------------------------------
 
 # Title the Columns
-eu_df['city'] = eu_df['city'].str.lower().str.title()
-
-# Correct the title the organisation.
-eu_df['name'] = eu_df['name'].map(lambda x: titler(x))
+eu_df['city'] = eu_df['city'].progress_map(titler)
 
 # Correct the title of the project.
-eu_df['title'] = eu_df['title'].str.replace("\"", "").str.replace("\'", "").map(lambda x: titler(x))
+eu_df['title'] = eu_df['title'].str.replace("\"", "").str.replace("\'", "").progress_map(lambda x: titler(x))
+
+# ------------------------------------------------------------------
+# Add Required Columns
+# ------------------------------------------------------------------
 
 # Add Curency Column
 eu_df["FundCurrency"] = "EUR"
@@ -371,35 +441,32 @@ eu_df['OrganizationState'] = np.NaN
 eu_df["FunderBlock"] = "Europe"
 
 # Delete Columns
-to_drop2 = ["street", "CoordRes", "summary", "contactfirstnames", "contactlastnames",
-            "contacttype", "endofparticipation", "activitytype", "role", "shortname",
-            "postcode", "contactemail", "contacttelephonenumber", "contactfaxnumber",
-            "contactfunction", "file_name"]
-eu_df = column_drop(eu_df, columns_to_drop=to_drop2)
+eu_df = eu_df.drop(['file_name', 'postcode', 'CoordRes', 'objective'], axis=1)
+
 
 # Rename Columns
-new_col_names = [ "OrganizationName"
-                , "Amount"
-                , "OrganizationBlock"
-                , "OrganizationCity"
-                , "StartDate"
-                , "ProjectTitle"
-                , "GrantYear"
-                , "lat"
-                , "lng"
-                , "Keywords"
-                , "Researcher"
-                , "FundCurrency"
-                , "Funder"
-                , "OrganizationState"
-                , "FunderBlock"]
+new_col_names = ["ProjectTitle"
+                 , "StartDate"
+                 , "Amount"
+                 , "OrganizationName"
+                 , "OrganizationBlock"
+                 , "OrganizationCity"
+                 , "Researcher"
+                 , "GrantYear"
+                 , "lat"
+                 , "lng"
+                 , "Keywords"
+                 , "FundCurrency"
+                 , "Funder"
+                 , "OrganizationState"
+                 , "FunderBlock"]
 
 # Rename Columns
 eu_df.columns = new_col_names
 
 # Convert GrantYear and Amount to Floats
-eu_df['GrantYear'] = eu_df['GrantYear'].astype(float)
-eu_df['Amount'] = eu_df['Amount'].astype(float)
+for c in ['Amount', 'GrantYear']:
+    eu_df[c] = eu_df[c].astype(float)
 
 # Order new Columns
 eu_df = eu_df[order_cols]
@@ -408,10 +475,6 @@ eu_df = eu_df[order_cols]
 
 # Save
 eu_df.to_pickle(MAIN_FOLDER + "/Data/Governmental_Science_Funding/CompleteRegionDatabases/" + "EuropeanUnionFundingDatabase.p")
-
-
-
-
 
 
 

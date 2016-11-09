@@ -160,7 +160,7 @@ def us_geo_locator(zipcode):
         return [np.NaN, np.NaN]
 
 
-def master_geo_lookup(geos, zipcode, country, uni, u_id=0, quality_floor=85):
+def master_geo_lookup(geos, zipcode, country, uni, u_id=0, quality_floor=85, update_after=1000):
     """
 
     This adds ~27, 000 lat/lngs for the EU Dataset.
@@ -171,24 +171,29 @@ def master_geo_lookup(geos, zipcode, country, uni, u_id=0, quality_floor=85):
     :param uni:
     :param u_id:
     :param quality_floor: match threshold for `fuzzywuzzy`.
+    :param update_after:
     :return:
     """
 
-    if u_id != 0 and u_id % 1000 == 0:
+    if u_id != 0 and u_id is not None and u_id % update_after == 0:
         print("row: ", u_id)
 
     if all(pd.notnull(i) for i in geos):
         return geos
 
+    # Check US Postal Code
+    if zipcode is not None and str(zipcode) != 'nan':
+        zipcode = cln(zipcode, 2)[:5]
+        if country == 'United States' and str(zipcode) != 'nan' and zipcode in us_zipcode_geo_dict:
+            return us_zipcode_geo_dict[zipcode]
+
     # Init
+    if any(pd.isnull(i) for i in [country, uni]):
+        return [np.NaN, np.NaN]
+
     d = dict()
     country_upper = country.upper()
     uni_lower = cln(uni).lower().strip()
-    zipcode = cln(zipcode, 2)[:5]
-
-    # Check US Postal Code
-    if country == 'United States' and str(zipcode) != 'nan' and zipcode in us_zipcode_geo_dict:
-        return us_zipcode_geo_dict[zipcode]
 
     # Check by Uni
     country_l = [i for i in uni_dict.keys() if country_upper in i]

@@ -174,8 +174,10 @@ def items_present_test(input_list, clist):
 def fast_flatten(input_list):
     return list(chain.from_iterable(input_list))
 
-
-
+def multi_replace(input_str, to_remove):
+    for tr in to_remove:
+        input_str = input_str.replace(tr, "")
+    return input_str
 
 
 
