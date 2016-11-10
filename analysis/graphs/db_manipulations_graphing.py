@@ -18,7 +18,7 @@ from haversine import haversine
 from calendar import monthrange
 from collections import Counter
 from supplementary_fns import cln
-from graphs.graphing_data import funders_dict
+from graphs.graphing_db_data import funders_dict
 from itertools import combinations, permutations
 from funding_database_tools import MAIN_FOLDER
 from funding_database_tools import unique_order_preseve
@@ -28,16 +28,16 @@ from graphs.graphing_tools import money_printer, org_group
 # To Do:
 # Add EU to EC in legend
 
-# ------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------
 # Read in Data
-# ------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------
 
-funding = pd.read_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + 'MasterDatabaseRC6.p')
+funding = pd.read_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + 'MasterDatabaseRC7.p')
 tqdm.pandas(desc="status")
 
-# ------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------
 # Add Funder Information
-# ------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------
 
 # Used an jupyter notebook to choose the colors (simulation_color_palette.ipynb).
 
@@ -46,55 +46,48 @@ funding['FunderNameAbbrev'] = funding['Funder'].progress_map(lambda x: re.findal
 funding['latFunder'] = funding['Funder'].progress_map(lambda x: funders_dict[x][1][0])
 funding['lngFunder'] = funding['Funder'].progress_map(lambda x: funders_dict[x][1][1])
 
-# ------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------
 # Export to .csv for analyses and graphing in R
-# ------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------
 
-save_to = MAIN_FOLDER + "/analysis/R/funding_data.csv"
-exclude_from_r_export = ['lat', 'lng', 'Keywords', 'Amount', 'FunderNameFull', 'latFunder', 'lngFunder']
-funding.drop(exclude_from_r_export, axis=1).fillna("").to_csv(save_to, index=False)
+# save_to = MAIN_FOLDER + "analysis/R/funding_data.csv"
+# exclude_from_r_export = ['lat', 'lng', 'Keywords', 'Amount', 'FunderNameFull', 'latFunder', 'lngFunder']
+#
+# # Create an R copy of the DF
+# r_export = deepcopy(funding)
+#
+# # Add a Quarter Column
+# startdate_datetime = pd.to_datetime(r_export['StartDate'], format='%d/%m/%Y')
+# r_export['Quarter'] = pd.DatetimeIndex(startdate_datetime).quarter
+#
+# r_export = r_export[(startdate_datetime >= "2000-01-01") & (startdate_datetime <= "2015-12-31")]
+#
+# def agency_split(input_str):
+#     if "_" not in input_str:
+#         return(input_str)
+#     elif "DOD" in input_str.upper():
+#         return "DOD"
+#     else:
+#         return input_str.split("_")[1]
+#
+# # Not working somewhere...
+# r_export['Funder'] = r_export['Funder'].progress_map(agency_split)
+#
+# # Export
+# r_export.drop(exclude_from_r_export, axis=1).fillna("").to_csv(save_to, index=False)
 
-# ------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------
 # Remove Organization that are outside of the scope.
-# ------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------
 
-# Note: these terms may be resulting in false positives with non-English names.
-# Use NLP to guess language first?
+funding = funding[funding['OrganizationCategory'] != 'Individual'].reset_index(drop=True)
 
-# Define Terms that are banned under what conditions
-as_is_terms = ['Inc ', 'Inc.', "Dept ", "Dept.", "Serv ", "Servs", "Srvs"]
-
-to_lower_terms = ["Inc.", "LLC", "Incorporated", "Company", "Corporation", "Radio",
-                  "Academy", "Television", "Service", "Servs", "Srvs", "Department",
-                  "Mr." "Mrs.", "Dr.", " PhD "]
-
-ends_with_terms = list(map(lambda x: x.rstrip().lower(), as_is_terms + ["PhD",  "LLC", "Incorporated", "Company"]))
-
-for at in as_is_terms:
-    funding = funding[~(funding['OrganizationName'].astype(str).str.strip().str.contains(at))]
-
-for lt in to_lower_terms:
-    funding = funding[~(funding['OrganizationName'].astype(str).str.lower().str.strip().str.contains(lt))]
-
-# Block ends_with_terms
-def ends_with_checker(x, ends_with_terms=ends_with_terms, override_terms=['university']):
-    if str(x) == 'nan':
-        return False
-
-    if any(x.lower().rstrip().endswith(i) for i in ends_with_terms) and not any(i in x.lower() for i in override_terms):
-        return True
-    else:
-        return False
-
-# Ablate
-funding = funding[~(funding['OrganizationName'].progress_map(ends_with_checker))].reset_index(drop=True)
-
-# ------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------
 # Homogenize Lng-Lat by OrganizationName (exact match)
-# ------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------
 
-org_geos_groupby = funding.groupby(['OrganizationName']).apply(
-                                                lambda x: list(zip(x['lat'].tolist(), x['lng'].tolist()))).reset_index()
+org_geos_groupby = funding[(pd.notnull(funding['lat'])) & (pd.notnull(funding['lng']))].groupby(
+    ['OrganizationName']).apply(lambda x: list(zip(x['lat'].tolist(), x['lng'].tolist()))).reset_index()
 
 org_geos_groupby = org_geos_groupby[org_geos_groupby[0].map(lambda x: len(set(x)) > 1)].reset_index(drop=True)
 
@@ -154,15 +147,15 @@ def geo_swap(org_name, current_geo, lat_or_lng):
     else:
         return current_geo
 
-funding['lat'] = funding.apply(lambda x: geo_swap(x['OrganizationName'], x['lat'], 0), axis=1)
-funding['lng'] = funding.apply(lambda x: geo_swap(x['OrganizationName'], x['lng'], 1), axis=1)
+funding['lat'] = funding.progress_apply(lambda x: geo_swap(x['OrganizationName'], x['lat'], 0), axis=1)
+funding['lng'] = funding.progress_apply(lambda x: geo_swap(x['OrganizationName'], x['lng'], 1), axis=1)
 
 # Remove rows with nans in their lat or lng columns
 funding = funding.dropna(subset = ['lat', 'lng']).reset_index(drop=True)
 
-# ------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------
 # Remove Organization Collisions for Geo Mapping (Multiple Orgs at the same lat/lng).
-# ------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------
 
 funding['UniqueGeo'] = funding['lng'].astype(str) + funding['lat'].astype(str) + funding['OrganizationName']
 
@@ -188,13 +181,13 @@ to_remove_flat = [i for s in to_remove for i in s]
 # Filter the funding df and drop duplicates
 funding = funding[~(funding['OrganizationName'].isin(to_remove_flat))].reset_index(drop=True)
 
-# ------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------
 # Time Series animation
-# ------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------
 
 top_x_orgs = 100
 min_start_date = "01/01/2010"
-max_start_date = time.strftime("%d/%m/%Y")
+max_start_date = "31/12/2015"#time.strftime("%d/%m/%Y")
 required_terms = []
 # required_terms = ['unive', 'ecole', 'polytechnique', 'school', 'acad', 'hospit', 'medical', 'istit', 'labra', 'obser',
 # 'clinic', 'centre', 'center', 'college']
@@ -296,7 +289,7 @@ funder_year_groupby = funder_year_groupby.rename(columns={"StartYear":"Year"}).s
 # Check
 # funder_year_groupby.groupby('StartYear')['PercentTotalGrants'].sum()
 
-# ------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------
 
 def to_export_col_summary(x):
     return [sum(x['NormalizedAmount'].tolist()), x['lng'].tolist()[0], x['lat'].tolist()[0], len(x['lat'].tolist())]
@@ -328,15 +321,16 @@ column_order = ['uID'] + allowed_columns
 #Order Columns
 to_export = to_export[column_order]
 
-print("# rows:", to_export.shape[0])
-print("# Organizations:", len(to_export.OrganizationName.unique()))
+print("rows:", to_export.shape[0])
+print("Organizations:", len(to_export.OrganizationName.unique()))
 
-#round(to_export.NormalizedAmount.sum()) --> ~ 65 Billion.
+# round(to_export.NormalizedAmount.sum()) #--> ~70 Billion.
 
-# ------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------
 # Create a Summary of Science Funding Orgs. in the Database.
-# ------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------
 
+#funder_info_db(df, col)
 funders_info = pd.DataFrame(list(funders_dict.values()))
 funders_info.rename(columns={2: "colour"}, inplace=True)
 funders_info['lat'] = list(map(lambda x: x[0], funders_info[1]))
@@ -349,15 +343,14 @@ funders_info = funders_info[funders_info['funder'].isin(to_export['FunderNameFul
 
 funders_info = funders_info[['funder', 'lat', 'lng', 'colour']]
 
-# ------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------
 # Exports
-# ------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------
 
 export_dir = MAIN_FOLDER + "/visualizations/data/"
-to_export_name = "funding_simulation_data" + ".csv"
 
 # 1.
-to_export.to_csv(export_dir + to_export_name, index=False)
+to_export.to_csv(export_dir + "funding_simulation_data.csv", index=False)
 
 # 2.
 funder_year_groupby.to_csv(export_dir + "funding_yearby_summary.csv", index=False)
