@@ -31,37 +31,35 @@ from easymoney.easy_pandas import strlist_to_list, twoD_nested_dict, pandas_prin
 from sources.world_bank_interface import _world_bank_pull_wrapper as wbpw
 
 # Release Candidate
-RC = 6
+RC = 7
 
 # Goal:
 # A dataframe with the following columns:
+#     Researcher
+#     Fields                        A  -- use journal ranking dataframe
+#     ResearcherSubfields           A  -- use journal ranking dataframe
+#     ResearchAreas (sub-subfield)  A  -- use journal ranking dataframe
+#     Amount
+#     NormalizedAmount                 -- the grant in 2015 USD (2016 not handled properly...fix)
+#     Currency
+#     YearOfGrant
+#     FundingSource
+#     Collaborators                 A  -- based on pubmed 2000-2016 download
+#     keywords
+#     Institution
+#     Endowment                        -- use wikipedia universities database
+#     InstitutionType                  -- use wikipedia universities database (i.e., public or private)
+#     InstitutionRanking            V  -- Ranking of the institution (read: uni). QS Data available; usage Prohibitive.
+#     InstutionCountry
+#     City/NearestCity
+#     lng
+#     lat
 
-#   Researcher
-#       Fields                        X  -- use journal ranking dataframe
-#       ResearcherSubfields           X  -- use journal ranking dataframe
-#       ResearchAreas (sub-subfield)  X  -- use journal ranking dataframe
-#       Amount
-#       NormalizedAmount                 -- the grant in 2015 USD (2016 not handled properly...fix)
-#       Currency
-#       YearOfGrant
-#       FundingSource
-#       Collaborators                 X  -- based on pubmed 2000-2016 download
-#       keywords
-#       Institution
-#       Endowment                        -- use wikipedia universities database
-#       InstitutionType                  -- use wikipedia universities database (i.e., public or private)
-#       InstitutionRanking            V  -- Ranking of the institution (read: uni). QS Data available; usage Prohibitive.
-#       InstutionCountry
-#       City/NearestCity
-#       lng
-#       lat
-
-# X = to do (when all country's data are assembled)
+# A = to do when all country's data are assembled
 
 # To do:
 #   Handle RB country code in Block;
 #   Country codes in OrgState should be moved to OrgBlock
-# df[df['OrganizationCity'].astype(str).str.contains(",")]['OrganizationCity'].unique()
 
 # -------------------------------------------------------------------------
 # General Tools & Information
@@ -77,8 +75,6 @@ def alphanum(input_str, chars=chars):
     Remove *all* non-alphanumeric characters
     see: http://stackoverflow.com/questions/23996118/replace-special-characters-in-a-string-python
 
-    return " ".join("".join(c for c in substring if c.isalnum()) for substring in input_str.split())
-
     :param input_str:
     :return:
     """
@@ -92,11 +88,12 @@ os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/CompleteRegionDatabas
 
 # Read in Databases
 us_df = pd.read_pickle('AmericanFundingDatabase.p')
+uk_df = pd.read_pickle('UnitedKingdomFundingDatabase.p')
 eu_df = pd.read_pickle('EuropeanUnionFundingDatabase.p')
 ca_df = pd.read_pickle('CanadianFundingDatabase.p')
 
 # Merge the dataframes
-df = us_df.append([eu_df, ca_df])
+df = us_df.append([uk_df, eu_df, ca_df])
 df = df.reset_index(drop=True)
 tqdm.pandas(desc="status")
 
@@ -164,12 +161,23 @@ def zeitsci_normalize(amount, amount_state, amount_cur, from_year, base_year=201
 
 def zeitsci_grant_normalize_wrapper(x):
 
-    if pd.isnull(x['GrantYear']): return np.NaN
+    from_year = np.NaN
+    if pd.isnull(x['GrantYear']):
+        if pd.isnull(x['StartDate']):
+            return np.NaN
+        else:
+            if len([i for i in x['StartDate'].split("/") if len(i) == 4]) != 1:
+                return np.NaN
+            else:
+                from_year = [i for i in x['StartDate'].split("/") if len(i) == 4][0]
+    else:
+        from_year = x['GrantYear']
+
     input_dict = {
         'amount': x['Amount'],
         'block' : x['OrganizationBlock'],
         'amount_cur': x['FundCurrency'],
-        'from_year' : int(x['GrantYear'])
+        'from_year' : int(from_year)
     }
     if any(pd.isnull(i) for i in input_dict.values()):
         return np.NaN
@@ -353,7 +361,7 @@ def institution_information_lookup(institution, region, fuzzy_threshold=85):
     insts_map = [i for i in endowment_dict[region_upper] if (institution_upper in i) or (i in institution_upper)]
 
     if len(insts_map) > 1:
-        insts_map = [max(insts_map, key=len)] # look for counter examples for this heuristic
+        insts_map = [max(insts_map, key=len)] # look for counter examples to this heuristic
 
     # Check with fuzzy matching
     if len(insts_map) != 1:
@@ -465,8 +473,26 @@ def date_correct(input_date):
 
 df['StartDate'] = df['StartDate'].astype(str).progress_map(date_correct)
 
+
+def year_extract(date):
+    if str(date) == 'nan':
+        return np.NaN
+    else:
+        date_split = str(date).split("/")
+        if len(date_split) == 3 and len(date_split[2]) == 4:
+            return date_split[2]
+        else:
+            return np.NaN
+
+# Add a start Year
+df['StartYear'] = df['StartDate'].progress_map(year_extract)
+
+# Reorder
+reorder = list(df.columns)[0:3] + ["StartYear"] + list(df.columns)[3:-1]
+df = df[reorder]
+
 # -------------------------------------------------------------------------
-# Remove Improbable Values
+# Remove Invalid Values
 # -------------------------------------------------------------------------
 
 max_grant = 10**9
@@ -475,17 +501,23 @@ max_endowment = 50 * 10**9
 df['NormalizedAmount'] = df['NormalizedAmount'].map(lambda x: x if x <= max_grant else np.NaN, na_action='ignore')
 df['Endowment'] = df['Endowment'].map(lambda x: x if x <= max_endowment else np.NaN, na_action='ignore')
 
+# Limit to Current Year
+# df = df[df['StartYear'].astype(float) <= 2016].reset_index(drop=True)
+
+# ------------------------------------------------------------------------------------------------
+# Clean NaNs
+# ------------------------------------------------------------------------------------------------
+
+for i, c in enumerate(df.columns):
+    print(str(i) + ": ", c)
+    df[c] = df[c].progress_map(lambda x: np.NaN if str(x) == 'nan' else x)
+
 # -------------------------------------------------------------------------
 # Save
 # -------------------------------------------------------------------------
 
 print("Saving...")
 df.to_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + "MasterDatabaseRC" + str(RC) + ".p")
-# df.to_csv(MAIN_FOLDER + "/Data/MasterDatabase/" + "MasterDatabaseRC" + str(RC) + ".csv", index=False)
-
-
-
-
 
 
 
