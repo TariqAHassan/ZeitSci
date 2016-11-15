@@ -321,7 +321,7 @@ plot_ly(funder_org_sum,
 # Are these two groups different w.r.t. the amount of funding they receive on average?
 
 # Define and Drop NAs
-type_df <- df[(df$StartYear >= 2005) & (df$StartYear <= 2015),]
+type_df <- df[(df$StartYear >= 2005) & (df$StartYear < 2016),]
 public <- type_df$NormalizedAmount[type_df['InstitutionType'] == "Public"]
 private <- type_df$NormalizedAmount[type_df['InstitutionType'] == "Private"]
 public <- public[!is.na(public)]
