@@ -369,10 +369,21 @@ def col_cln(data_frame, update=True):
         data_frame[c] = data_frame[c].astype(str).map(lambda x: unidecode(cln(x).strip()), na_action='ignore')
     return data_frame
 
+def researcher_cln(first, last):
+    """
 
-
-
-
+    :param first:
+    :param last:
+    :return:
+    """
+    if str(last) != 'nan':
+        last_name = " ".join([i.lower().title() if i.isupper() else i for i in last.split()]).strip()
+        if str(first) != 'nan':
+            return (first.strip() + " " + last_name).strip()
+        else:
+            return last_name.strip()
+    else:
+        return np.NaN
 
 
 

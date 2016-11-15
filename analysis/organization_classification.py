@@ -29,7 +29,6 @@ org_classes = {
                       'affairs',
                       'bureau',
                       'department',
-                      'department',
                       'federal',
                       'services'],
      'Individual': [' phd ',
@@ -61,13 +60,17 @@ org_classes = {
                   'television'],
      'Institute': [' institut'],
      'Medical': ['clinic',
+                 ' dental',
+                 'dentistry',
                  'health',
                  'hospital',
                  'medical',
+                 'physiotherapy',
                  'rehabilitation'],
      'NGO': ['asociacion',
              'association',
-             'foundation']
+             'foundation',
+             'charity']
 }
 
 
@@ -139,8 +142,8 @@ def class_conflict_remover(candidate_classes):
         return candidate_classes.keys()
 
     # Use number of values (whichever is smaller) for each category to
-    # elect which of the two conflicted items to remove.
-    # If the count is the same, default to the first entry.
+    # decide which of the two conflicted items to remove.
+    # If the count is the same, default to the second entry.
     to_remove = set()
     for t in to_block:
         class_a = len(candidate_classes[t[0]])

@@ -89,7 +89,9 @@ for a in ['AHRC', 'ESRC']:
     uk_df = uk_df[uk_df['fundingorgname'] != a].reset_index(drop=True)
 
 for c in [i for i in uk_df.columns if i != 'awardpounds']:
-    uk_df[c] = uk_df[c].astype(str).map(cln).map(unidecode).str.strip()
+    uk_df[c] = uk_df[c].astype(str).progress_map(lambda x: unidecode(cln(x))).str.strip().progress_map(
+        lambda x: np.NaN if x == 'nan' else x
+    )
 
 # ------------------------------------------------------------------------------------------------------------ #
 # Construct Required Columns
@@ -142,13 +144,18 @@ uk_df['OrganizationCity'] = np.NaN
 # OrganizationState; TO DO: handle 'Outside UK'.
 uk_df = uk_df.rename(columns={"region" : "OrganizationState"})
 
-# Replace Outside UK with NaN (for now)
-uk_df['OrganizationState'] = uk_df['OrganizationState'].replace("Outside UK", np.NaN)
+# Fix state for Oxford
+uk_df['OrganizationState'] = uk_df.apply(
+    lambda x: "South East" if "of Oxford".upper() in str(x['OrganizationName']).upper() else x['OrganizationState'], axis=1
+)
 
 # OrganizationBlock
 uk_df['OrganizationBlock'] = uk_df['OrganizationState'].map(
-    lambda x: "United Kingdom" if str(x) != 'nan' else np.NaN, na_action='ignore'
+    lambda x: "United Kingdom" if str(x) != 'Outside UK' else np.NaN, na_action='ignore'
 )
+
+# Replace Outside UK with NaN (for now)
+uk_df['OrganizationState'] = uk_df['OrganizationState'].replace("Outside UK", np.NaN)
 
 # Keywords
 # As with the Candadian dataset, analyze the title for keywords.
@@ -185,7 +192,7 @@ uk_df = uk_df[order_cols].reset_index(drop=True)
 uk_df.to_pickle(MAIN_FOLDER + "/Data/Governmental_Science_Funding/CompleteRegionDatabases/" + "UnitedKingdomFundingDatabase.p")
 
 
-
+# Fix location for imperial (science and tech) -- also in EU script
 
 
 

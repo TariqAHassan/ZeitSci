@@ -21,6 +21,7 @@ from datetime import datetime
 from abstract_analysis import *
 from currency_converter import CurrencyConverter
 
+from datetime import date
 from funding_database_tools import titler
 from funding_database_tools import MAIN_FOLDER
 from funding_database_tools import multi_readin
@@ -31,7 +32,7 @@ from easymoney.easy_pandas import strlist_to_list, twoD_nested_dict, pandas_prin
 from sources.world_bank_interface import _world_bank_pull_wrapper as wbpw
 
 # Release Candidate
-RC = 7
+RC = 8
 
 # Goal:
 # A dataframe with the following columns:
@@ -68,8 +69,6 @@ RC = 7
 # Special Characters.
 chars = re.escape(string.punctuation)
 
-# Create an instance of EasyPeasy
-
 def alphanum(input_str, chars=chars):
     """
     Remove *all* non-alphanumeric characters
@@ -98,6 +97,53 @@ df = df.reset_index(drop=True)
 tqdm.pandas(desc="status")
 
 df['OrganizationBlock'] = df['OrganizationBlock'].str.lower().str.title()
+
+# ------------------------------------------------------------------------------------------------
+# Standardize Names of UK Unis
+# ------------------------------------------------------------------------------------------------
+
+# The EU and UK refer to this orgs with slightly different names
+
+# To do: (should not be a nan here)
+# df[df['OrganizationName'].str.contains("Imperial College of Science, Technology and Medicine")]['OrganizationBlock']
+
+uk_uni_special_names = {'University of Oxford': 'University of Oxford',
+                        "Imperial College": "Imperial College London",
+                        'University of Cambridge': "University of Cambridge",
+                        'University of Cambrige': "University of Cambridge",
+                        "University of Edinburgh": "University of Edinburgh"
+}
+
+def uk_org_cln(x, uk_uni_special_names):
+    """
+
+    :param x:
+    :return:
+    """
+    org_name = x['OrganizationName']
+    if str(org_name) == 'nan':
+        return org_name
+
+    # Bit of a hack for now...
+    if "imperial college" in org_name.lower() or \
+        str(x['FunderBlock']).lower() in ["united kingdom"] or\
+        str(x['OrganizationBlock']).lower() == "united kingdom":
+        for k in uk_uni_special_names:
+            if k.upper() in org_name.upper():
+                return(uk_uni_special_names[k])
+
+    return org_name
+
+# Fix UK Uni(s)
+df['OrganizationName'] = df.progress_apply(lambda x: uk_org_cln(x, uk_uni_special_names), axis=1)
+
+# -------------------------------------------------------------------------
+# Convert 'nan's to true NaNs
+# -------------------------------------------------------------------------
+
+for i, c in enumerate(df.columns):
+    print(i+1, "of", len(df.columns))
+    df[c] = df[c].progress_map(lambda x: np.NaN if str(x) == 'nan' else x)
 
 # -------------------------------------------------------------------------
 # Normalize Grant Amount
@@ -129,7 +175,7 @@ def zeitsci_cpi(region, year_a, year_b):
 
     return rate
 
-def zeitsci_normalize(amount, amount_state, amount_cur, from_year, base_year=2015, base_currency='USD'):
+def zeitsci_normalize(amount, amount_state, amount_cur, from_year, base_year=2015, base_currency='USD', base_date=date(2015, 12, 31)):
     """
 
     :param amount:
@@ -157,7 +203,10 @@ def zeitsci_normalize(amount, amount_state, amount_cur, from_year, base_year=201
     real_amount = amount * inflation_rate
 
     # Convert to base currency
-    return c.convert(real_amount, amount_cur, base_currency)
+    if base_date == None:
+        return c.convert(real_amount, amount_cur, base_currency)
+    else:
+        return c.convert(real_amount, amount_cur, base_currency, date=base_date)
 
 def zeitsci_grant_normalize_wrapper(x):
 
@@ -473,7 +522,6 @@ def date_correct(input_date):
 
 df['StartDate'] = df['StartDate'].astype(str).progress_map(date_correct)
 
-
 def year_extract(date):
     if str(date) == 'nan':
         return np.NaN
@@ -516,13 +564,7 @@ for i, c in enumerate(df.columns):
 # Save
 # -------------------------------------------------------------------------
 
-print("Saving...")
 df.to_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + "MasterDatabaseRC" + str(RC) + ".p")
-
-
-
-
-
 
 
 

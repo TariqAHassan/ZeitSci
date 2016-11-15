@@ -32,7 +32,7 @@ from graphs.graphing_tools import money_printer, org_group
 # Read in Data
 # ------------------------------------------------------------------------------------------------
 
-funding = pd.read_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + 'MasterDatabaseRC7.p')
+funding = pd.read_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + 'MasterDatabaseRC8.p')
 tqdm.pandas(desc="status")
 
 # ------------------------------------------------------------------------------------------------
@@ -50,31 +50,36 @@ funding['lngFunder'] = funding['Funder'].progress_map(lambda x: funders_dict[x][
 # Export to .csv for analyses and graphing in R
 # ------------------------------------------------------------------------------------------------
 
-# save_to = MAIN_FOLDER + "analysis/R/funding_data.csv"
-# exclude_from_r_export = ['lat', 'lng', 'Keywords', 'Amount', 'FunderNameFull', 'latFunder', 'lngFunder']
-#
-# # Create an R copy of the DF
-# r_export = deepcopy(funding)
-#
-# # Add a Quarter Column
-# startdate_datetime = pd.to_datetime(r_export['StartDate'], format='%d/%m/%Y')
-# r_export['Quarter'] = pd.DatetimeIndex(startdate_datetime).quarter
-#
-# r_export = r_export[(startdate_datetime >= "2000-01-01") & (startdate_datetime <= "2015-12-31")]
-#
-# def agency_split(input_str):
-#     if "_" not in input_str:
-#         return(input_str)
-#     elif "DOD" in input_str.upper():
-#         return "DOD"
-#     else:
-#         return input_str.split("_")[1]
-#
-# # Not working somewhere...
-# r_export['Funder'] = r_export['Funder'].progress_map(agency_split)
-#
-# # Export
-# r_export.drop(exclude_from_r_export, axis=1).fillna("").to_csv(save_to, index=False)
+# Drop dod until until a more complete record is provided by NIH
+funding = funding[~funding['Funder'].progress_map(lambda x: True if "DOD" in str(x).upper() else False)].reset_index(drop=True)
+
+save_to = MAIN_FOLDER + "analysis/R/funding_data.csv"
+exclude_from_r_export = ['lat', 'lng', 'Keywords', 'Amount', 'FunderNameFull', 'latFunder', 'lngFunder']
+
+# Create an R copy of the DF
+r_export = deepcopy(funding)
+
+# Add a Quarter Column
+
+# Fix Canadian Data
+startdate_datetime = pd.to_datetime(r_export['StartDate'], format='%d/%m/%Y')
+r_export['Quarter'] = pd.DatetimeIndex(startdate_datetime).quarter
+
+r_export = r_export[(startdate_datetime >= "2000-01-01") & (startdate_datetime <= "2015-12-31")]
+
+def agency_split(input_str):
+    if "_" not in input_str:
+        return(input_str)
+    elif "DOD" in input_str.upper():
+        return "DOD"
+    else:
+        return input_str.split("_")[1]
+
+# Not working somewhere...
+r_export['Funder'] = r_export['Funder'].progress_map(agency_split)
+
+# Export
+r_export.drop(exclude_from_r_export, axis=1).fillna("").to_csv(save_to, index=False)
 
 # ------------------------------------------------------------------------------------------------
 # Remove Organization that are outside of the scope.
@@ -103,19 +108,24 @@ def most_central_point(geos_array, valid_medoid=30):
                          weighting metric, it is almost certainly worth removing.
     :return:
     """
+    # Count the number eac coordinate appears in `geos_array`
     geos_array_count = dict(Counter(geos_array))
+
+    # Define a list of unique coordinates
     uniuqe_geos = list(set(geos_array))
 
+    # Compute the distance from each point to all of the others
     coord_dict = dict()
     for i in uniuqe_geos:
         coord_dict[i] = [haversine(i, j) for j in uniuqe_geos if j != i]
 
     # Compute the mean for each and divide by the number of times it occured in geos_array
-    coord_dict_mean = {k: mean(v)/float(geos_array_count[k]) for k, v in coord_dict.items()}
+    coord_dict_mean = {k: mean(v) / float(geos_array_count[k]) for k, v in coord_dict.items()}
 
     # Use the most central point as the medoid
     medoid_mean_coord = min(coord_dict_mean, key=coord_dict_mean.get)
 
+    # Check against threshold
     if coord_dict_mean[medoid_mean_coord] <= valid_medoid:
         return medoid_mean_coord
     else:
@@ -225,16 +235,16 @@ def random_day_month_swap(input_date, block, looking_for='Canada'):
 
 to_export['StartDate'] = to_export.apply(lambda x: random_day_month_swap(x['StartDate'], x['OrganizationBlock']), axis=1)
 
-# ---------------------------------------------------------- #
+# ----------------------------------------------------------
 # Drop StartDate to month temporal resolution
-# ---------------------------------------------------------- #
+# ----------------------------------------------------------
 
 date_format = "%m/%Y"
 to_export['StartDate'] = to_export['StartDate'].map(lambda x: x[3:])
 
-# ---------------------------------------------------------- #
+# ----------------------------------------------------------
 # Restrict
-# ---------------------------------------------------------- #
+# ----------------------------------------------------------
 
 # Restrict to a date range
 to_export['StartDateDTime'] = pd.to_datetime(to_export['StartDate'], format=date_format).sort_values()
@@ -257,9 +267,9 @@ to_export = to_export[to_export['OrganizationName'].isin(orgs_by_grants['Organiz
 # too long for the legend...come back and fix later.
 # to_export = to_export[~(to_export['FunderNameFull'].str.contains("NIDILRR"))]
 
-# ---------------------------------------------------------- #
+# ----------------------------------------------------------
 # Agg by FunderNameFull by year
-# ---------------------------------------------------------- #
+# ----------------------------------------------------------
 
 funder_year_groupby = deepcopy(to_export)
 funder_year_groupby['StartYear'] = funder_year_groupby['StartDate'].map(lambda x: x.split("/")[1]).astype(int)
@@ -321,8 +331,8 @@ column_order = ['uID'] + allowed_columns
 #Order Columns
 to_export = to_export[column_order]
 
-print("rows:", to_export.shape[0])
-print("Organizations:", len(to_export.OrganizationName.unique()))
+# print("rows:", to_export.shape[0])
+# print("Organizations:", len(to_export.OrganizationName.unique()))
 
 # round(to_export.NormalizedAmount.sum()) #--> ~70 Billion.
 
@@ -347,7 +357,7 @@ funders_info = funders_info[['funder', 'lat', 'lng', 'colour']]
 # Exports
 # ------------------------------------------------------------------------------------------------
 
-export_dir = MAIN_FOLDER + "/visualizations/data/"
+export_dir = MAIN_FOLDER + "/visualizations/simulation_data/"
 
 # 1.
 to_export.to_csv(export_dir + "funding_simulation_data.csv", index=False)
@@ -361,14 +371,7 @@ orgs_by_grants['OrganizationRank'] += 1
 orgs_by_grants.to_csv(export_dir + "organization_rankings.csv", index=False)
 
 # 4.
-funders_info.to_csv(export_dir + "funder_db.csv", index=False)
-
-
-
-
-
-
-
+funders_info.to_csv(export_dir + "funder_db_simulation.csv", index=False)
 
 
 

@@ -1,11 +1,8 @@
 """
-
     EU Funding
     ~~~~~~~~~~
-
     Python 3.5
         ...contains starred expression
-
 """
 # Import Modules
 import os
@@ -157,7 +154,6 @@ org_dict = {(project, name): [c, p, r] for project, name, c, p, r in select_org_
 def org_extractor(x):
     """
     Wrapper Function for org_dict.
-
     :param x: row with 'rcn' and 'coordinator'.
     :return: [City, Postal Code, Researcher]
     """
@@ -184,9 +180,7 @@ eu_dfp = eu_dfp.drop(['rcn', 'reference'], axis=1)
 
 def call_year_extract(c, ignore="H2020"):
     """
-
     Use a statemachine-esk approach to harvest the year
-
     :param c:
     :return:
     """
@@ -196,7 +190,7 @@ def call_year_extract(c, ignore="H2020"):
             year += l
         elif not l.isdigit() and len(year) < 4:
             year = ""
-            
+
     return year if len(year) == 4 else np.NaN
 
 eu_dfp['grant_year'] = eu_dfp['call'].map(call_year_extract, na_action='ignore')
@@ -249,7 +243,6 @@ city_dict = eu_cloc.groupby('iso').apply(lambda x: x.set_index('city')['zipped']
 
 def eu_loc_lookup(city, postal_code, alpha2country, postal_dict, city_dict):
     """
-
     :param city:
     :param postal_code:
     :param alpha2country:
@@ -311,7 +304,6 @@ def eu_loc_lookup(city, postal_code, alpha2country, postal_dict, city_dict):
 
 def lat_lng_add(data_frame):
     """
-
     :param data_frame:
     :return:
     """
@@ -475,29 +467,6 @@ eu_df = eu_df[order_cols]
 
 # Save
 eu_df.to_pickle(MAIN_FOLDER + "/Data/Governmental_Science_Funding/CompleteRegionDatabases/" + "EuropeanUnionFundingDatabase.p")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

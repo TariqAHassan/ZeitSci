@@ -22,20 +22,15 @@ from graphs.graphing_tools import funder_info_db
 from abstract_analysis import word_vector_clean
 from funding_database_tools import MAIN_FOLDER
 
-# babel.numbers.format_currency(decimal.Decimal("102327300000.0"), "USD")
-
 # ------------------------------------------------------------------------------------------------
 # Read in Data
 # ------------------------------------------------------------------------------------------------
 
-funding = pd.read_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + "MasterDatabaseRC7.p")
+funding = pd.read_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + "MasterDatabaseRC8.p")
 tqdm.pandas(desc="status")
 
-# Convert keywords into a list
-funding['Keywords'] = funding['Keywords'].str.split("; ")
-
 # ------------------------------------------------------------------------------------------------
-# Goal
+# Main Goal
 # ------------------------------------------------------------------------------------------------
 
 # Keyword by [StartDate] By [Funder] by [Org] by [State] By [Block] by sum(NormalizedAmount)
@@ -43,7 +38,7 @@ funding['Keywords'] = funding['Keywords'].str.split("; ")
 # ------------------------------------------------------------------------------------------------
 
 # Columns to Use
-keyword_df_columns = [ "Keywords",
+keyword_df_columns = ["Keywords",
                        "Funder",
                        "StartDate",
                        "OrganizationName",
@@ -52,6 +47,9 @@ keyword_df_columns = [ "Keywords",
                        "OrganizationBlock",
                        "NormalizedAmount"
 ]
+
+# Convert keywords into a list
+funding['Keywords'] = funding['Keywords'].str.split("; ")
 
 # Set the Keywords
 funding["Keywords"] = funding["Keywords"].progress_map(lambda x: list(set(x)), na_action="ignore")
@@ -71,14 +69,17 @@ for i in tqdm(zip(*[zip_df[c] for c in keyword_df_columns])):
 # Convet to df
 keyword_df = pd.DataFrame(keywords_dict, columns=keyword_df_columns)
 
-# Remove Digits -- To Do: Allow for terms like 5HT (serotonin)
-# keyword_df_r = keyword_df[~(keyword_df["Keywords"].progress_map(lambda x: x[0].isdigit() or x[-1].isdigit()))]
-
 # Groupby and Sum
 group_by_columns = [c for c in keyword_df_columns[:-1] if str(c) not in ['OrganizationState', 'OrganizationCity']]
 keyword_df_sum = keyword_df.groupby(group_by_columns)['NormalizedAmount'].sum().reset_index()
 
 def keyword_remove(s):
+    """
+    Not ideal
+    To Do: Allow for terms like 5HT (serotonin)
+    :param s:
+    :return:
+    """
     if str(s) == 'nan':
         return True
 
@@ -98,15 +99,29 @@ keyword_df_sum = keyword_df_sum.sort_values(by=["NormalizedAmount"], ascending=F
 # Save to Disk
 # ------------------------------------------------------------------------------------------------
 
-export_path = MAIN_FOLDER + "/Data/keyword_databases/"
-keyword_df_sum.to_csv(export_path + "keywords_db2.csv", index=False, chunksize=500000)
+export_path = MAIN_FOLDER + "Data/keyword_databases/"
+# keyword_df_sum.to_csv(export_path + "keywords_db2.csv", index=False, chunksize=500000)
+
+keyword_df_sum = pd.read_csv(export_path + "keywords_db2.csv")
+
+# Drop dod until until a more complete record is obtained from the by NIH
+keyword_df_sum = keyword_df_sum[~keyword_df_sum['Funder'].progress_map(lambda x: True if "DOD" in str(x).upper() else False)].reset_index(drop=True)
 
 # ------------------------------------------------------------------------------------------------
-# Analytic Groupbys
+# Fix Organization Name
 # ------------------------------------------------------------------------------------------------
 
 # Unidecode Org Names
 keyword_df_sum["OrganizationName"] = keyword_df_sum["OrganizationName"].progress_map(unidecode, na_action="ignore")
+
+# Fix Oxford Uni
+keyword_df_sum["OrganizationName"] = keyword_df_sum["OrganizationName"].progress_map(
+    lambda x: "Oxford University" if "Oxford University" in x else x
+)
+
+# ------------------------------------------------------------------------------------------------
+# Analytic Groupbys
+# ------------------------------------------------------------------------------------------------
 
 # Add Year Column
 keyword_df_sum["Year"] = keyword_df_sum["StartDate"].progress_map(lambda x: x.split("/")[2], na_action="ignore")
@@ -200,7 +215,7 @@ top_funded_funder['ProportionYearlyTop'] = top_funded_funder.apply(keyword_agenc
 # Most Funded Terms
 # ------------------------------------------
 
-top_funded = amount_groupby(["Keywords"])
+# top_funded = amount_groupby(["Keywords"])
 
 # ------------------------------------------
 # Most Funded Terms by Country
@@ -219,16 +234,17 @@ top_funded = amount_groupby(["Keywords"])
 # Exports
 # ------------------------------------------------------------------------------------------------
 
-
 # General
-top_funded.to_csv(export_path + "general_keywords.csv", index=False)
+# top_funded.to_csv(export_path + "general_keywords.csv", index=False)
 
 # Organizations
-org_terms = ["university", "ecole", "institute"]
-org_search_term = "|".join(org_terms)
-
+# org_terms = ["university", "ecole", "institute"]
+# org_search_term = "|".join(org_terms)
 # orgs = top_funded_org[top_funded_org["OrganizationName"].str.lower().str.contains(org_search_term)].reset_index(drop=True)
 # orgs.to_csv(export_path + "organizations_keywords.csv", index=False, chunksize=100000)
+
+# Countries
+# top_funded_country.to_csv(export_path + "countries_keywords.csv", index=False)
 
 # Funders#
 top_funded_funder.to_csv(export_path + "funders_keywords.csv", index=False)
@@ -236,11 +252,6 @@ top_funded_funder_year.to_csv(export_path + "funders_keywords_by_year.csv", inde
 
 # Save a funder_db
 funder_info_db(df=top_funded_funder, col="FunderFull").to_csv(export_path + "funder_db_keywords.csv", index=False)
-
-
-# Countries
-# top_funded_country.to_csv(export_path + "countries_keywords.csv", index=False)
-
 
 
 

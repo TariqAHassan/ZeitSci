@@ -33,7 +33,7 @@ var div = d3.select("body").append("div")
 
 //----------------------------------------------------------------------------------------//
 
-//Init
+//Initialize
 
 //Variables and Constants
 var topo, projection, path, defs, filter, feMerge, text, legend, svgLwr, gLwr, svg, funderLayer, g;
@@ -92,8 +92,8 @@ function setup(width, height){
     //---------------------
     //Add Glow
     //See:
-    // 1. http://www.visualcinnamon.com/2016/06/glow-filter-d3-visualization.html
-    // 2. http://stackoverflow.com/a/19704735/4898004
+    //      1. http://www.visualcinnamon.com/2016/06/glow-filter-d3-visualization.html
+    //      2. http://stackoverflow.com/a/19704735/4898004
 
     //Container for the gradients
     defs = svgLwr.append("defs");
@@ -149,7 +149,6 @@ function hideTooltip(tooltipObj){
 
 //Pass the starting date
 function addDate(startDate) {
-
     var xWidthAdjust = 50;
     var startingContainerWidth = document.getElementById("container").offsetWidth;
 
@@ -192,8 +191,6 @@ function dateChecker(newDate, oldDate) {
     //than "oldDate". If so, returns `true`.
     //Otherwise, returns `false`.
     //Format: DD-MM-YYYY.
-
-    //Working Correctly?
     var oldSplit = oldDate.split("/").map(parseFloat);
     var newSplit = newDate.split("/").map(parseFloat);
 
@@ -227,7 +224,6 @@ function uniqueCountPreserve(inputList) {
 }
 
 function orgListFormatter(orgList){
-
     var d = {};
     var tail = "";
     var uniqueOrgList = uniqueCountPreserve(orgList);
@@ -314,7 +310,6 @@ function delta(grantMovement, path) {
 }
 
 function terrestrialPoints(newDraw, grantToDraw, realTimeInfo){
-
     //Model Params
     var c = 0.65;
     var k = 0.1;
@@ -327,7 +322,6 @@ function terrestrialPoints(newDraw, grantToDraw, realTimeInfo){
     var locID = grantToDraw["recipientUniqueGeo"];
     var destination = grantToDraw["grantRecipientOrg"];
 
-    // var funderAbbreiv = grantToDraw["funderName"].match(/\((.*?)\)/)[1];
     //Construct the info for the Point
 
     // var s = d3.event.scale; //Add to adjust radius based on current zoom
@@ -374,6 +368,7 @@ function terrestrialPoints(newDraw, grantToDraw, realTimeInfo){
 
 function legendCircleActivityScaler(grantToDraw){
         var status = fundingAgencyFlightStatus[grantToDraw["funderName"]];
+
         if (status == 0){
             var transitionRate = 450;
         } else {
@@ -395,7 +390,6 @@ function legendCircleActivityScaler(grantToDraw){
 }
 
 function transition(grantMovement, route, grantToDraw, newDraw, realTimeInfo, flightSpeed) {
-
     var l = route.node().getTotalLength();
 
     grantMovement.transition()
@@ -405,6 +399,7 @@ function transition(grantMovement, route, grantToDraw, newDraw, realTimeInfo, fl
             //Delete the spent route.
             route.remove();
 
+            //Update record of which grants are currently airborne
             if (fundingAgencyFlightStatus[grantToDraw["funderName"]] > 0){
                  fundingAgencyFlightStatus[grantToDraw["funderName"]] -= 1
             }
@@ -419,7 +414,6 @@ function transition(grantMovement, route, grantToDraw, newDraw, realTimeInfo, fl
 }
 
 function grantTranslate(grantToDraw, newDraw, realTimeInfo, flightSpeed) {
-
     //Model Params
     var k = 0.7;
     var c = 0.3;
@@ -429,7 +423,7 @@ function grantTranslate(grantToDraw, newDraw, realTimeInfo, flightSpeed) {
     var to = funderGeoDict[grantToDraw["grantRecipientOrg"]];
     var movingGrantRadius = logistic_fn(grantToDraw["grantAmount"], minValue, largestSingleGrant, k, c);
 
-    var route = g.append("path")
+    var route = funderLayer.append("path")
                    .attr("fill-opacity", 0)
                    .datum({type: "LineString", coordinates: [from, to]})
                    .attr("class", "route")
@@ -452,7 +446,6 @@ function fillArray(value, len) {
 }
 
 function grantTranslateMaster(arrayOfGrantsToDraw, movementRate, flightSpeed){
-
     var newDraw = false;
     var priorFundingRecipients = [];
     var realTimeInfo = {};
@@ -554,9 +547,8 @@ function legendTooltipInfo(name, taskType){
 }
 
 function legendGenerator(legend, currentWidth){
-
-    var yCircleSpace = 100;
-    var yTextSpace = yCircleSpace * 1.15;
+    var yCircleSpace = 80;
+    var yTextSpace = yCircleSpace * 1.35;
     var legendCircleSize = 40;
 
     var legendToDraw = {}
@@ -780,7 +772,7 @@ function drawMain(simulationSpeed, flightSpeed) {
 
 // Tools for plotting funders
 
-function funderCircleAppend(appendTo, x, y, color, opacity, r, info, offsetL, offsetT){
+function funderCircleAppend(appendTo, x, y, color, opacity, r, info){
     appendTo.append("svg:circle")
         .attr("cx", x)
         .attr("cy", y)
