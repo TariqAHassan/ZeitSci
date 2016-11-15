@@ -217,19 +217,32 @@ function dateChecker(newDate, oldDate) {
 
 //Tooltip Funders Summary
 
-function uniqueCountPreserve(inputList) {
-    //See: http://stackoverflow.com/a/22011372/4898004
-    //This is a very nice little algorithm for sorting
-    //array elements by the number of their occurrences
-    //Returns an array of uniques.
-    var map = inputList.reduce(function (p, c) {
-        p[c] = (p[c] || 0) + 1;
-        return p;
-    }, {});
-    var countArray = Object.keys(map).sort(function (a, b) {
-        return map[a] < map[b];
+function uniqueCountPreserve(inputArray){
+    //Sorts the input array by the number of time
+    //each element appears (largest to smallest)
+
+    //Count the number of times each item
+    //in the array occurs and save the counts to an object
+    var arrayItemCounts = {};
+    for (var i in inputArray){
+        if (!(arrayItemCounts.hasOwnProperty(inputArray[i]))){
+            arrayItemCounts[inputArray[i]] = 1
+        } else {
+            arrayItemCounts[inputArray[i]] += 1
+        }
+    }
+
+    //Sort the keys by value (smallest to largest)
+    //see: http://stackoverflow.com/a/16794116/4898004
+    var keysByCount = Object.keys(arrayItemCounts).sort(function(a, b){
+        return arrayItemCounts[a]-arrayItemCounts[b];
     });
-    return countArray
+
+    //Reverse the Array
+    var keysByCountReversed = keysByCount.reverse();
+
+    //Return
+    return(keysByCountReversed)
 }
 
 function orgListFormatter(orgList){
@@ -367,7 +380,7 @@ function terrestrialPoints(newDraw, grantToDraw, realTimeInfo){
                                     , tooltipcontainer_fs
                                     , tooltipInfoFormater(destination, realTimeInfo, locID)
                                     , document.getElementById("container_fs").offsetLeft-550
-                                    , document.getElementById("container_fs").offsetTop+205
+                                    , document.getElementById("container_fs").offsetTop+195
                     )})
                     .on("mouseout",  function() {
                         hideTooltip(tooltipcontainer_fs)
