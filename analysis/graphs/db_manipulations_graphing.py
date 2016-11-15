@@ -254,6 +254,9 @@ to_export = to_export[(to_export['StartDateDTime'] >= min_start_date) &
 # Remove Rows without Normalized Grant
 to_export = to_export.dropna(subset=['NormalizedAmount']).reset_index(drop=True)
 
+# Save copy for high res summary
+to_export_freeze = deepcopy(to_export)
+
 # Find orgs with the most grants (dollar amount).
 orgs_by_grants = to_export.groupby('OrganizationName').apply(lambda x: sum(x['NormalizedAmount'].tolist())).reset_index()
 orgs_by_grants = orgs_by_grants.sort_values(0, ascending=False).reset_index(drop=True)[0:top_x_orgs]
@@ -277,7 +280,7 @@ funder_year_groupby['StartYear'] = funder_year_groupby['StartDate'].map(lambda x
 funder_year_groupby = funder_year_groupby.groupby(['FunderNameFull', 'StartYear']).apply(
                                                             lambda x: sum(x['NormalizedAmount'].tolist())).reset_index()
 
-funder_year_groupby = funder_year_groupby.rename(columns={0:'TotalGrants'})
+funder_year_groupby = funder_year_groupby.rename(columns={0: 'TotalGrants'})
 
 # Work out proportion of grants given by Org
 org_year_byyear = funder_year_groupby.groupby('StartYear').apply(lambda x: sum(x['TotalGrants'])).to_dict()
@@ -354,6 +357,31 @@ funders_info = funders_info[funders_info['funder'].isin(to_export['FunderNameFul
 funders_info = funders_info[['funder', 'lat', 'lng', 'colour']]
 
 # ------------------------------------------------------------------------------------------------
+# Create a More Detailed Summary of orgs_by_grants
+# ------------------------------------------------------------------------------------------------
+
+# Groupby Org Name and Block
+high_res_summary = to_export_freeze.groupby(['OrganizationName', 'OrganizationBlock'], as_index=False)['NormalizedAmount'].sum()
+
+# Sort and Subset
+high_res_summary = high_res_summary.sort_values('NormalizedAmount', ascending=False).reset_index(drop=True)[0:top_x_orgs]
+
+# Rename
+high_res_summary.columns = ['Name', 'Country', 'Total Grants (USD)']
+
+# Add a Ranking Column
+high_res_summary['Ranking'] = range(1, top_x_orgs+1)
+
+# Format Money (see http://stackoverflow.com/a/3393776/4898004)
+high_res_summary['Total Grants (USD)'] = high_res_summary['Total Grants (USD)'].map(lambda x: '{:20,.2f}'.format(x).strip())
+
+# Reorder
+high_res_summary = high_res_summary[['Ranking', 'Name', 'Country', 'Total Grants (USD)']]
+
+# Save for github
+high_res_summary.to_csv(MAIN_FOLDER + "analysis/resources/" + "2010_2015_rankings_simulation.csv", index=False)
+
+# ------------------------------------------------------------------------------------------------
 # Exports
 # ------------------------------------------------------------------------------------------------
 
@@ -368,14 +396,13 @@ funder_year_groupby.to_csv(export_dir + "funding_yearby_summary.csv", index=Fals
 # 3.
 orgs_by_grants = orgs_by_grants['OrganizationName'].reset_index().rename(columns={'index':'OrganizationRank'})
 orgs_by_grants['OrganizationRank'] += 1
+
+# Save on for use by the graphic
 orgs_by_grants.to_csv(export_dir + "organization_rankings.csv", index=False)
+
 
 # 4.
 funders_info.to_csv(export_dir + "funder_db_simulation.csv", index=False)
-
-
-
-
 
 
 
