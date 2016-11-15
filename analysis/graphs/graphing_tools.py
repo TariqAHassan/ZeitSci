@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from pprint import pprint
+from graphs.graphing_db_data import funders_dict
 from funding_database_tools import MAIN_FOLDER
 
 # ------------------------------------------------------------------------------------------------ #
@@ -72,5 +73,33 @@ def org_group(data_frame, additiona_cols=None):
     df['OrganizationBlock'] = df['OrganizationBlock'].map(lambda x: "; ".join(list(set(x))), na_action='ignore')
 
     return df
+
+
+def funder_info_db(df, col):
+    """
+
+    :param df:
+    :param col:
+    :return:
+    """
+    funder_dict_list = [[k] + v for k, v in funders_dict.items()]
+
+    funders_info = pd.DataFrame(funder_dict_list)
+    funders_info.rename(columns={3: "colour"}, inplace=True)
+    funders_info['lat'] = list(map(lambda x: x[0], funders_info[2]))
+    funders_info['lng'] = list(map(lambda x: x[1], funders_info[2]))
+    del funders_info[2]
+    funders_info.rename(columns={0 : 'funder_short', 1: 'funder'}, inplace=True)
+
+    funders_info = funders_info[funders_info['funder_short'].isin(df[col].unique().tolist())].reset_index(drop=True)
+    funders_info = funders_info.sort_values("funder").drop_duplicates('funder').reset_index(drop=True)
+    del funders_info['funder_short']
+
+    return funders_info[['funder', 'lat', 'lng', 'colour']]
+
+
+
+
+
 
 
