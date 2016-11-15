@@ -1,4 +1,4 @@
-/**
+/*!
  * Map of Global Science Funding.
  * Tariq A. Hassan, 2016.
  */
@@ -8,6 +8,7 @@
 // Key Resources Used for Help:
 //      1. http://techslides.com/d3-map-starter-kit
 //      2. http://www.tnoda.com/blog/2014-04-02
+// These are two fantastic resources; many thanks to their respective authors.
 
 //----------------------------------------------------------------------------------------//
 
@@ -19,12 +20,12 @@ var zoom = d3.behavior.zoom()
                       .scaleExtent([1, 5000])
                       .on("zoom", zoomer);
 
-// var width = document.getElementById("container").offsetWidth;
+// var width = document.getElementById("container_fs").offsetWidth;
 // var height = width / 2;
 
 var margin = {top: 0, right: 0, bottom: 0, left: 0},
-    width  = document.getElementById("container").offsetWidth + 500 - margin.left - margin.right,
-    height = document.getElementById("container").offsetWidth/2 + margin.bottom;
+    width  = document.getElementById("container_fs").offsetWidth + 500 - margin.left - margin.right,
+    height = document.getElementById("container_fs").offsetWidth/2.15 + margin.bottom;
 
 // Define the div for the tooltip
 var div = d3.select("body").append("div")
@@ -36,9 +37,9 @@ var div = d3.select("body").append("div")
 //Initialize
 
 //Variables and Constants
-var topo, projection, path, defs, filter, feMerge, text, legend, svgLwr, gLwr, svg, funderLayer, g;
-var currentYear = "";
-var legendBoxHeight = 240;
+var topo, projection, path, defs, filter, feMerge, text, legend, svgLwr, gLwr, svg, funderLayer, g, currentYear;
+var simulationComplete;
+var legendBoxHeight = 175;
 var largestSingleGrant = 0;
 var largestTotalGrantByOrg = 0;
 
@@ -60,15 +61,16 @@ var fundingAgencyFlightStatus = {};
 
 setup(width, height);
 function setup(width, height){
-    dateRealTime = [];
+    // dateRealTime = [];
 
     projection = d3.geo.mercator()
-                       .translate([(width/1.55), (height/0.95)])
+                       .translate([(width/1.65), (height/0.90)])
                        .scale(width / 1.30 / Math.PI);
 
     path = d3.geo.path().projection(projection);
 
-    svg = d3.select("#container")
+    svg = d3.select("body")
+            .select("#container_fs")
             .append("svg")
             .attr("width", width + margin.left + margin.right)
             .attr("height", height)
@@ -81,7 +83,7 @@ function setup(width, height){
     //Layer on top for the Funding Agency Markers
     funderLayer = svg.append("g");
 
-    svgLwr = d3.select("#container2")
+    svgLwr = d3.select("#container_fs2")
         .append("svg")
         .attr("width", width + margin.left + margin.right)
         .attr("height", legendBoxHeight)
@@ -95,7 +97,7 @@ function setup(width, height){
     //      1. http://www.visualcinnamon.com/2016/06/glow-filter-d3-visualization.html
     //      2. http://stackoverflow.com/a/19704735/4898004
 
-    //Container for the gradients
+    //container_fs for the gradients
     defs = svgLwr.append("defs");
 
     //Filter for the outside glow
@@ -103,7 +105,7 @@ function setup(width, height){
                     .attr("id","glow");
 
     filter.append("feGaussianBlur")
-                    .attr("stdDeviation","5.5")
+                    .attr("stdDeviation","2.85")
                     .attr("result","coloredBlur");
 
     feMerge = filter.append("feMerge");
@@ -119,11 +121,11 @@ function setup(width, height){
 
 //Tooltip Functionality
 
-var tooltipContainer = d3.select("#container")
+var tooltipcontainer_fs = d3.select("#container_fs")
                             .append("div")
                             .attr("class", "tooltip hidden");
 
-var tooltipContainer2 = d3.select("#container2")
+var tooltipcontainer_fs2 = d3.select("#container_fs2")
                             .append("div")
                             .attr("class", "tooltip hidden");
 
@@ -131,12 +133,15 @@ function showTooltip(d, tooltipObj, info, offsetL, offsetT){
     var mouse = d3.mouse(svg.node()).map(function(d) {
         return parseInt(d);
     });
+    if (offsetT === "auto"){
+        offsetT = $("#container_fs").offset().top + ($("#container_fs").offset().top*0.25);
+    }
     tooltipObj.classed("hidden", false)
-        .attr("style", "left:"+(mouse[0]-offsetL)+"px;" +
-                        "top:"+(mouse[1]+offsetT)+"px"
+        .attr("style", "left:" + (mouse[0]-offsetL) + "px;" +
+                        "top:" + (mouse[1]+offsetT) + "px"
         )
         .html(info)
-        .style("font-size", "45px");
+        .style("font-size", "25px");
 }
 
 function hideTooltip(tooltipObj){
@@ -150,40 +155,44 @@ function hideTooltip(tooltipObj){
 //Pass the starting date
 function addDate(startDate) {
     var xWidthAdjust = 50;
-    var startingContainerWidth = document.getElementById("container").offsetWidth;
+    var startingcontainer_fsWidth = document.getElementById("container_fs").offsetWidth;
+    var startingcontainer_fsHeight = document.getElementById("container_fs").offsetHeight;
+
+    var x = startingcontainer_fsWidth * 0.85;
+    var y = startingcontainer_fsHeight - startingcontainer_fsHeight * 0.1;
 
     text = svg.append("text")
                 .attr("class", "datebox")
-                .attr("x", startingContainerWidth - 300)
-                .attr("y", (startingContainerWidth / 2) - 80)
+                .attr("x", x)
+                .attr("y", y)
                 .attr("dy", ".35em")
                 .attr("text-anchor", "middle")
                 .style("font", "Lucida Grande")
-                .style("font-size", "85px")
-                .style("opacity", 0)
+                .style("font-size", "40px")
+                .style("fill", "black")
+                .style("opacity", 1)
                 .text(startDate);
 
     var bbox = text[0][0].getBBox();
 
-    svg.insert("rect", "text")
+    d3.select("#container_fs").select('svg').selectAll("Text")
+            .attr("x", startingcontainer_fsWidth - bbox.width/1.5)
+            .attr("y", startingcontainer_fsHeight - bbox.height/1.5)
+            .style("opacity", 1)
+            .style("fill", "black")
+            .text(startDate);
+
+    var bbox = text[0][0].getBBox();
+
+    svg.insert("rect")
         .attr("class", "datebox")
-        .attr("x", bbox.x - xWidthAdjust/2)
+        .attr("x", bbox.x - 25)
         .attr("y", bbox.y)
         .attr("width", bbox.width + xWidthAdjust)
-        .attr("height", bbox.height)
+        .attr("height", bbox.height + 10)
         .style("fill", "white")
         .style("opacity", 0.35);
 
-    svg.append("text")
-        .attr("class", "datebox")
-        .attr("x", startingContainerWidth - 300)
-        .attr("y", (startingContainerWidth / 2) - 80)
-        .attr("dy", ".35em")
-        .attr("text-anchor", "middle")
-        .style("font", "Lucida Grande")
-        .style("opacity", 1)
-        .style("font-size", "85px")
-        .text(startDate);
 }
 
 function dateChecker(newDate, oldDate) {
@@ -254,9 +263,15 @@ function orgListFormatter(orgList){
 }
 
 function tooltipInfoFormater(destination, realTimeInfo, locID){
+    var awardByData = realTimeInfo[locID][1]
+    var awardArray = [];
+    for (var a in awardByData){
+        awardArray.push(awardByData[a].replace("-", " "))
+    }
+
     var info = "<strong>" + destination + "</strong>" + " (#" + recipientRankings[destination] + ")" +"<br/>" +
                 "<em>" + "Total Grants: " + "</em>" + accounting.formatMoney(parseFloat(realTimeInfo[locID][0])) +
-                " USD" + "<br/>" + "<em>" + "Grants Awarded by: " + orgListFormatter(realTimeInfo[locID][1]) + "</em>"
+                " USD" + "<br/>" + "<em>" + "Grants Awarded by: " + orgListFormatter(awardArray) + "</em>"
     return info;
 }
 
@@ -311,7 +326,7 @@ function delta(grantMovement, path) {
 
 function terrestrialPoints(newDraw, grantToDraw, realTimeInfo){
     //Model Params
-    var c = 0.65;
+    var c = 0.85;
     var k = 0.1;
     var sizeFloor = 1.5;
 
@@ -349,13 +364,13 @@ function terrestrialPoints(newDraw, grantToDraw, realTimeInfo){
                     .style("opacity", 0.45)
                     .on("mousemove", function(d) {
                         showTooltip(d
-                                    , tooltipContainer
+                                    , tooltipcontainer_fs
                                     , tooltipInfoFormater(destination, realTimeInfo, locID)
-                                    , document.getElementById("container").offsetLeft-20
-                                    , document.getElementById("container").offsetTop+20
+                                    , document.getElementById("container_fs").offsetLeft-550
+                                    , document.getElementById("container_fs").offsetTop+205
                     )})
                     .on("mouseout",  function() {
-                        hideTooltip(tooltipContainer)
+                        hideTooltip(tooltipcontainer_fs)
                     });
     } else {
         d3.selectAll(".institution")
@@ -375,14 +390,14 @@ function legendCircleActivityScaler(grantToDraw){
             var transitionRate = 300;
         }
 
-        d3.selectAll("#container2")
+        d3.selectAll("#container_fs2")
             .select("#" + grantToDraw["funderName"].match(/\((.*?)\)/)[1] + "_legend_circle_glower")
             .transition()
             .duration(transitionRate)
             .attr("r", function (d, i){
                 var radius = d3.select(this).datum()["radius"];
                 if (status > 0) {
-                    return radius * 1.5;
+                    return radius * 1.70;
                 }
                 else {return 0;}
             })
@@ -415,8 +430,8 @@ function transition(grantMovement, route, grantToDraw, newDraw, realTimeInfo, fl
 
 function grantTranslate(grantToDraw, newDraw, realTimeInfo, flightSpeed) {
     //Model Params
+    var c = 0.45;
     var k = 0.7;
-    var c = 0.3;
     var minValue = 7;
 
     var from = funderGeoDict[grantToDraw["funderName"]];
@@ -424,7 +439,7 @@ function grantTranslate(grantToDraw, newDraw, realTimeInfo, flightSpeed) {
     var movingGrantRadius = logistic_fn(grantToDraw["grantAmount"], minValue, largestSingleGrant, k, c);
 
     var route = funderLayer.append("path")
-                   .attr("fill-opacity", 0)
+                   .attr("fill-opacity", 1)
                    .datum({type: "LineString", coordinates: [from, to]})
                    .attr("class", "route")
                    .attr("d", path);
@@ -451,75 +466,80 @@ function grantTranslateMaster(arrayOfGrantsToDraw, movementRate, flightSpeed){
     var realTimeInfo = {};
 
     var i = 0;
-    var complete = false;
-    var animationIntervalID = setInterval(function(){
-        if (i > arrayOfGrantsToDraw.length - 2) {complete = true;}
-
-        newDraw = false;
-        var grantToDraw = arrayOfGrantsToDraw[i];
-        var grantAmount = grantToDraw["grantAmount"];
-        var funderAbrev = funderNameAbbreviation[grantToDraw["funderName"]];
-
-        if (priorFundingRecipients.indexOf(grantToDraw["recipientUniqueGeo"]) === -1){
-            newDraw = true;
-            var newOrg = fillArray(funderAbrev, grantToDraw["numberOfGrants"]);
-
-            priorFundingRecipients.push(grantToDraw["recipientUniqueGeo"]);
-            realTimeInfo[grantToDraw["recipientUniqueGeo"]] = [grantAmount, newOrg];
-        } else {
-            var previousAmount = realTimeInfo[grantToDraw["recipientUniqueGeo"]][0];
-            var previousOrgs = realTimeInfo[grantToDraw["recipientUniqueGeo"]][1];
-            var newOrg = fillArray(funderAbrev, grantToDraw["numberOfGrants"]);
-
-            realTimeInfo[grantToDraw["recipientUniqueGeo"]] = [
-                previousAmount + grantAmount,
-                previousOrgs.concat(newOrg)
-            ];
-        }
-
-        //Update Record of Airborn Grants
-        if (!(grantToDraw["funderName"] in fundingAgencyFlightStatus)){
-            fundingAgencyFlightStatus[grantToDraw["funderName"]] = 1
-        } else {
-            fundingAgencyFlightStatus[grantToDraw["funderName"]] += 1
-        }
-
-        grantTranslate(grantToDraw, newDraw, realTimeInfo, flightSpeed);
-
-        //Update Date
-        //This is here to insure a linear flow for the time stamp. Pretty rigorous procedure.
-        //It is a bit of a fudge factor, but as the input funding csv will always be
-        //in proper descending order prior to export from pandas in python, this *should* act to smooth
-        //out erroneous date time updates which emerge from variability in d3 rendering.
-        var newDateToDraw = grantToDraw["startDate"];
-        if (dateRealTime.indexOf(newDateToDraw) === -1){
-            dateRealTime.push(newDateToDraw)
-            svg.selectAll("text").text(function(d) {
-                var currentDate = d3.select(this).text()
-                if (dateChecker(newDateToDraw, currentDate)){
-                    return newDateToDraw;
-                } else {
-                    return currentDate;
-                }
-            });
-        //Update the Current Year
-        if (currentYear != newDateToDraw.slice(-4)) {currentYear = newDateToDraw.slice(-4)}
-        }
-
-        // Stop when complete...
-        if (complete === true){
-            //Remove all glow on exit.
-            for (var key in fundingAgencyFlightStatus){
-                d3.selectAll("#container2")
-                    .select("#" + key.match(/\((.*?)\)/)[1] + "_legend_circle_glower")
-                    .attr("r", 0)
+    if (simulationComplete === false) {
+        var animationIntervalID = setInterval(function () {
+            if (i > arrayOfGrantsToDraw.length - 2) {
+                simulationComplete = true;
             }
-            clearInterval(animationIntervalID);
+
+            newDraw = false;
+            var grantToDraw = arrayOfGrantsToDraw[i];
+            var grantAmount = grantToDraw["grantAmount"];
+            var funderAbrev = funderNameAbbreviation[grantToDraw["funderName"]];
+
+            if (priorFundingRecipients.indexOf(grantToDraw["recipientUniqueGeo"]) === -1) {
+                newDraw = true;
+                var newOrg = fillArray(funderAbrev, grantToDraw["numberOfGrants"]);
+
+                priorFundingRecipients.push(grantToDraw["recipientUniqueGeo"]);
+                realTimeInfo[grantToDraw["recipientUniqueGeo"]] = [grantAmount, newOrg];
+            } else {
+                var previousAmount = realTimeInfo[grantToDraw["recipientUniqueGeo"]][0];
+                var previousOrgs = realTimeInfo[grantToDraw["recipientUniqueGeo"]][1];
+                var newOrg = fillArray(funderAbrev, grantToDraw["numberOfGrants"]);
+
+                realTimeInfo[grantToDraw["recipientUniqueGeo"]] = [
+                    previousAmount + grantAmount,
+                    previousOrgs.concat(newOrg)
+                ];
+            }
+
+            // //Update Record of Airborne Grants
+            if (!(grantToDraw["funderName"] in fundingAgencyFlightStatus)) {
+                fundingAgencyFlightStatus[grantToDraw["funderName"]] = 1
+            } else {
+                fundingAgencyFlightStatus[grantToDraw["funderName"]] += 1
+            }
+
+            grantTranslate(grantToDraw, newDraw, realTimeInfo, flightSpeed);
+
+            //Update Date
+            //This is here to insure a linear flow for the time stamp. Pretty rigorous procedure.
+            //It is a bit of a fudge factor, but as the input funding csv will always be
+            //in proper descending order prior to export from pandas in python, this *should* act to smooth
+            //out erroneous date time updates which emerge from variability in d3 rendering.
+            var newDateToDraw = grantToDraw["startDate"];
+            if (dateRealTime.indexOf(newDateToDraw) === -1) {
+                dateRealTime.push(newDateToDraw)
+                svg.selectAll("text").text(function (d) {
+                    var currentDate = d3.select(this).text()
+                    if (dateChecker(newDateToDraw, currentDate)) {
+                        return newDateToDraw;
+                    } else {
+                        return currentDate;
+                    }
+                });
+                //Update the Current Year
+                if (currentYear != newDateToDraw.slice(-4)) {
+                    currentYear = newDateToDraw.slice(-4)
+                }
+            }
+
+            // Stop when simulation complete...
+            if (simulationComplete === true) {
+                //Remove all glow on exit.
+                for (var key in fundingAgencyFlightStatus) {
+                    d3.selectAll("#container_fs2")
+                        .select("#" + key.match(/\((.*?)\)/)[1] + "_legend_circle_glower")
+                        .attr("r", 0)
+                }
+                clearInterval(animationIntervalID);
+            }
+            //Pump counter.
+            i++;
         }
-        //Pump counter.
-        i++;
+        , movementRate);
     }
-    , movementRate);
 }
 
 //----------------------------------------------------------------------------------------//
@@ -547,9 +567,11 @@ function legendTooltipInfo(name, taskType){
 }
 
 function legendGenerator(legend, currentWidth){
-    var yCircleSpace = 80;
-    var yTextSpace = yCircleSpace * 1.35;
-    var legendCircleSize = 40;
+    var fontSize;
+    var yCircleSpace = 70;
+    var yTextSpace = yCircleSpace * 1.20;
+    var currentWidth = document.getElementById("container_fs").offsetWidth;
+    var legendCircleSize = currentWidth/70;
 
     var legendToDraw = {}
     for (var key in funderColors){
@@ -578,12 +600,14 @@ function legendGenerator(legend, currentWidth){
                 .datum({"radius" : legendCircleSize, "name" : abbreiv.split("_")[0]})
                 .on("mousemove", function (d) {
                     var name = d3.select(this).attr("id").split("_")[0];
-                    var offsetL = -document.getElementById("container2").offsetLeft;
-                    var offsetT = legendBoxHeight - legendBoxHeight/1.2;
-                    showTooltip(d, tooltipContainer2, legendTooltipInfo(name, 0), offsetL, offsetT);
+                    var offsetL = document.getElementById("container_fs2").offsetLeft;
+                    var yPos = parseInt($("#container_fs").offset().top + 400 - (d3.select(this).attr('r')/2));
+
+                    showTooltip(d, tooltipcontainer_fs2, legendTooltipInfo(name, 0), -offsetL, yPos);
+
                     //Scale Corresponding Map point up
                     d3.selectAll(".funderpoints")
-                        .select("#" + name)
+                        .select("#" + "s_" + name)
                         .transition()
                         .duration(250)
                         .attr("r", function (d, i){
@@ -593,10 +617,10 @@ function legendGenerator(legend, currentWidth){
                 })
                 .on("mouseout", function () {
                     var name = d3.select(this).attr("id").split("_")[0];
-                    hideTooltip(tooltipContainer2);
+                    hideTooltip(tooltipcontainer_fs2);
                     //Scale Corresponding Map point down
                     d3.selectAll(".funderpoints")
-                        .select("#" + name)
+                        .select("#" + "s_" + name)
                         .transition()
                         .duration(250)
                         .attr("r", function (d, i){
@@ -604,6 +628,14 @@ function legendGenerator(legend, currentWidth){
                             return pointScale(d3.select(this).datum(), s);
                         });
                 });
+        }
+        var fontSizeScaled = parseInt(currentWidth * 0.016);
+        if (fontSizeScaled < 15) {
+            fontSize = 15;
+        } else if (fontSizeScaled > 23) {
+            fontSize = 25;
+        } else {
+            fontSize = fontSizeScaled;
         }
 
         legend.attr("class", "legend")
@@ -614,9 +646,10 @@ function legendGenerator(legend, currentWidth){
             .attr("dy", ".35em")
             .attr("text-anchor", "middle")
             .style("font", "Lucida Grande")
-            .style("font-size", "45px")
+            .style("font-size", fontSize + "px")
+            .style("fill", "gray")
             .style("opacity", 1)
-            .text(abbreiv);
+            .text(abbreiv.replace("-", " "));
 
         spacer += spaceIncrement;
     }
@@ -654,15 +687,23 @@ function objConcat(object1, object2) {
     return object1;
 }
 
-function drawMain(simulationSpeed, flightSpeed) {
-    var startDate = "";
+function drawMain(simulationSpeed) {
 
-    var yearsInDb = [];
+    //Block restart after completion
+    if (simulationComplete != true){
+        simulationComplete = false;
+    }
+
+    currentYear = "";
+    var cWidth = document.getElementById("container_fs").offsetWidth;
+    var scalar = 1750/cWidth;
+    var flightSpeed = (cWidth * 0.005) * (scalar) * 1.65;
+
     var routesToDraw = [];
     var grantMovements = [];
     var orgFundingInfoTemp = {};
 
-    d3.json("data/starter_kit/data/world-topo-min.json", function(error, world) {
+    d3.json("data/simulation_data_production/world-topo-min.json", function(error, world) {
         topo = topojson.feature(world, world.objects.countries).features;
 
         var country = g.selectAll(".country").data(topo);
@@ -671,13 +712,13 @@ function drawMain(simulationSpeed, flightSpeed) {
                         .attr("d", path)
                         .style("fill", "#383838");
 
-        var offsetL = document.getElementById("container").offsetLeft+0;
-        var offsetT = document.getElementById("container").offsetTop+10;
+        var offsetL = document.getElementById("container_fs").offsetLeft+0;
+        var offsetT = document.getElementById("container_fs").offsetTop+10;
 
-        d3.csv("data/funder_db.csv", function(error, funder){
+        d3.csv("data/simulation_data_production/funder_db_simulation.csv", function(error, funder){
             funder.forEach(function (d) {
                 var abbreviation = d["funder"].match(/\((.*?)\)/)[1];
-                addFunderPoints(d["lng"], d["lat"], 12, d["funder"], d["colour"], 0.85);
+                addFunderPoints(d["lng"], d["lat"], 10.5, d["funder"], d["colour"], 0.85);
                 funderGeoDict[d["funder"]] = [d["lng"], d["lat"]].map(parseFloat);
                 funderColors[d["funder"]] = d["colour"]
                 funderColorsAbbreviation[abbreviation] = d["colour"]
@@ -685,14 +726,15 @@ function drawMain(simulationSpeed, flightSpeed) {
                 abbreviationFunderName[abbreviation] = d["funder"]
             });
 
-            d3.csv("data/organization_rankings.csv", function(error, recipient) {
+            d3.csv("data/simulation_data_production/organization_rankings.csv", function(error, recipient) {
                 recipient.forEach(function (d) {
                     recipientRankings[d["OrganizationName"]] = parseInt(d["OrganizationRank"])
                 })
             });
 
-            //Add Summary Information for each Agency for each Year
-            d3.csv("data/funding_yearby_summary.csv", function(error, funder) {
+            var startDate = "";
+            // Add Summary Information for each Agency for each Year
+            d3.csv("data/simulation_data_production/funding_yearby_summary.csv", function(error, funder) {
                 funder.forEach(function (d) {
                     //Set the starting year
                     if (currentYear === ""){currentYear = d["Year"]}
@@ -709,7 +751,7 @@ function drawMain(simulationSpeed, flightSpeed) {
             });
 
             //Add Funding Information
-            d3.csv("data/funding_simulation_data.csv", function(error, grant){
+            d3.csv("data/simulation_data_production/funding_simulation_data.csv", function(error, grant){
                 grant.forEach(function (d) {
 
                     //Get the Current Grant
@@ -718,7 +760,9 @@ function drawMain(simulationSpeed, flightSpeed) {
                     if (!(isNaN(amount))) {
 
                         //Save the first date in the database
-                        if (startDate === "") {startDate = d["StartDate"];}
+                        if (startDate === "") {
+                            startDate = d["StartDate"];
+                        }
 
                         var fromPoint = funderGeoDict[d["FunderNameFull"]].map(String);
                         var toPoint = [d["lng"], d["lat"]];
@@ -748,7 +792,7 @@ function drawMain(simulationSpeed, flightSpeed) {
                     }
                 });
                 //Add Legend
-                var currentWidth = document.getElementById("container2").offsetWidth;
+                var currentWidth = document.getElementById("container_fs2").offsetWidth;
                 legend = gLwr.append("g").attr("class", "legend");
                 legendGenerator(legend, currentWidth);
 
@@ -773,25 +817,27 @@ function drawMain(simulationSpeed, flightSpeed) {
 // Tools for plotting funders
 
 function funderCircleAppend(appendTo, x, y, color, opacity, r, info){
-    appendTo.append("svg:circle")
+    appendTo.append("circle")
+        .attr("class", "funderpoints")
         .attr("cx", x)
         .attr("cy", y)
         .attr("class","funderpoint")
         .style("fill", color)
         .style("opacity", opacity)
-        .attr("id", info.match(/\((.*?)\)/)[1])
+        .attr("id", "s_" + info.match(/\((.*?)\)/)[1])
         .attr("r", r)
         .datum(r)
-        .on("mousemove", function(d) {
-            showTooltip(d
-                        , tooltipContainer
-                        , "<strong>" + info + "</strong>"
-                        , document.getElementById("container").offsetLeft
-                        , document.getElementById("container").offsetTop+10
-        )})
-        .on("mouseout",  function() {
-            hideTooltip(tooltipContainer)
-        });
+        // .on("mousemove", function(d) {
+        //     var l = d3.select(this).attr("cx")
+        //     showTooltip(d
+        //                 , tooltipcontainer_fs
+        //                 , "<strong>" + info.replace("-", " ") + "</strong>"
+        //                 , document.getElementById("container_fs").offsetLeft-550
+        //                 , document.getElementById("container_fs").offsetTop+250
+        // )})
+        // .on("mouseout",  function() {
+        //     hideTooltip(tooltipcontainer_fs)
+        // });
 }
 
 //function to add points and text to the map (used in plotting grants)
@@ -806,17 +852,16 @@ function addFunderPoints(lat, lon, amount, name, color, opacity) {
 
 //General Mechanics
 var simulationSpeed = 0.01;
-var flightSpeed = 7;
 
 function redraw() {
     //to do:
     //Correct window resize (i.e., edit setup())
-    width = document.getElementById("container").offsetWidth;
+    width = document.getElementById("container_fs").offsetWidth;
     height = width / 2;
-    d3.select("#container").select("svg").remove();
-    d3.select("#container2").select("svg").remove();
+    d3.select("#container_fs").select("svg").remove();
+    d3.select("#container_fs2").select("svg").remove();
     setup(width, height);
-    drawMain(simulationSpeed, flightSpeed);
+    drawMain(simulationSpeed);
 }
 
 function pointScale(amount, zoomScale){
@@ -878,8 +923,8 @@ function throttle() {
 
 //----------------------------------------------------------------------------------------//
 
-//Execute Simulation -- smaller = faster.
-drawMain(simulationSpeed, flightSpeed);
+//Execute Simulation
+drawMain(simulationSpeed);
 
 
 
