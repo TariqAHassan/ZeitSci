@@ -417,10 +417,15 @@ function legendCircleActivityScaler(grantToDraw){
             .style("filter", "url(#glow)");
 }
 
-function transition(grantMovement, route, grantToDraw, newDraw, realTimeInfo, flightSpeed) {
+function transition(grantMovement, movingGrantRadius, route, grantToDraw, newDraw, realTimeInfo, flightSpeed) {
     var l = route.node().getTotalLength();
 
-    grantMovement.transition()
+    grantMovement
+        .attr("r", movingGrantRadius)
+        .transition()
+        .duration(0)
+        .attr("fill-opacity", 0.85)
+        .transition()
         .duration(l * flightSpeed)
         .attrTween("transform", delta(grantMovement, route.node()))
         .each("end", function() {
@@ -457,13 +462,16 @@ function grantTranslate(grantToDraw, newDraw, realTimeInfo, flightSpeed) {
                    .attr("class", "route")
                    .attr("d", path);
 
-    var grantMovement = g.append("svg:circle")
+    //Note:
+    //adding .attr("cx", 100) and .attr("cy", 100)
+    //below creates a pretty cool 'slingshot' effect.
+    var grantMovement = g.append("circle")
                             .attr("class", "grantMovement")
                             .attr("fill", funderColors[grantToDraw["funderName"]])
-                            .attr("r", movingGrantRadius)
-                            .attr("fill-opacity", 0.85);
+                            .attr("r", 0)
+                            .attr("fill-opacity", 0);
 
-    transition(grantMovement, route, grantToDraw, newDraw, realTimeInfo, flightSpeed);
+    transition(grantMovement, movingGrantRadius, route, grantToDraw, newDraw, realTimeInfo, flightSpeed);
 }
 
 function fillArray(value, len) {
@@ -710,7 +718,7 @@ function drawMain(simulationSpeed) {
     currentYear = "";
     var cWidth = document.getElementById("container_fs").offsetWidth;
     var scalar = 1750/cWidth;
-    var flightSpeed = (cWidth * 0.005) * (scalar) * 1.65;
+    var flightSpeed = (cWidth * 0.005) * (scalar) * 1.60;
 
     var routesToDraw = [];
     var grantMovements = [];
