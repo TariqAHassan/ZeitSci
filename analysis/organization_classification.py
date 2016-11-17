@@ -35,6 +35,8 @@ org_classes = {
                     ' phd,',
                     '! phd',
                     'Dr.',
+                    'Prof. '
+                    "professor"
                     'MD',
                     'Miss.',
                     'Mr.',
