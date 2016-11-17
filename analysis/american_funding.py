@@ -191,20 +191,21 @@ us_df['organization_name'] = us_df['organization_name'].progress_map(titler, na_
 del us_df["organization_zip"]
 
 # Rename Columns
-us_df.columns = ["Researcher"
-                 , "GrantYear"
-                 , "OrganizationCity"
-                 , "OrganizationBlock"
-                 , "OrganizationName"
-                 , "OrganizationState"
-                 , "StartDate"
-                 , "Keywords"
-                 , "ProjectTitle"
-                 , "Amount"
-                 , "Funder"
-                 , "lat"
-                 , "lng"
-]
+us_df.rename(columns={
+                "project_terms" : "Keywords",
+                "project_title" : "ProjectTitle",
+                "project_start_date" : "StartDate",
+                "contact_pi_project_leader" : "Researcher",
+                "organization_name" : "OrganizationName",
+                "organization_city" : "OrganizationCity",
+                "organization_state" : "OrganizationState",
+                "organization_country" : "OrganizationBlock",
+                "fy" : "GrantYear",
+                "fy_merged" : "Amount",
+                "fundingsource" : "Funder",
+                "lat" : "lat",
+                "lng" : "lng"
+}, inplace=True)
 
 # Add Currency Column
 us_df["FundCurrency"] = pd.Series("USD", index=us_df.index)
@@ -220,7 +221,7 @@ for d in [US_states, Canada_prov_terr, European_Countries]:
 us_df['GrantYear'] = us_df['GrantYear'].astype(float)
 us_df['Amount'] = us_df['Amount'].astype(float)
 
-# Correct weird case of negative grants.
+# Correct weird case of negative grants -- Not needed after 11/1/2016 update.
 us_df['Amount'] = us_df['Amount'].map(lambda x: -1*x if x < 0 else x, na_action='ignore')
 
 # Refresh index
