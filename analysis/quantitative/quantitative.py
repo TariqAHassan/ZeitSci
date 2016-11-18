@@ -1,7 +1,7 @@
 """
 
-    Keyword Visualization Data Processing
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Formal Python Analyses of the Data
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     Python 3.5
 
@@ -28,7 +28,6 @@ funding['StartYear'] = funding['StartYear'].astype(float)
 
 range_funding = funding[(funding['StartYear'] >= 2005) & (funding['StartYear'] <= 2015)]
 
-
 db_total = range_funding['NormalizedAmount'].sum()
 d = {c: range_funding[range_funding['FunderBlock'].str.upper() == c.upper()]['NormalizedAmount']\
         .sum()/db_total for c in funding['FunderBlock'].unique()}
@@ -39,7 +38,7 @@ block_dict = {k: round(float(v)*100, 1) for k, v in d.items()}
 # Highest-Funded Organizations
 # ------------------------------------------------------------------------------------------------
 
-top = 100
+top = 250
 
 top_orgs = funding[(funding['StartYear'].astype(float) >= 2010) & (funding['StartYear'].astype(float) < 2016)].groupby(
     ['OrganizationName', 'OrganizationBlock', 'StartYear'])['NormalizedAmount'].sum().reset_index()

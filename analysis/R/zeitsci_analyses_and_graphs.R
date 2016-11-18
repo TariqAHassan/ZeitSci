@@ -247,9 +247,9 @@ org_category <- org_category[org_category$StartYear >= 2005,]
 
 # Simplify Categories
 category_simplify <- function(category){
-    # if (grepl("Educational", category) == TRUE){
-        # return("Educational")
-    if (grepl("Governmental", category) == TRUE){
+    if ((grepl("Educational", category) == TRUE) & (grepl("Medical", category) != TRUE)){
+        return("Educational")
+    } else if (grepl("Governmental", category) == TRUE){
         return("Governmental")
     } else if (grepl("Industry", category) == TRUE){
         return("Industry")
@@ -407,6 +407,7 @@ funding_violins_general <- function(data_frame, q, title="", x_label="", y_label
                      , colour = "#333333"
                      , size = 3
                      , position = position_dodge(width = 0.9)) +
+        scale_y_continuous(breaks = c(0, 2.5, 5.0, 7.5)) +
         theme(
             legend.position = "none",
             axis.title.y = element_text(margin = margin(r=25)),
