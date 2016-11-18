@@ -37,6 +37,7 @@ tqdm.pandas(desc="status")
 
 # ------------------------------------------------------------------------------------------------
 
+
 # Columns to Use
 keyword_df_columns = ["Keywords",
                        "Funder",
@@ -100,9 +101,9 @@ keyword_df_sum = keyword_df_sum.sort_values(by=["NormalizedAmount"], ascending=F
 # ------------------------------------------------------------------------------------------------
 
 export_path = MAIN_FOLDER + "Data/keyword_databases/"
-# keyword_df_sum.to_csv(export_path + "keywords_db2.csv", index=False, chunksize=500000)
+keyword_df_sum.to_csv(export_path + "keywords_db3.csv", index=False, chunksize=500000)
 
-keyword_df_sum = pd.read_csv(export_path + "keywords_db2.csv")
+# keyword_df_sum = pd.read_csv(export_path + "keywords_db3.csv")
 
 # Drop dod until until a more complete record is obtained from the by NIH
 keyword_df_sum = keyword_df_sum[~keyword_df_sum['Funder'].progress_map(lambda x: True if "DOD" in str(x).upper() else False)].reset_index(drop=True)
@@ -246,13 +247,14 @@ top_funded_funder['ProportionYearlyTop'] = top_funded_funder.apply(keyword_agenc
 # Countries
 # top_funded_country.to_csv(export_path + "countries_keywords.csv", index=False)
 
+save_path = MAIN_FOLDER + "/visualizations/keyword_data/"
+
 # Funders#
-top_funded_funder.to_csv(export_path + "funders_keywords.csv", index=False)
-top_funded_funder_year.to_csv(export_path + "funders_keywords_by_year.csv", index=False)
+top_funded_funder.to_csv(save_path + "funders_keywords.csv", index=False)
+top_funded_funder_year.to_csv(save_path + "funders_keywords_by_year.csv", index=False)
 
 # Save a funder_db
-funder_info_db(df=top_funded_funder, col="FunderFull").to_csv(export_path + "funder_db_keywords.csv", index=False)
-
+funder_info_db(df=top_funded_funder, col="FunderFull").to_csv(save_path + "funder_db_keywords.csv", index=False)
 
 
 

@@ -3,6 +3,8 @@
     Tools for Manipulating the Databases for Geo-Mapping
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+    Primarly Used to Construct the Funding Simulation
+
 """
 # Imports
 import re
@@ -24,9 +26,6 @@ from funding_database_tools import MAIN_FOLDER
 from funding_database_tools import unique_order_preseve
 from easymoney.easy_pandas import pandas_print_full
 from graphs.graphing_tools import money_printer, org_group
-
-# To Do:
-# Add EU to EC in legend
 
 # ------------------------------------------------------------------------------------------------
 # Read in Data
@@ -197,7 +196,7 @@ funding = funding[~(funding['OrganizationName'].isin(to_remove_flat))].reset_ind
 
 top_x_orgs = 100
 min_start_date = "01/01/2010"
-max_start_date = "31/12/2015"#time.strftime("%d/%m/%Y")
+max_start_date = "31/12/2015"
 required_terms = []
 # required_terms = ['unive', 'ecole', 'polytechnique', 'school', 'acad', 'hospit', 'medical', 'istit', 'labra', 'obser',
 # 'clinic', 'centre', 'center', 'college']
@@ -382,6 +381,18 @@ high_res_summary = high_res_summary[['Ranking', 'Name', 'Country', 'Total Grants
 high_res_summary.to_csv(MAIN_FOLDER + "analysis/resources/" + "2010_2015_rankings_simulation.csv", index=False)
 
 # ------------------------------------------------------------------------------------------------
+# Descriptive Stats
+# ------------------------------------------------------------------------------------------------
+
+funding['StartDatePD'] = pd.to_datetime(funding['StartDate'], format="%d/%m/%Y")
+total_funding = funding[(funding['StartDatePD'] >= min_start_date) &
+                        (funding['StartDatePD'] <= max_start_date)
+]['NormalizedAmount'].sum()
+
+# Percent of total funding going to these organizations:
+(to_export['NormalizedAmount'].sum() / total_funding) * 100
+
+# ------------------------------------------------------------------------------------------------
 # Exports
 # ------------------------------------------------------------------------------------------------
 
@@ -400,12 +411,8 @@ orgs_by_grants['OrganizationRank'] += 1
 # Save on for use by the graphic
 orgs_by_grants.to_csv(export_dir + "organization_rankings.csv", index=False)
 
-
 # 4.
 funders_info.to_csv(export_dir + "funder_db_simulation.csv", index=False)
-
-
-
 
 
 
