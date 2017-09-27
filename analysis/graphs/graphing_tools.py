@@ -13,7 +13,6 @@ from pprint import pprint
 from graphs.graphing_db_data import funders_dict
 from funding_database_tools import MAIN_FOLDER
 
-# ------------------------------------------------------------------------------------------------ #
 
 def money_printer(money, currency=None, year=None, round_to=2):
     """
@@ -50,10 +49,10 @@ def money_printer(money, currency=None, year=None, round_to=2):
 
     return str(to_return)
 
-def org_group(data_frame, additiona_cols=None):
 
+def org_group(data_frame, additiona_cols=None):
     # Group by
-    groupby_cols = ['Researcher', 'OrganizationBlock', 'lat', 'lng', 'NormalizedAmount', 'GrantYear'] +\
+    groupby_cols = ['Researcher', 'OrganizationBlock', 'lat', 'lng', 'NormalizedAmount', 'GrantYear'] + \
                    (additiona_cols if additiona_cols != None else [])
     df = data_frame.groupby(['OrganizationName']).progress_apply(
         lambda x: [x[c].tolist() for c in groupby_cols]).reset_index()
@@ -69,7 +68,7 @@ def org_group(data_frame, additiona_cols=None):
     df['lat'] = df['lat'].map(lambda x: x[0])
     df['lng'] = df['lng'].map(lambda x: x[0])
     df['Researcher'] = df['Researcher'].map(lambda x: list(set(x))[:5], na_action='ignore').str.join("<br>")
-    df['NormalizedAmount'] = df['NormalizedAmount'].map(lambda x: sum(x),  na_action='ignore')
+    df['NormalizedAmount'] = df['NormalizedAmount'].map(lambda x: sum(x), na_action='ignore')
     df['OrganizationBlock'] = df['OrganizationBlock'].map(lambda x: "; ".join(list(set(x))), na_action='ignore')
 
     return df
@@ -89,17 +88,10 @@ def funder_info_db(df, col):
     funders_info['lat'] = list(map(lambda x: x[0], funders_info[2]))
     funders_info['lng'] = list(map(lambda x: x[1], funders_info[2]))
     del funders_info[2]
-    funders_info.rename(columns={0 : 'funder_short', 1: 'funder'}, inplace=True)
+    funders_info.rename(columns={0: 'funder_short', 1: 'funder'}, inplace=True)
 
     funders_info = funders_info[funders_info['funder_short'].isin(df[col].unique().tolist())].reset_index(drop=True)
     funders_info = funders_info.sort_values("funder").drop_duplicates('funder').reset_index(drop=True)
     del funders_info['funder_short']
 
     return funders_info[['funder', 'lat', 'lng', 'colour']]
-
-
-
-
-
-
-

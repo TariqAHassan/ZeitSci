@@ -1,10 +1,9 @@
-
-
 import re
 import time
 from itertools import chain
 
-def pprint(string, n = 80):
+
+def pprint(string, n=80):
     """
     Pretty print a string, breaking it in chucks on length n.
     """
@@ -15,11 +14,13 @@ def pprint(string, n = 80):
     if len(string) < n:
         print(string)
     else:
-        string_split = [string[i:i + n] for i in range(0, len(string), n)] # see http://stackoverflow.com/questions/9475241/split-python-string-every-nth-character
+        # see http://stackoverflow.com/questions/9475241/split-python-string-every-nth-character
+        string_split = [string[i:i + n] for i in range(0, len(string), n)]
         for l in string_split:
             print(l.lstrip())
 
-def lprint(input_list, tstep = None):
+
+def lprint(input_list, tstep=None):
     """
 
     :param input_list:
@@ -42,7 +43,8 @@ def lprint(input_list, tstep = None):
                 time.sleep(tstep)
             print(str(l) + ":", input_list[l])
 
-def cln(i, extent = 1):
+
+def cln(i, extent=1):
     """
 
     String white space 'cleaner'.
@@ -60,14 +62,13 @@ def cln(i, extent = 1):
     else:
         return i
 
-    # else:
-    #     return None
-    #
-    # if es:
-    #     return to_return.lstrip().rstrip()
-    # else:
-    #     return to_return
-
+        # else:
+        #     return None
+        #
+        # if es:
+        #     return to_return.lstrip().rstrip()
+        # else:
+        #     return to_return
 
 
 def insen_replace(input_str, term, replacement):
@@ -88,6 +89,7 @@ def insen_replace(input_str, term, replacement):
 
     return disp_term.sub(replacement, disp[i]).lstrip().rstrip()
 
+
 def partial_match(input_str, looking_for):
     """
 
@@ -101,6 +103,7 @@ def partial_match(input_str, looking_for):
     else:
         return False
 
+
 def partial_list_match(input_str, allowed_list):
     """
 
@@ -112,12 +115,13 @@ def partial_list_match(input_str, allowed_list):
     allowed_list = [cln(i.lower(), 1).lstrip().rstrip() for i in allowed_list]
 
     for i in allowed_list:
-        if partial_match(input_str = input_str, looking_for = i):
+        if partial_match(input_str=input_str, looking_for=i):
             return True
 
     return False
 
-def endpoints_str(input, start, end = ","):
+
+def endpoints_str(input, start, end=","):
     """
 
     :param input:
@@ -127,11 +131,12 @@ def endpoints_str(input, start, end = ","):
     """
 
     try:
-        return cln(start + input[len(start):-len(end)],1).lstrip().rstrip()
+        return cln(start + input[len(start):-len(end)], 1).lstrip().rstrip()
     except:
         return None
 
-def pandas_col_shift(data_frame, column, move_to = 0):
+
+def pandas_col_shift(data_frame, column, move_to=0):
     """
 
     Please see Sachinmm's StackOverflow answer:
@@ -155,7 +160,7 @@ def pandas_col_shift(data_frame, column, move_to = 0):
     cols = data_frame.columns.tolist()
     cols.insert(move_to, cols.pop(cols.index(column)))
 
-    return data_frame.reindex(columns = cols)
+    return data_frame.reindex(columns=cols)
 
 
 def items_present_test(input_list, clist):
@@ -174,32 +179,8 @@ def items_present_test(input_list, clist):
 def fast_flatten(input_list):
     return list(chain.from_iterable(input_list))
 
+
 def multi_replace(input_str, to_remove):
     for tr in to_remove:
         input_str = input_str.replace(tr, "")
     return input_str
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

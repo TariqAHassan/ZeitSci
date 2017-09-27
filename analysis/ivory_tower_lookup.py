@@ -11,7 +11,6 @@
         --> Kaggle Data
 
 """
-# Import Modules
 import os
 import time
 import numpy as np
@@ -41,7 +40,7 @@ from my_keys import OPENCAGE_KEY, MAIN_FOLDER
 # ---------------------------------------------------------------- #
 
 # Import country db
-cdb = pd.read_csv(MAIN_FOLDER + "Data/" + "countries_by_continents.csv", encoding = "ISO-8859-1")
+cdb = pd.read_csv(MAIN_FOLDER + "Data/" + "countries_by_continents.csv", encoding="ISO-8859-1")
 
 # Import the iso country name database
 # see: https://en.wikipedia.org/wiki/ISO_3166-1#Current_codes
@@ -49,14 +48,15 @@ isodb = pd.read_csv(MAIN_FOLDER + "Data/" + "iso_country_codes.csv")
 
 # Import world city info
 wldc = pd.read_csv("worldcities.csv")
-wldc = wldc.rename(columns = {wldc.columns[0] : "CountryCode", wldc.columns[6]: "City"})
+wldc = wldc.rename(columns={wldc.columns[0]: "CountryCode", wldc.columns[6]: "City"})
 
 # Import the university database
-wdb = pd.read_csv(MAIN_FOLDER + "Data/" + "world_universities.csv", keep_default_na=False) # prevent NA --> nan
+wdb = pd.read_csv(MAIN_FOLDER + "Data/" + "world_universities.csv", keep_default_na=False)  # prevent NA --> nan
 
 # Import currency codes
 # see wiki: https://en.wikipedia.org/wiki/Template:Most_traded_currencies
 iso_currencies = pd.read_csv(MAIN_FOLDER + "Data/" + "popular_ISO_currencies.csv")
+
 
 # ---------------------------------------------------------------- #
 # Correct/Add Country Col.  
@@ -78,7 +78,7 @@ def alpha2_lookup(alpha):
 
     # Special Case
     if alpha.lower() == "an":
-        return "Netherlands Antilles" # this Country has been disolved and removed from the ISO data.
+        return "Netherlands Antilles"  # this Country has been disolved and removed from the ISO data.
 
     # Return Country
     try:
@@ -86,8 +86,9 @@ def alpha2_lookup(alpha):
     except:
         return ""
 
+
 # Deploy alpha2_lookup() on wdb's country col.
-wdb.rename(columns = {'Country': 'CountryCode'}, inplace = True)
+wdb.rename(columns={'Country': 'CountryCode'}, inplace=True)
 wdb["Country"] = ""
 for ac in wdb.CountryCode.unique().tolist():
     wdb.ix[wdb.CountryCode == str(ac).upper(), 'Country'] = alpha2_lookup(str(ac).upper())
@@ -108,13 +109,14 @@ wldc = pandas_col_shift(wldc, "Country")
 # ---------------------------------------------------------------- #
 
 # Split into Country and Capital
-cdb.CountryCapital = cdb.CountryCapital.apply(lambda i: [cln(j,1).lstrip().rstrip() for j in i.split("-")])
+cdb.CountryCapital = cdb.CountryCapital.apply(lambda i: [cln(j, 1).lstrip().rstrip() for j in i.split("-")])
 
 # Country alone
 cdb["Country"] = cdb.CountryCapital.apply(lambda i: i[0])
 
 # Capital alone
 cdb["Capital"] = cdb.CountryCapital.apply(lambda i: i[1])
+
 
 # ---------------------------------------------------------------- #
 # Add Continent Information to wdb 
@@ -135,6 +137,7 @@ def continent_lookup(country):
     except:
         return ""
 
+
 # Deploy continent_lookup ---> good, but not perfect
 wdb["Continent"] = wdb.Country.apply(continent_lookup)
 
@@ -147,7 +150,7 @@ wdb["Continent"] = wdb["Continent"].apply(lambda i: [cln(j, 1).lstrip().rstrip()
 
 # Reorder
 pref_col_order = ["University", "Country", "Continent", "Website"]
-wdb = wdb.reindex_axis(pref_col_order, axis = 1)
+wdb = wdb.reindex_axis(pref_col_order, axis=1)
 
 # Institution Properties
 wdb['Endowment'] = ""
@@ -164,7 +167,8 @@ wdb['DataSource'] = ""
 wikiuni = WikiUniversities(iso_currencies=iso_currencies)
 
 
-def wiki_uni_extractor(df, save_to, file_name, start=0, continent=None, semi_complete=50, partial_saves=True, verbose=True):
+def wiki_uni_extractor(df, save_to, file_name, start=0, continent=None, semi_complete=50, partial_saves=True,
+                       verbose=True):
     """
 
     Very messy code...but it works.
@@ -196,7 +200,8 @@ def wiki_uni_extractor(df, save_to, file_name, start=0, continent=None, semi_com
         # Look up info on wikipedia
         try:
             lookup_rslt = None
-            lookup_rslt = wikiuni.university_information(wiki_page_title=df['University'][row], region=df['Country'][row])
+            lookup_rslt = wikiuni.university_information(wiki_page_title=df['University'][row],
+                                                         region=df['Country'][row])
 
             # Check that processing is going as desired
             if lookup_rslt == None:
@@ -226,6 +231,7 @@ def wiki_uni_extractor(df, save_to, file_name, start=0, continent=None, semi_com
 
     return df
 
+
 # Extract
 file_name = "EuropeanUniversities"
 directory = MAIN_FOLDER + "/Data/WikiPull/Europe/semi_complete"
@@ -234,209 +240,4 @@ directory = MAIN_FOLDER + "/Data/WikiPull/Europe/semi_complete"
 final_db = wiki_uni_extractor(wdb, save_to=directory, start=550, file_name=file_name, continent='Europe')
 
 # Save result
-final_db.to_csv(directory +  "/" + file_name + "Complete.csv", sep = ",", index=False)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+final_db.to_csv(directory + "/" + file_name + "Complete.csv", sep=",", index=False)

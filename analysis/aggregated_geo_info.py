@@ -7,18 +7,17 @@
         ...i.e., beware of starred expression.
 
 """
-# Import Modules
 import os
 import numpy as np
 import pandas as pd
 from fuzzywuzzy import process
-from abstract_analysis import *
-from supplementary_fns import cln
+from analysis.abstract_analysis import *
+from analysis.supplementary_fns import cln
 
-from funding_database_tools import MAIN_FOLDER
-from funding_database_tools import wiki_pull_geo_parser
-from funding_database_tools import partial_key_check, fuzzy_key_match
-from funding_database_tools import remove_accents
+from analysis.funding_database_tools import MAIN_FOLDER
+from analysis.funding_database_tools import wiki_pull_geo_parser
+from analysis.funding_database_tools import partial_key_check, fuzzy_key_match
+from analysis.funding_database_tools import remove_accents
 
 # --------------------------------------------------------------------------------------- #
 # Zip / Postal Code to Geo Location
@@ -57,7 +56,8 @@ us_zipcode_geo_dict = dict(zip(zipdb['geoid'], zipdb['lat_long']))
 
 # --- Unis --- #
 
-us_uni_geo = pd.read_csv(MAIN_FOLDER + "/Data/WikiPull/North_America/UnitedStates/" + "UnitedStatesUniversitiesComplete.csv")
+us_uni_geo = pd.read_csv(
+    MAIN_FOLDER + "/Data/WikiPull/North_America/UnitedStates/" + "UnitedStatesUniversitiesComplete.csv")
 us_uni_geo = us_uni_geo[us_uni_geo['Country'] == "United States of America"]
 us_uni_geo = us_uni_geo.dropna(subset=['lat', 'lng']).reset_index(drop=True)
 us_uni_geo['lat_long'] = us_uni_geo.apply(lambda x: [round(x['lat'], 6), round(x['lng'], 6)], axis=1)
@@ -90,7 +90,8 @@ korea_repub_uni_geo_dict = {"korea university": [37.589167, 127.032222]}
 # Missing
 # us_df[us_df['organization_country'].str.lower().str.contains("italy")]['organization_name'].unique()
 
-eu_uni_geo_dict = wiki_pull_geo_parser(db_path=MAIN_FOLDER + "/Data/WikiPull/Europe/" + "EuropeanUniversitiesComplete.csv")
+eu_uni_geo_dict = wiki_pull_geo_parser(
+    db_path=MAIN_FOLDER + "/Data/WikiPull/Europe/" + "EuropeanUniversitiesComplete.csv")
 
 # Manually add Universita Degli Studi di Trento to the Italy key
 eu_uni_geo_dict['ITALY'] = {**eu_uni_geo_dict['ITALY'], **{'universita degli studi di trento': [46.069426, 11.121117]}}
@@ -126,7 +127,7 @@ uni_dict = {
     'UNITED STATES': us_uni_geo_dict,
     'CANADA': canada_uni_geo_dict,
     'KOREA REP OF': korea_repub_uni_geo_dict,
-    'EUROPE': eu_uni_geo_dict,                  # Italy & the United Kingdom
+    'EUROPE': eu_uni_geo_dict,  # Italy & the United Kingdom
     'AUSTRALIA': australia_uni_geo_dict,
     'CHILE': chile_uni_geo_dict,
     'BERMUDA': bermuda_uni_geo_dict
@@ -219,19 +220,3 @@ def master_geo_lookup(geos, zipcode, country, uni, u_id=0, quality_floor=85, upd
             return d[partial_fuzzy[0]]
 
     return [np.NaN, np.NaN]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -3,7 +3,7 @@
     Tools for Manipulating the Databases for Geo-Mapping
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    Primarly Used to Construct the Funding Simulation
+    Primarily Used to Construct the Funding Simulation
 
 """
 # Imports
@@ -50,7 +50,8 @@ funding['lngFunder'] = funding['Funder'].progress_map(lambda x: funders_dict[x][
 # ------------------------------------------------------------------------------------------------
 
 # Drop dod until until a more complete record is provided by NIH
-funding = funding[~funding['Funder'].progress_map(lambda x: True if "DOD" in str(x).upper() else False)].reset_index(drop=True)
+funding = funding[~funding['Funder'].progress_map(lambda x: True if "DOD" in str(x).upper() else False)].reset_index(
+    drop=True)
 
 save_to = MAIN_FOLDER + "analysis/R/funding_data.csv"
 exclude_from_r_export = ['lat', 'lng', 'Keywords', 'Amount', 'FunderNameFull', 'latFunder', 'lngFunder']
@@ -66,13 +67,15 @@ r_export['Quarter'] = pd.DatetimeIndex(startdate_datetime).quarter
 
 r_export = r_export[(startdate_datetime >= "2000-01-01") & (startdate_datetime <= "2015-12-31")]
 
+
 def agency_split(input_str):
     if "_" not in input_str:
-        return(input_str)
+        return (input_str)
     elif "DOD" in input_str.upper():
         return "DOD"
     else:
         return input_str.split("_")[1]
+
 
 # Not working somewhere...
 r_export['Funder'] = r_export['Funder'].progress_map(agency_split)
@@ -94,6 +97,7 @@ org_geos_groupby = funding[(pd.notnull(funding['lat'])) & (pd.notnull(funding['l
     ['OrganizationName']).apply(lambda x: list(zip(x['lat'].tolist(), x['lng'].tolist()))).reset_index()
 
 org_geos_groupby = org_geos_groupby[org_geos_groupby[0].map(lambda x: len(set(x)) > 1)].reset_index(drop=True)
+
 
 def most_central_point(geos_array, valid_medoid=30):
     """
@@ -130,11 +134,13 @@ def most_central_point(geos_array, valid_medoid=30):
     else:
         return np.NaN
 
+
 # Work out the medoid for each duplicate location
 org_geos_groupby['medoid'] = org_geos_groupby[0].progress_map(most_central_point)
 
 # Save in a dict of the form {OrganizationName: medoid}
 multi_geo_dict = dict(zip(org_geos_groupby['OrganizationName'], org_geos_groupby['medoid']))
+
 
 # Swap out duplicates
 def geo_swap(org_name, current_geo, lat_or_lng):
@@ -156,11 +162,12 @@ def geo_swap(org_name, current_geo, lat_or_lng):
     else:
         return current_geo
 
+
 funding['lat'] = funding.progress_apply(lambda x: geo_swap(x['OrganizationName'], x['lat'], 0), axis=1)
 funding['lng'] = funding.progress_apply(lambda x: geo_swap(x['OrganizationName'], x['lng'], 1), axis=1)
 
 # Remove rows with nans in their lat or lng columns
-funding = funding.dropna(subset = ['lat', 'lng']).reset_index(drop=True)
+funding = funding.dropna(subset=['lat', 'lng']).reset_index(drop=True)
 
 # ------------------------------------------------------------------------------------------------
 # Remove Organization Collisions for Geo Mapping (Multiple Orgs at the same lat/lng).
@@ -168,9 +175,11 @@ funding = funding.dropna(subset = ['lat', 'lng']).reset_index(drop=True)
 
 funding['UniqueGeo'] = funding['lng'].astype(str) + funding['lat'].astype(str) + funding['OrganizationName']
 
+
 def sclwr(input_list):
     """Set, Clean, Lower input list."""
     return set(map(lambda x: cln(str(x), 2).lower(), input_list))
+
 
 unique_geo_names = funding.groupby('UniqueGeo').apply(lambda x: x['OrganizationName'].tolist()).reset_index()
 unique_geo_names_duplicates = unique_geo_names[unique_geo_names[0].map(lambda x: len(sclwr(x))) > 1]
@@ -198,12 +207,15 @@ top_x_orgs = 100
 min_start_date = "01/01/2010"
 max_start_date = "31/12/2015"
 required_terms = []
+
+
 # required_terms = ['unive', 'ecole', 'polytechnique', 'school', 'acad', 'hospit', 'medical', 'istit', 'labra', 'obser',
 # 'clinic', 'centre', 'center', 'college']
 
 def contains_required_term(x, required_terms=required_terms):
     if not len(required_terms): return True
     return True if any(i in str(x).lower() for i in required_terms) else False
+
 
 # Limit to org's that contain required terms (above).
 to_export = funding[funding['OrganizationName'].map(contains_required_term)].reset_index(drop=True)
@@ -213,6 +225,7 @@ to_export = to_export[to_export['StartDate'].astype(str).str.count("/") == 2].re
 
 # Drop rows without a start date.
 to_export = to_export[pd.notnull(to_export['StartDate'])].reset_index(drop=True)
+
 
 # --- Spread Canadian Data over the whole year --- #
 def random_day_month_swap(input_date, block, looking_for='Canada'):
@@ -232,7 +245,9 @@ def random_day_month_swap(input_date, block, looking_for='Canada'):
     month_to_add = "0" + str(random_month) if random_month < 10 else str(random_month)
     return "/".join([day_to_add, month_to_add, dsplit[2]])
 
-to_export['StartDate'] = to_export.apply(lambda x: random_day_month_swap(x['StartDate'], x['OrganizationBlock']), axis=1)
+
+to_export['StartDate'] = to_export.apply(lambda x: random_day_month_swap(x['StartDate'], x['OrganizationBlock']),
+                                         axis=1)
 
 # ----------------------------------------------------------
 # Drop StartDate to month temporal resolution
@@ -257,14 +272,16 @@ to_export = to_export.dropna(subset=['NormalizedAmount']).reset_index(drop=True)
 to_export_freeze = deepcopy(to_export)
 
 # Find orgs with the most grants (dollar amount).
-orgs_by_grants = to_export.groupby('OrganizationName').apply(lambda x: sum(x['NormalizedAmount'].tolist())).reset_index()
+orgs_by_grants = to_export.groupby('OrganizationName').apply(
+    lambda x: sum(x['NormalizedAmount'].tolist())).reset_index()
 orgs_by_grants = orgs_by_grants.sort_values(0, ascending=False).reset_index(drop=True)[0:top_x_orgs]
 
 # 100 /19938 * 100
 # orgs_by_grants[0].sum()/funding['NormalizedAmount'].sum() * 100
 
-#Filter to the top x orgs by funding
-to_export = to_export[to_export['OrganizationName'].isin(orgs_by_grants['OrganizationName'].tolist())].reset_index(drop=True)
+# Filter to the top x orgs by funding
+to_export = to_export[to_export['OrganizationName'].isin(orgs_by_grants['OrganizationName'].tolist())].reset_index(
+    drop=True)
 
 # too long for the legend...come back and fix later.
 # to_export = to_export[~(to_export['FunderNameFull'].str.contains("NIDILRR"))]
@@ -277,26 +294,30 @@ funder_year_groupby = deepcopy(to_export)
 funder_year_groupby['StartYear'] = funder_year_groupby['StartDate'].map(lambda x: x.split("/")[1]).astype(int)
 
 funder_year_groupby = funder_year_groupby.groupby(['FunderNameFull', 'StartYear']).apply(
-                                                            lambda x: sum(x['NormalizedAmount'].tolist())).reset_index()
+    lambda x: sum(x['NormalizedAmount'].tolist())).reset_index()
 
 funder_year_groupby = funder_year_groupby.rename(columns={0: 'TotalGrants'})
 
 # Work out proportion of grants given by Org
 org_year_byyear = funder_year_groupby.groupby('StartYear').apply(lambda x: sum(x['TotalGrants'])).to_dict()
-funder_year_groupby['PercentTotalGrants'] = funder_year_groupby.apply(lambda x: x['TotalGrants']/org_year_byyear[x['StartYear']], axis=1)
+funder_year_groupby['PercentTotalGrants'] = funder_year_groupby.apply(
+    lambda x: x['TotalGrants'] / org_year_byyear[x['StartYear']], axis=1)
 
 # Convert Proportion to Percent and round to value to one decimal place of precision.
-funder_year_groupby['PercentTotalGrants'] = funder_year_groupby['PercentTotalGrants'].map(lambda x: x * 100).round(2).astype(float)
+funder_year_groupby['PercentTotalGrants'] = funder_year_groupby['PercentTotalGrants'].map(lambda x: x * 100).round(
+    2).astype(float)
 
 # Drop Rows for funders with ~zero grants awarded in a given year.
 funder_year_groupby = funder_year_groupby[funder_year_groupby['PercentTotalGrants'] > 0].reset_index(drop=True)
 
 # Format as str.
 funder_year_groupby['PercentTotalGrants'] = funder_year_groupby['PercentTotalGrants'].astype(str).map(
-                                                                lambda x: x + "0" if len(x.split(".")[1]) != 2 else x)
+    lambda x: x + "0" if len(x.split(".")[1]) != 2 else x)
 
 # Rename StartYear
-funder_year_groupby = funder_year_groupby.rename(columns={"StartYear":"Year"}).sort_values('Year').reset_index(drop=True)
+funder_year_groupby = funder_year_groupby.rename(columns={"StartYear": "Year"}).sort_values('Year').reset_index(
+    drop=True)
+
 
 # Check
 # funder_year_groupby.groupby('StartYear')['PercentTotalGrants'].sum()
@@ -306,14 +327,15 @@ funder_year_groupby = funder_year_groupby.rename(columns={"StartYear":"Year"}).s
 def to_export_col_summary(x):
     return [sum(x['NormalizedAmount'].tolist()), x['lng'].tolist()[0], x['lat'].tolist()[0], len(x['lat'].tolist())]
 
+
 # Grouby by OrganizationName, StartDate, OrganizationName
 to_export = to_export.groupby(['OrganizationName', 'StartDate', 'StartDateDTime', 'FunderNameFull']).apply(
     lambda x: to_export_col_summary(x)).reset_index()
 to_export_groupbycol = np.array(to_export[0].tolist())
-to_export['NormalizedAmount'] = to_export_groupbycol[:,0]
-to_export['lng'] = to_export_groupbycol[:,1]
-to_export['lat'] = to_export_groupbycol[:,2]
-to_export['NumberOfGrants'] = [int(i) for i in to_export_groupbycol[:,3]]
+to_export['NormalizedAmount'] = to_export_groupbycol[:, 0]
+to_export['lng'] = to_export_groupbycol[:, 1]
+to_export['lat'] = to_export_groupbycol[:, 2]
+to_export['NumberOfGrants'] = [int(i) for i in to_export_groupbycol[:, 3]]
 del to_export[0]
 
 # Shuffle
@@ -327,10 +349,11 @@ del to_export['StartDateDTime']
 to_export["uID"] = pd.Series(to_export.index, index=to_export.index)
 
 # Restrict columns to those that are needed and Set Column Order
-allowed_columns = ["OrganizationName", "FunderNameFull", "NormalizedAmount", "StartDate", "NumberOfGrants", "lng", "lat"]
+allowed_columns = ["OrganizationName", "FunderNameFull", "NormalizedAmount", "StartDate", "NumberOfGrants", "lng",
+                   "lat"]
 column_order = ['uID'] + allowed_columns
 
-#Order Columns
+# Order Columns
 to_export = to_export[column_order]
 
 # print("rows:", to_export.shape[0])
@@ -342,13 +365,13 @@ to_export = to_export[column_order]
 # Create a Summary of Science Funding Orgs. in the Database.
 # ------------------------------------------------------------------------------------------------
 
-#funder_info_db(df, col)
+# funder_info_db(df, col)
 funders_info = pd.DataFrame(list(funders_dict.values()))
 funders_info.rename(columns={2: "colour"}, inplace=True)
 funders_info['lat'] = list(map(lambda x: x[0], funders_info[1]))
 funders_info['lng'] = list(map(lambda x: x[1], funders_info[1]))
 del funders_info[1]
-funders_info.rename(columns={0:'funder'}, inplace=True)
+funders_info.rename(columns={0: 'funder'}, inplace=True)
 
 funders_info = funders_info.sort_values("funder").drop_duplicates('funder')
 funders_info = funders_info[funders_info['funder'].isin(to_export['FunderNameFull'].tolist())].reset_index(drop=True)
@@ -360,19 +383,22 @@ funders_info = funders_info[['funder', 'lat', 'lng', 'colour']]
 # ------------------------------------------------------------------------------------------------
 
 # Groupby Org Name and Block
-high_res_summary = to_export_freeze.groupby(['OrganizationName', 'OrganizationBlock'], as_index=False)['NormalizedAmount'].sum()
+high_res_summary = to_export_freeze.groupby(['OrganizationName', 'OrganizationBlock'], as_index=False)[
+    'NormalizedAmount'].sum()
 
 # Sort and Subset
-high_res_summary = high_res_summary.sort_values('NormalizedAmount', ascending=False).reset_index(drop=True)[0:top_x_orgs]
+high_res_summary = high_res_summary.sort_values('NormalizedAmount', ascending=False).reset_index(drop=True)[
+                   0:top_x_orgs]
 
 # Rename
 high_res_summary.columns = ['Name', 'Country', 'Total Grants (USD)']
 
 # Add a Ranking Column
-high_res_summary['Ranking'] = range(1, top_x_orgs+1)
+high_res_summary['Ranking'] = range(1, top_x_orgs + 1)
 
 # Format Money (see http://stackoverflow.com/a/3393776/4898004)
-high_res_summary['Total Grants (USD)'] = high_res_summary['Total Grants (USD)'].map(lambda x: '{:20,.2f}'.format(x).strip())
+high_res_summary['Total Grants (USD)'] = high_res_summary['Total Grants (USD)'].map(
+    lambda x: '{:20,.2f}'.format(x).strip())
 
 # Reorder
 high_res_summary = high_res_summary[['Ranking', 'Name', 'Country', 'Total Grants (USD)']]
@@ -387,7 +413,7 @@ high_res_summary.to_csv(MAIN_FOLDER + "analysis/resources/" + "2010_2015_ranking
 funding['StartDatePD'] = pd.to_datetime(funding['StartDate'], format="%d/%m/%Y")
 total_funding = funding[(funding['StartDatePD'] >= min_start_date) &
                         (funding['StartDatePD'] <= max_start_date)
-]['NormalizedAmount'].sum()
+                        ]['NormalizedAmount'].sum()
 
 # Percent of total funding going to these organizations:
 (to_export['NormalizedAmount'].sum() / total_funding) * 100
@@ -405,7 +431,7 @@ to_export.to_csv(export_dir + "funding_simulation_data.csv", index=False)
 funder_year_groupby.to_csv(export_dir + "funding_yearby_summary.csv", index=False)
 
 # 3.
-orgs_by_grants = orgs_by_grants['OrganizationName'].reset_index().rename(columns={'index':'OrganizationRank'})
+orgs_by_grants = orgs_by_grants['OrganizationName'].reset_index().rename(columns={'index': 'OrganizationRank'})
 orgs_by_grants['OrganizationRank'] += 1
 
 # Save on for use by the graphic
@@ -413,60 +439,3 @@ orgs_by_grants.to_csv(export_dir + "organization_rankings.csv", index=False)
 
 # 4.
 funders_info.to_csv(export_dir + "funder_db_simulation.csv", index=False)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

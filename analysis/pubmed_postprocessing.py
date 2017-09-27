@@ -8,9 +8,6 @@
     Python 3.5
 
 """
-
-
-# Modules
 import re
 import os
 import blaze
@@ -22,11 +19,10 @@ from collections import defaultdict
 from collections import OrderedDict
 from easymoney.easy_pandas import strlist_to_list
 from easymoney.easy_pandas import twoD_nested_dict
-from abstract_analysis import common_words
+from analysis.abstract_analysis import common_words
 from tqdm import tqdm
+
 # from odo import odo
-
-
 
 # Goal:
 # A dataframe with the following columns:
@@ -63,7 +59,6 @@ from tqdm import tqdm
 
 MAIN_FOLDER = "/Users/tariq/Google Drive/Programming Projects/ZeitSci/"
 
-
 # Move to AUX_NCBI_DATA Folder
 os.chdir(MAIN_FOLDER + "/Data/NCBI_DATA")
 
@@ -92,7 +87,7 @@ journal_db['Field'] = journal_db['Field'].map(lambda x: x if str(x) == 'nan' els
 # the first map converts "['item', 'item']" --> ['item', 'item']
 # the second map replaces empty lists with nans
 journal_db['Discipline'] = journal_db['Discipline'].map(
-    lambda x: x if str(x) == 'nan' else strlist_to_list(x)).\
+    lambda x: x if str(x) == 'nan' else strlist_to_list(x)). \
     map(lambda x: np.NaN if str(x) == 'nan' or len(x) == 1 and x[0] == '' else x)
 
 # Merge Field and Discipline
@@ -106,6 +101,7 @@ abrev_title_dict = dict(zip(journal_db['Journal_Abbrev'].str.upper(), field_and_
 
 # Remove NaN key
 abrev_title_dict = {k: v for k, v in abrev_title_dict.items() if str(k) != 'nan'}
+
 
 def journal_match(full_name, partial_name):
     """
@@ -127,6 +123,7 @@ def journal_match(full_name, partial_name):
     else:
         return [np.NaN, np.NaN]
 
+
 # Attempt to add field and discipline information using a journal's full name or abrev.
 mapped_field_discipline = pubmed.progress_apply(lambda x: journal_match(x['journal'], x['journal_iso']), axis=1)
 
@@ -136,6 +133,7 @@ pubmed['field'] = mapped_field_discipline.progress_map(lambda x: x[0])
 # Add journal discipline to the pubmed data frame
 pubmed['discipline'] = mapped_field_discipline.progress_map(lambda x: x[1])
 
+
 def duplicate_remover(input_list):
     ordered_set = list()
     for element in input_list:
@@ -143,8 +141,8 @@ def duplicate_remover(input_list):
             ordered_set.append(element)
     return ordered_set
 
-def grant_processor(grant):
 
+def grant_processor(grant):
     list_of_grants = [g.split("; ") for g in grant.split(" | ")]
 
     grant_ids = list()
@@ -161,12 +159,14 @@ def grant_processor(grant):
 
     return grant_ids, agencies, regions
 
+
 grants = pubmed['grants'].progress_map(grant_processor, na_action='ignore')
 
 pubmed['grant_ids'] = grants.map(lambda x: x[0], na_action='ignore')
 pubmed['grant_funders'] = grants.map(lambda x: x[1], na_action='ignore')
 pubmed['grant_region'] = grants.map(lambda x: x[2], na_action='ignore')
 del pubmed['grants']
+
 
 def keywords_mesh_combine(keywords, mesh):
     if str(keywords) == 'nan' and str(mesh) != 'nan':
@@ -177,6 +177,7 @@ def keywords_mesh_combine(keywords, mesh):
         return np.NaN
 
     return "; ".join(set(keywords.split("; ") + mesh.split("; ")))
+
 
 pubmed['keywords'] = pubmed.progress_apply(lambda x: keywords_mesh_combine(x['keywords'], x['mesh_terms']), axis=1)
 del pubmed['mesh_terms']
@@ -190,6 +191,7 @@ pubmed['affiliation'] = pubmed['affiliation'].str.split("; ")
 
 authors = pubmed['author'][0]
 affiliations = pubmed['affiliation'][0]
+
 
 # want: department + institution
 def subsection_and_uni(affiliation, join_output=True, institution_only=False):
@@ -221,9 +223,9 @@ def subsection_and_uni(affiliation, join_output=True, institution_only=False):
 
     if (department is None and institution is None) or institution is None:
         return np.NaN
-    elif institution_only or\
-         (institution is not None and department is None) or\
-         (any(i in department.lower() for i in institution_deference) and institution is not None):
+    elif institution_only or \
+            (institution is not None and department is None) or \
+            (any(i in department.lower() for i in institution_deference) and institution is not None):
         return institution
 
     if join_output:
@@ -258,6 +260,7 @@ def author_affil(authors, affiliations):
         return [" | ".join(a) for a in authors_afil]
     else:
         return np.NaN
+
 
 pubmed['institutions'] = pubmed['affiliation'].progress_map(lambda a: multi_affiliations(a), na_action='ignore')
 
@@ -338,6 +341,7 @@ index_field_dict = dict(zip(field_nan_drop['index'], field_nan_drop['field']))
 discipline_nan_drop = pubmed['discipline'].dropna().reset_index()
 discipline_field_dict = dict(zip(discipline_nan_drop['index'], discipline_nan_drop['discipline']))
 
+
 def collaborators_domain_seperator(single_author):
     """
 
@@ -369,11 +373,11 @@ def collaborators_domain_seperator(single_author):
     set_disciplines = set(disciplines)
 
     info = {"index_of_papers": collab_dict[int]
-            , "num_authored": len(collab_dict[int])
-            , "collaborators": collab_dict[str] if len(collab_dict[str]) else np.NaN
-            , "num_collaborators": len(collab_dict[str])
-            , "fields": set_fields if len(set_fields) else np.NaN
-            , "disciplines": set_disciplines if len(set_disciplines) else np.NaN}
+        , "num_authored": len(collab_dict[int])
+        , "collaborators": collab_dict[str] if len(collab_dict[str]) else np.NaN
+        , "num_collaborators": len(collab_dict[str])
+        , "fields": set_fields if len(set_fields) else np.NaN
+        , "disciplines": set_disciplines if len(set_disciplines) else np.NaN}
 
     return info
 
@@ -393,18 +397,16 @@ len_authors = len(pubmed['author_afil'])
 for authors in pubmed['author_afil']:
     c += 1
     if c % 10000 == 0 or c == 1:
-        print(round(float(c)/len_authors * 100, 2), "%")
+        print(round(float(c) / len_authors * 100, 2), "%")
     if str(authors) != 'nan':
         for a in authors:
             author_info[a] = collaborators_domain_seperator(a)
-
 
 author_df = pd.DataFrame(list(author_info.values()))
 author_full = [a.split(" | ") for a in list(author_info.keys())]
 
 author_df['authors'] = [a[0] for a in author_full]
 author_df['institutions'] = [a[1] for a in author_full]
-
 
 author_df[(author_df.num_collaborators > 0) & pd.notnull(author_df.fields)]
 
@@ -444,82 +446,3 @@ author_df[(author_df.num_collaborators > 0) & pd.notnull(author_df.fields)]
 # len(set([i for s in pubmed['author'] for i in s]))
 # # !=
 # len([i for s in pubmed['author'] for i in s])
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

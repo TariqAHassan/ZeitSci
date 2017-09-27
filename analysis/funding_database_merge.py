@@ -3,9 +3,7 @@
     Merge the Various Funding Databases into One
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-
 """
-# Modules
 import re
 import os
 import time
@@ -18,16 +16,16 @@ from tqdm import tqdm
 from fuzzywuzzy import process
 from unidecode import unidecode
 from datetime import datetime
-from abstract_analysis import *
-from currency_converter import CurrencyConverter
+from analysis.abstract_analysis import *
+from currency_converter import CurrencyConverter  # pip3 install CurrencyConverter
 
 from datetime import date
-from funding_database_tools import titler
-from funding_database_tools import MAIN_FOLDER
-from funding_database_tools import multi_readin
+from analysis.funding_database_tools import titler
+from analysis.funding_database_tools import MAIN_FOLDER
+from analysis.funding_database_tools import multi_readin
 
 from easymoney.money import EasyPeasy
-from organization_classification import organization_classifier
+from analysis.organization_classification import organization_classifier
 from easymoney.easy_pandas import strlist_to_list, twoD_nested_dict, pandas_print_full
 from sources.world_bank_interface import _world_bank_pull_wrapper as wbpw
 
@@ -69,6 +67,7 @@ RC = 8
 # Special Characters.
 chars = re.escape(string.punctuation)
 
+
 def alphanum(input_str, chars=chars):
     """
     Remove *all* non-alphanumeric characters
@@ -78,6 +77,7 @@ def alphanum(input_str, chars=chars):
     :return:
     """
     return re.sub(r'[' + chars + ']', '', input_str)
+
 
 os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/CompleteRegionDatabases")
 
@@ -112,7 +112,8 @@ uk_uni_special_names = {'University of Oxford': 'University of Oxford',
                         'University of Cambridge': "University of Cambridge",
                         'University of Cambrige': "University of Cambridge",
                         "University of Edinburgh": "University of Edinburgh"
-}
+                        }
+
 
 def uk_org_cln(x, uk_uni_special_names):
     """
@@ -126,13 +127,14 @@ def uk_org_cln(x, uk_uni_special_names):
 
     # Bit of a hack for now...
     if "imperial college" in org_name.lower() or \
-        str(x['FunderBlock']).lower() in ["united kingdom"] or\
-        str(x['OrganizationBlock']).lower() == "united kingdom":
+                    str(x['FunderBlock']).lower() in ["united kingdom"] or \
+                    str(x['OrganizationBlock']).lower() == "united kingdom":
         for k in uk_uni_special_names:
             if k.upper() in org_name.upper():
-                return(uk_uni_special_names[k])
+                return (uk_uni_special_names[k])
 
     return org_name
+
 
 # Fix UK Uni(s)
 df['OrganizationName'] = df.progress_apply(lambda x: uk_org_cln(x, uk_uni_special_names), axis=1)
@@ -142,7 +144,7 @@ df['OrganizationName'] = df.progress_apply(lambda x: uk_org_cln(x, uk_uni_specia
 # -------------------------------------------------------------------------
 
 for i, c in enumerate(df.columns):
-    print(i+1, "of", len(df.columns))
+    print(i + 1, "of", len(df.columns))
     df[c] = df[c].progress_map(lambda x: np.NaN if str(x) == 'nan' else x)
 
 # -------------------------------------------------------------------------
@@ -161,21 +163,23 @@ cpi_dict = twoD_nested_dict(cpi, 'Year', 'Country', 'CPI', engine='fast')
 # Max Years in CPI dataframe
 cpi_dict_max = cpi.groupby('Country').apply(lambda x: int(max(x['Year']))).to_dict()
 
-def zeitsci_cpi(region, year_a, year_b):
 
+def zeitsci_cpi(region, year_a, year_b):
     rate = np.NaN
     year_a_str = str(year_a)
     year_b_str = str(year_b)
 
     if all(i in cpi_dict for i in [year_a_str, year_b_str]):
         if all(region in j for j in [cpi_dict[year_a_str], cpi_dict[year_b_str]]):
-            c1 = float(cpi_dict[year_a_str][region]) # start
-            c2 = float(cpi_dict[year_b_str][region]) # end
-            rate = (c2 - c1)/c1 + 1
+            c1 = float(cpi_dict[year_a_str][region])  # start
+            c2 = float(cpi_dict[year_b_str][region])  # end
+            rate = (c2 - c1) / c1 + 1
 
     return rate
 
-def zeitsci_normalize(amount, amount_state, amount_cur, from_year, base_year=2015, base_currency='USD', base_date=date(2015, 12, 31)):
+
+def zeitsci_normalize(amount, amount_state, amount_cur, from_year, base_year=2015, base_currency='USD',
+                      base_date=date(2015, 12, 31)):
     """
 
     :param amount:
@@ -208,8 +212,8 @@ def zeitsci_normalize(amount, amount_state, amount_cur, from_year, base_year=201
     else:
         return c.convert(real_amount, amount_cur, base_currency, date=base_date)
 
-def zeitsci_grant_normalize_wrapper(x):
 
+def zeitsci_grant_normalize_wrapper(x):
     from_year = np.NaN
     if pd.isnull(x['GrantYear']):
         if pd.isnull(x['StartDate']):
@@ -224,9 +228,9 @@ def zeitsci_grant_normalize_wrapper(x):
 
     input_dict = {
         'amount': x['Amount'],
-        'block' : x['OrganizationBlock'],
+        'block': x['OrganizationBlock'],
         'amount_cur': x['FundCurrency'],
-        'from_year' : int(from_year)
+        'from_year': int(from_year)
     }
     if any(pd.isnull(i) for i in input_dict.values()):
         return np.NaN
@@ -235,6 +239,7 @@ def zeitsci_grant_normalize_wrapper(x):
                              , input_dict['block']
                              , input_dict['amount_cur']
                              , input_dict['from_year'])
+
 
 df['NormalizedAmount'] = df.progress_apply(lambda x: zeitsci_grant_normalize_wrapper(x), axis=1)
 # This procedure worked on 99.9% of rows. Acceptable.
@@ -252,7 +257,7 @@ df['OrganizationCity'] = df['OrganizationCity'].map(
 # -------------------------------------------------------------------------
 
 # Clean the OrganizationName
-df['OrganizationName'] = df['OrganizationName'].map(cln).str.replace("\"","").str.strip().progress_apply(titler)
+df['OrganizationName'] = df['OrganizationName'].map(cln).str.replace("\"", "").str.strip().progress_apply(titler)
 
 # Search and Block terms
 to_block = ['centre', 'center', 'hospital']
@@ -263,6 +268,7 @@ query = "|".join(map(re.escape, search_terms))
 possible_subsidiaries = df['OrganizationName'][
     (df['OrganizationName'].astype(str).str.lower().str.contains(query))].unique().tolist()
 possible_subsidiaries_cln = [i for i in possible_subsidiaries if not any(x in i.lower() for x in to_block)]
+
 
 def subsidiary_checker(principals, subsidiaries):
     """
@@ -275,24 +281,28 @@ def subsidiary_checker(principals, subsidiaries):
             subsidiaries_dict[k] = matches[0]
     return subsidiaries_dict
 
+
 unique_orgs = [i for i in df['OrganizationName'].unique().tolist() if i not in possible_subsidiaries]
 
 subsidiaries_dict = subsidiary_checker(unique_orgs, possible_subsidiaries_cln)
 
 # Define erroneous pairings
-erronous_pair = {'Medical University of South Carolina' : 'University of South Carolina'}
+erronous_pair = {'Medical University of South Carolina': 'University of South Carolina'}
 
 # Remove erroneous pairs from the subsidiaries dict
-subsidiaries_dict = {k: v for k, v in subsidiaries_dict.items() if k not in erronous_pair and v != erronous_pair.get(k, True)}
+subsidiaries_dict = {k: v for k, v in subsidiaries_dict.items() if
+                     k not in erronous_pair and v != erronous_pair.get(k, True)}
 
 # Subsidiaries
-df['OrganizationSubsidiary'] = df['OrganizationName'].map(lambda x: x if x in subsidiaries_dict else np.NaN, na_action='ignore')
+df['OrganizationSubsidiary'] = df['OrganizationName'].map(lambda x: x if x in subsidiaries_dict else np.NaN,
+                                                          na_action='ignore')
 
 # Principal Orgs
 df['OrganizationName'] = df['OrganizationName'].replace(subsidiaries_dict)
 
 # Reorder Columns
 df = df[list(df.columns)[:8] + ['OrganizationSubsidiary'] + list(df.columns[8:-1])]
+
 
 # Remove unneeded punctuation
 def starting_or_trailing_remove(input_str, to_remove, start_or_end):
@@ -307,13 +317,16 @@ def starting_or_trailing_remove(input_str, to_remove, start_or_end):
     # Default
     return input_str
 
+
 def tails_cln(input_str, to_remove):
     for tail in ['start', 'end']:
         input_str = starting_or_trailing_remove(input_str, to_remove, tail)
     return input_str
 
+
 punc_rmv = [".", ",", ":", ";"]
-df['OrganizationSubsidiary'] = df['OrganizationSubsidiary'].progress_map(lambda x: tails_cln(x, punc_rmv), na_action="ignore")
+df['OrganizationSubsidiary'] = df['OrganizationSubsidiary'].progress_map(lambda x: tails_cln(x, punc_rmv),
+                                                                         na_action="ignore")
 df['OrganizationName'] = df['OrganizationName'].progress_map(lambda x: tails_cln(x, punc_rmv), na_action="ignore")
 
 # Fix Md --> MD (Medical Doctor).
@@ -335,6 +348,7 @@ university_db['endowment'] = university_db['endowment'].map(lambda x: strlist_to
 # Rename United States of America to United States
 university_db['country'] = university_db['country'].str.upper().str.replace("UNITED STATES OF AMERICA", "UNITED STATES")
 
+
 def endowment_normalizer(endowment_list, country, base_currency='USD', assume_recent=True):
     """
 
@@ -352,7 +366,7 @@ def endowment_normalizer(endowment_list, country, base_currency='USD', assume_re
 
     if len(str(from_year)) != 4:
         if assume_recent:
-            from_year = datetime.now().year # assume most recent
+            from_year = datetime.now().year  # assume most recent
         else:
             return np.NaN
 
@@ -361,18 +375,22 @@ def endowment_normalizer(endowment_list, country, base_currency='USD', assume_re
     except:
         return np.NaN
 
-university_db['normalized_endowment'] = university_db.apply(lambda x: endowment_normalizer(x['endowment'], x['country']), axis=1)
+
+university_db['normalized_endowment'] = university_db.apply(
+    lambda x: endowment_normalizer(x['endowment'], x['country']), axis=1)
 
 # Upper university names and remove special characters
 university_db['university'] = university_db['university'].astype(str).str.upper().map(lambda x: alphanum(unidecode(x)))
 
 # Create a dictionary of normalized (2015 USD) university endowments
-university_db_endowment = university_db[university_db['normalized_endowment'].astype(str) != 'nan'].reset_index(drop=True)
+university_db_endowment = university_db[university_db['normalized_endowment'].astype(str) != 'nan'].reset_index(
+    drop=True)
 endowment_dict = twoD_nested_dict(university_db_endowment, 'country', 'university', 'normalized_endowment')
 
 # Create a dictionary of whether or not the institution is public or private
 university_db_type = university_db[university_db['institutiontype'].astype(str) != 'nan'].reset_index(drop=True)
 institution_type_dict = twoD_nested_dict(university_db_type, 'country', 'university', 'institutiontype')
+
 
 def institution_to_skip(institution):
     if str(institution) == 'nan' or any(institution.endswith(i) for i in ['Inc', 'Llc', 'Ltd', 'Phd']):
@@ -385,6 +403,7 @@ def institution_to_skip(institution):
         return True
     else:
         return False
+
 
 def institution_information_lookup(institution, region, fuzzy_threshold=85):
     """
@@ -410,7 +429,7 @@ def institution_information_lookup(institution, region, fuzzy_threshold=85):
     insts_map = [i for i in endowment_dict[region_upper] if (institution_upper in i) or (i in institution_upper)]
 
     if len(insts_map) > 1:
-        insts_map = [max(insts_map, key=len)] # look for counter examples to this heuristic
+        insts_map = [max(insts_map, key=len)]  # look for counter examples to this heuristic
 
     # Check with fuzzy matching
     if len(insts_map) != 1:
@@ -426,6 +445,7 @@ def institution_information_lookup(institution, region, fuzzy_threshold=85):
 
     return institution, [endowment, institution_type]
 
+
 # Create dataframe of unique orgs
 unique_org_df = df.drop_duplicates(subset=['OrganizationName']).reset_index(drop=True)
 unique_org_df = unique_org_df[~unique_org_df['OrganizationName'].map(institution_to_skip)].reset_index(drop=True)
@@ -438,7 +458,8 @@ inst_info = unique_org_df.progress_apply(
 # Convert to a dict
 insitution_info_dict = {k: v for k, v in inst_info}
 
-end_type = df['OrganizationName'].progress_map(lambda x: insitution_info_dict[x] if x in insitution_info_dict else [np.NaN]*2)
+end_type = df['OrganizationName'].progress_map(
+    lambda x: insitution_info_dict[x] if x in insitution_info_dict else [np.NaN] * 2)
 
 # Add InstitutionType information to the DF
 df['Endowment'] = [i[0] for i in end_type]
@@ -470,6 +491,7 @@ org_category_dict = {k: v for k, v in org_category}
 # Pull org_category_dict mappings into the dataframe
 df['OrganizationCategory'] = df['OrganizationName'].progress_map(lambda x: org_category_dict.get(x, np.NaN))
 
+
 # -------------------------------------------------------------------------
 # Clean the Keywords (will take a while).
 # -------------------------------------------------------------------------
@@ -477,7 +499,9 @@ df['OrganizationCategory'] = df['OrganizationName'].progress_map(lambda x: org_c
 def keyword_cln(x):
     return [i for i in word_vector_clean(x) if len(i) > 1]
 
+
 df['Keywords'] = df['Keywords'].progress_map(lambda x: "; ".join(keyword_cln(x)), na_action='ignore')
+
 
 # -------------------------------------------------------------------------
 # Date Correct
@@ -491,6 +515,7 @@ def date_zero_correct(input_str):
         return "0" + input_str
     else:
         return input_str
+
 
 def date_correct(input_date):
     """
@@ -520,7 +545,9 @@ def date_correct(input_date):
     else:
         return np.NaN
 
+
 df['StartDate'] = df['StartDate'].astype(str).progress_map(date_correct)
+
 
 def year_extract(date):
     if str(date) == 'nan':
@@ -531,6 +558,7 @@ def year_extract(date):
             return date_split[2]
         else:
             return np.NaN
+
 
 # Add a start Year
 df['StartYear'] = df['StartDate'].progress_map(year_extract)
@@ -543,8 +571,8 @@ df = df[reorder]
 # Remove Invalid Values
 # -------------------------------------------------------------------------
 
-max_grant = 10**9
-max_endowment = 50 * 10**9
+max_grant = 10 ** 9
+max_endowment = 50 * 10 ** 9
 
 df['NormalizedAmount'] = df['NormalizedAmount'].map(lambda x: x if x <= max_grant else np.NaN, na_action='ignore')
 df['Endowment'] = df['Endowment'].map(lambda x: x if x <= max_endowment else np.NaN, na_action='ignore')
@@ -565,37 +593,3 @@ for i, c in enumerate(df.columns):
 # -------------------------------------------------------------------------
 
 df.to_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + "MasterDatabaseRC" + str(RC) + ".p")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -4,8 +4,6 @@
     ~~~~~~~~~~~~~~~~~~~~~
 
 """
-
-
 import datetime
 import os
 import re
@@ -19,8 +17,8 @@ import numpy as np
 from fuzzywuzzy import fuzz
 from nltk.corpus import stopwords
 
-from supplementary_fns import cln
-from my_keys import WIKI_USER_AGENT, MAIN_FOLDER
+from analysis.supplementary_fns import cln
+from analysis.my_keys import WIKI_USER_AGENT, MAIN_FOLDER
 
 # TO DO:
 # - Clean up imports
@@ -31,6 +29,7 @@ from my_keys import WIKI_USER_AGENT, MAIN_FOLDER
 
 # Move over to the data folder
 os.chdir(MAIN_FOLDER + "/Data")
+
 
 # Change back to orig. dir.
 # os.chdir(current_dir)
@@ -48,21 +47,20 @@ def wiki_complete(title):
     # Wait 1-2 seconds between requests
     time.sleep(uniform(1.5, 3.5))
 
-    params = {  "format" : "xml"
-              , "action" : "query"
-              , "prop"   : "revisions"
-              , "rvprop" : "timestamp|user|comment|content"
-             }
+    params = {"format": "xml",
+              "action": "query",
+              "prop": "revisions",
+              "rvprop": "timestamp|user|comment|content"}
 
     # See: provide source!
 
     # Construct the URL
     params["titles"] = "API|%s" % urllib.parse.quote(title.encode("utf8"))
-    qs = "&".join("%s=%s" % (k, v)  for k, v in params.items())
+    qs = "&".join("%s=%s" % (k, v) for k, v in params.items())
     url = "http://en.wikipedia.org/w/api.php?%s" % qs
 
     # Make a request
-    req = urllib.request.Request(url, headers = {'User-Agent': WIKI_USER_AGENT})
+    req = urllib.request.Request(url, headers={'User-Agent': WIKI_USER_AGENT})
     page = urllib.request.urlopen(req)
 
     # Parse the returned xml
@@ -77,6 +75,7 @@ def wiki_complete(title):
 
     return raw_page
 
+
 def sw_remove(input_string):
     """
 
@@ -88,7 +87,8 @@ def sw_remove(input_string):
 
     return " ".join([w for w in input_string.split(" ") if w not in stopwords.words('english')])
 
-def wiki_complete_get(title, allow_redirect = True, similarity_threshold = 90):
+
+def wiki_complete_get(title, allow_redirect=True, similarity_threshold=90):
     """
 
     :param title: the title of the wikipedia page desired.
@@ -99,7 +99,7 @@ def wiki_complete_get(title, allow_redirect = True, similarity_threshold = 90):
 
     title = cln(title, 1)
 
-    raw_page = wiki_complete(title = title)
+    raw_page = wiki_complete(title=title)
     redirect_pages = None
     new_title = None
 
@@ -122,11 +122,12 @@ def wiki_complete_get(title, allow_redirect = True, similarity_threshold = 90):
 
                     # Review the similarity between the orig. request and the new title
                     if fuzz.ratio(sw_remove(title), sw_remove(new_title)) > similarity_threshold:
-                        raw_page = wiki_complete_get(title = new_title)
+                        raw_page = wiki_complete_get(title=new_title)
 
     return raw_page.lower()
 
-def property_extractor(raw_page, start, end = "", easy = True, anumeric = True, ws_complete = True, csplit = False):
+
+def property_extractor(raw_page, start, end="", easy=True, anumeric=True, ws_complete=True, csplit=False):
     """
 
     :param raw_page: a raw wikipedia page, as extracted by wiki_complete_get()
@@ -146,7 +147,7 @@ def property_extractor(raw_page, start, end = "", easy = True, anumeric = True, 
 
     # Try to get the information between start and end
     try:
-        page_property = raw_page.split(start)[-1].split(end)[0] # see:
+        page_property = raw_page.split(start)[-1].split(end)[0]  # see:
     except:
         return ""
 
@@ -171,6 +172,7 @@ def property_extractor(raw_page, start, end = "", easy = True, anumeric = True, 
 
     return page_property
 
+
 def clean_extract(input_str):
     """
 
@@ -183,16 +185,17 @@ def clean_extract(input_str):
 
     try:
         if input_str == None:
-            return("")
+            return ("")
         if any(x in str(input_str).lower() for x in ["{", "}"]):
-            return("")
+            return ("")
         if re.match('^[a-zA-Z0-9_,&:.]+$', str(input_str)) == None or re.match('^[0-9.]+$', str(input_str)) != None:
             to_return = str(input_str).replace("[", "").replace("]", "").replace("'", "")
-            return(str(to_return))
+            return (str(to_return))
         else:
-            return("")
+            return ("")
     except:
-        return("")
+        return ("")
+
 
 def journal_specs(raw_page):
     """
@@ -202,22 +205,25 @@ def journal_specs(raw_page):
     """
 
     # Get the Journal's abbreviation journal_abbrev =
-    journal_abbrev = clean_extract(property_extractor(raw_page, start = 'abbreviation', anumeric = False, ws_complete = False))
+    journal_abbrev = clean_extract(
+        property_extractor(raw_page, start='abbreviation', anumeric=False, ws_complete=False))
 
     # Try to get the journal's discipline
-    journal_discipline = clean_extract(property_extractor(raw_page, start = 'discipline', ws_complete = False, csplit = True))
+    journal_discipline = clean_extract(property_extractor(raw_page, start='discipline', ws_complete=False, csplit=True))
 
     # It is also sometimes called 'categories'...standards...
     if journal_discipline == "":
-        journal_discipline = clean_extract(property_extractor(raw_page, start='categories', ws_complete=False, csplit=True))
+        journal_discipline = clean_extract(
+            property_extractor(raw_page, start='categories', ws_complete=False, csplit=True))
 
     # Try to get the journal's impact
-    impact = clean_extract(property_extractor(raw_page, start = 'impact', anumeric = False))
+    impact = clean_extract(property_extractor(raw_page, start='impact', anumeric=False))
 
     # Try to get the journal's impact-year
-    impact_year = clean_extract(property_extractor(raw_page, start = 'impact-year', anumeric = False))
+    impact_year = clean_extract(property_extractor(raw_page, start='impact-year', anumeric=False))
 
     return journal_abbrev, journal_discipline, impact, impact_year
+
 
 def journal_lookup(jname):
     """
@@ -259,12 +265,10 @@ class WikiUniversities(object):
 
     """
 
-
-    def __init__(self, iso_currencies = None):
+    def __init__(self, iso_currencies=None):
         self.ccdf = iso_currencies
         self.money_denoters = ['billion', 'million', 'hundred thousand', 'hundred-thousand']
-      # self.UnitedKingdom = ["England", "Northren Ireland", "Wales", "Scotland"]
-
+        # self.UnitedKingdom = ["England", "Northren Ireland", "Wales", "Scotland"]
 
     def dms2des(self, dms):
         """
@@ -379,14 +383,16 @@ class WikiUniversities(object):
 
         try:
             coords = [
-                self.dms2des([geo_info['lat_degrees'], geo_info['lat_minutes'], geo_info['lat_seconds']]) * height_scalar,
-                self.dms2des([geo_info['long_degrees'], geo_info['long_minutes'], geo_info['long_seconds']]) * width_scalar
+                self.dms2des(
+                    [geo_info['lat_degrees'], geo_info['lat_minutes'], geo_info['lat_seconds']]) * height_scalar,
+                self.dms2des(
+                    [geo_info['long_degrees'], geo_info['long_minutes'], geo_info['long_seconds']]) * width_scalar
             ]
             return coords
         except:
             return None
 
-    def wiki_coords_extractor(self, raw_page, start = "{{coor"):
+    def wiki_coords_extractor(self, raw_page, start="{{coor"):
         """
 
         This function tries to get coordinates (long/lat) from a wikipedia page.
@@ -434,7 +440,7 @@ class WikiUniversities(object):
                 if dms.count(".") <= 1 and self.try_float(dms):
                     temp.append(float(dms))
                 if s[-2] == "s":
-                    coordinates.append(temp) # flip? [::-1]
+                    coordinates.append(temp)  # flip? [::-1]
                     temp = list()
 
         # If 2 worked, convert the answer (as above) and return
@@ -442,7 +448,7 @@ class WikiUniversities(object):
             return self.twoDlist_to_dec(coordinates)
 
         # 3. If 2. also doesn't work, try to extract decimal degrees
-        if len(coordinates): # Clear above attempt
+        if len(coordinates):  # Clear above attempt
             coordinates = list()
 
         for c in coord:
@@ -461,7 +467,6 @@ class WikiUniversities(object):
             return coordinates
         else:
             return None  # give up
-
 
     def money_scale_denoters(self, input_str):
         """
@@ -504,19 +509,20 @@ class WikiUniversities(object):
         # an int, e.g., 96, --> float --> str for output
         if "." not in input_str:
             try:
-                return str(float(int(cln(input_str,2))))
+                return str(float(int(cln(input_str, 2))))
             except:
                 pass
 
         # Try the input as a float next
-        elif "." in input_str and input_str.count(".") == 1 and len([cln(i, 2) for i in input_str.split(".") if cln(i,2) != 0]) == 2:
+        elif "." in input_str and input_str.count(".") == 1 and len(
+                [cln(i, 2) for i in input_str.split(".") if cln(i, 2) != 0]) == 2:
 
-                if cln(input_str.split(".", 1)[1], 2) == '0':
-                    return None # See above note
+            if cln(input_str.split(".", 1)[1], 2) == '0':
+                return None  # See above note
 
-                input_str = input_str.split(".", 1)[0] + "." + input_str.split(".", 1)[1][0]
+            input_str = input_str.split(".", 1)[0] + "." + input_str.split(".", 1)[1][0]
         else:
-            return None # lowers risk of a bad return, at a very small potential completeness cost.
+            return None  # lowers risk of a bad return, at a very small potential completeness cost.
 
         # Try to convert to a string
         try:
@@ -527,7 +533,7 @@ class WikiUniversities(object):
         # Return a string
         return cln((input_str), 2).lstrip().rstrip()
 
-    def currency_lookup(self, input_str, common_currencies, region = None, assume_USD = True):
+    def currency_lookup(self, input_str, common_currencies, region=None, assume_USD=True):
         """
 
         :param input_str:
@@ -541,7 +547,6 @@ class WikiUniversities(object):
                                  "order: Name, ISO, Symbol. Make sure to use popular_ISO_currencies.csv"
                                  "in the ZeitSci data folder.")
 
-
         # if region is provided, try to return the ISO code
         if region != None:
             try:
@@ -551,7 +556,7 @@ class WikiUniversities(object):
 
         # Initialize
         currency = ""
-        symbol_ignore = ["Fr", "kr", "R", "R$"] # not clear if the last entry causes problems with USD, CAN, AUD, etc.
+        symbol_ignore = ["Fr", "kr", "R", "R$"]  # not clear if the last entry causes problems with USD, CAN, AUD, etc.
 
         # first try name, then ISO and lasly, symbol
         cc = 0
@@ -562,8 +567,8 @@ class WikiUniversities(object):
                 if n.upper() in input_str.upper() and n.upper() not in symbol_ignore:
                     currency_info_type = self.ccdf.columns[cc]
                     currency = n
-                    found = True # end the while loop
-                    break        # end the for loop
+                    found = True  # end the while loop
+                    break  # end the for loop
             cc += 1
 
         # Return if no currency info found
@@ -608,7 +613,7 @@ class WikiUniversities(object):
             num_scale = 100000.0
 
         if self.try_float(cln(endowment_dict['amount'], 2)):
-            scaled_curr = float(cln(endowment_dict['amount'], 2))*num_scale
+            scaled_curr = float(cln(endowment_dict['amount'], 2)) * num_scale
         else:
             return None
 
@@ -617,7 +622,7 @@ class WikiUniversities(object):
         except:
             return None
 
-    def endowment_extractor(self, raw_page, region = None, start = "{{"):
+    def endowment_extractor(self, raw_page, region=None, start="{{"):
         """
 
         :param raw_page:
@@ -629,7 +634,7 @@ class WikiUniversities(object):
         em = ""
 
         try:
-            endmt = [i for i in raw_page.split(start) if "|endowment=" in cln(i,2)]
+            endmt = [i for i in raw_page.split(start) if "|endowment=" in cln(i, 2)]
             if len(endmt) != 1:
                 return None
             else:
@@ -654,13 +659,13 @@ class WikiUniversities(object):
         endmt = cln(endmt.split(scale)[0]).lstrip().rstrip()
 
         # get currency
-        amount = self.money_str_parser(input_str = endmt)
-        currency = self.currency_lookup(endmt.split(amount)[0], common_currencies = self.ccdf, region = region)
+        amount = self.money_str_parser(input_str=endmt)
+        currency = self.currency_lookup(endmt.split(amount)[0], common_currencies=self.ccdf, region=region)
 
-        endowment = { "amount" : amount
-                    , "scale" : scale
-                    , "year" : str(em) if str(em) != "" else str(datetime.datetime.now().timetuple()[0]) # "" == current.
-                    , "currency" : currency}
+        endowment = {"amount": amount
+            , "scale": scale
+            , "year": str(em) if str(em) != "" else str(datetime.datetime.now().timetuple()[0])  # "" == current.
+            , "currency": currency}
 
         try:
             return self.currency_convert(endowment)
@@ -684,7 +689,7 @@ class WikiUniversities(object):
 
         # Try to Extract
         try:
-            itype = [i for i in raw_page.split("|") if "type=" in cln(i, 2)] # split on "|"
+            itype = [i for i in raw_page.split("|") if "type=" in cln(i, 2)]  # split on "|"
 
             if len(itype) != 1:
 
@@ -693,7 +698,7 @@ class WikiUniversities(object):
 
                 # if that failed, try this:
                 elif not any(x in cln(itype[0], 2) for x in looking_for):
-                    itype = [i for i in raw_page.split("]]|") if "type=" in cln(i, 2)] # split on "]]|"
+                    itype = [i for i in raw_page.split("]]|") if "type=" in cln(i, 2)]  # split on "]]|"
                     if len(itype) != 1:
 
                         if any(x in cln(itype[0], 2) for x in looking_for_b):
@@ -713,7 +718,7 @@ class WikiUniversities(object):
         else:
             return None
 
-    def university_information(self, wiki_page_title, region = None, allow_redirect = True, similarity_threshold = 90):
+    def university_information(self, wiki_page_title, region=None, allow_redirect=True, similarity_threshold=90):
         """
 
 
@@ -734,10 +739,10 @@ class WikiUniversities(object):
             wiki_page_title = wiki_page_title[0].capitalize() + wiki_page_title[1:]
 
         try:
-            raw_page = wiki_complete_get(  title = wiki_page_title
-                                         , allow_redirect = allow_redirect
-                                         , similarity_threshold = similarity_threshold)
-            if "infobox" not in raw_page: # not a perfect heuristic...
+            raw_page = wiki_complete_get(title=wiki_page_title
+                                         , allow_redirect=allow_redirect
+                                         , similarity_threshold=similarity_threshold)
+            if "infobox" not in raw_page:  # not a perfect heuristic...
                 return None
         except:
             return None
@@ -754,112 +759,3 @@ class WikiUniversities(object):
         institution_data["endowment"] = endowment if endowment != None else ""
 
         return institution_data
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

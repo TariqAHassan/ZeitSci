@@ -1,16 +1,11 @@
-'''
+"""
 
     Tools for evolving the Region Specific Databases
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     Python 3.5
 
-'''
-
-# ---------------- #
-#  Import Modules  #
-# ---------------- #
-
+"""
 import os
 import sys
 import time
@@ -26,28 +21,28 @@ from fuzzywuzzy import process
 from easymoney.easy_pandas import twoD_nested_dict
 
 from unidecode import unidecode
-from abstract_analysis import *
+from analysis.abstract_analysis import *
 
-from region_abbrevs import US_states, European_Countries
+from analysis.region_abbrevs import US_states, European_Countries
 
-from supplementary_fns import cln
-from supplementary_fns import lprint
-from supplementary_fns import insen_replace
-from supplementary_fns import partial_match
-from supplementary_fns import pandas_col_shift
-from supplementary_fns import partial_list_match
-from supplementary_fns import items_present_test
+from analysis.supplementary_fns import cln
+from analysis.supplementary_fns import lprint
+from analysis.supplementary_fns import insen_replace
+from analysis.supplementary_fns import partial_match
+from analysis.supplementary_fns import pandas_col_shift
+from analysis.supplementary_fns import partial_list_match
+from analysis.supplementary_fns import items_present_test
 
 # ZeitSci Classes
-from zeitsci_wiki_api import WikiUniversities, wiki_complete_get
-from open_cage_functionality import ZeitOpenCage
+from analysis.zeitsci_wiki_api import WikiUniversities, wiki_complete_get
+from analysis.open_cage_functionality import ZeitOpenCage
 
 from nltk.corpus import stopwords
 
-from region_abbrevs import Australian_states
-from region_abbrevs import Australia_Inist_Cities
-from open_cage_functionality import ZeitOpenCage
-from my_keys import OPENCAGE_KEY
+from analysis.region_abbrevs import Australian_states
+from analysis.region_abbrevs import Australia_Inist_Cities
+from analysis.open_cage_functionality import ZeitOpenCage
+from analysis.my_keys import OPENCAGE_KEY
 
 
 # ------------------------------------------------------------------------- #

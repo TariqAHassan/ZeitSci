@@ -6,20 +6,20 @@
     Python 3.5
 
 """
-# Import Modules
 import re
 import string
 import numpy as np
 from nltk import FreqDist
 from langdetect import detect
 from nltk.corpus import stopwords
-from supplementary_fns import cln
+from analysis.supplementary_fns import cln
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import RegexpTokenizer
 
 # Initialize NLTK's WordNetLemmatizer
 lmr = WordNetLemmatizer()
 RTokenizer = RegexpTokenizer(r'\w+')
+
 
 def abstract_en(abstract):
     """
@@ -41,6 +41,7 @@ def abstract_en(abstract):
 
     # Otherwise
     return "non_en"
+
 
 def word_vector_clean(input_str, RTokenizer=RTokenizer):
     """
@@ -70,7 +71,8 @@ def word_vector_clean(input_str, RTokenizer=RTokenizer):
 
     return cleaned_vector
 
-def common_words(input_str, n = 10, return_rank = True, digit_check = True, wrap_nans=True):
+
+def common_words(input_str, n=10, return_rank=True, digit_check=True, wrap_nans=True):
     """
 
     :param input_str: an abstract
@@ -100,7 +102,7 @@ def common_words(input_str, n = 10, return_rank = True, digit_check = True, wrap
     cleaned_input = word_vector_clean(cln(input_str))
 
     if digit_check:
-        to_count = [i for i in cleaned_input if not str(i).strip().isdigit() and len(str(i)) > 1] +\
+        to_count = [i for i in cleaned_input if not str(i).strip().isdigit() and len(str(i)) > 1] + \
                    [i for i in cln(input_str).split() if len(re.findall(r'[0-9]-.*', i)) != 0 and len(str(i)) > 1]
     else:
         to_count = cleaned_input
@@ -113,48 +115,6 @@ def common_words(input_str, n = 10, return_rank = True, digit_check = True, wrap
     top_common_words = np.array(FreqDist(to_count).most_common(n))
 
     if return_rank:
-        return list(top_common_words[:,0]), list(top_common_words[:,1])
+        return list(top_common_words[:, 0]), list(top_common_words[:, 1])
     else:
-        return list(top_common_words[:,0])
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        return list(top_common_words[:, 0])

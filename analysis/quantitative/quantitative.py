@@ -29,10 +29,10 @@ funding['StartYear'] = funding['StartYear'].astype(float)
 range_funding = funding[(funding['StartYear'] >= 2005) & (funding['StartYear'] <= 2015)]
 
 db_total = range_funding['NormalizedAmount'].sum()
-d = {c: range_funding[range_funding['FunderBlock'].str.upper() == c.upper()]['NormalizedAmount']\
-        .sum()/db_total for c in funding['FunderBlock'].unique()}
+d = {c: range_funding[range_funding['FunderBlock'].str.upper() == c.upper()]['NormalizedAmount'] \
+            .sum() / db_total for c in funding['FunderBlock'].unique()}
 
-block_dict = {k: round(float(v)*100, 1) for k, v in d.items()}
+block_dict = {k: round(float(v) * 100, 1) for k, v in d.items()}
 
 # ------------------------------------------------------------------------------------------------
 # Highest-Funded Organizations
@@ -46,16 +46,18 @@ top_orgs = funding[(funding['StartYear'].astype(float) >= 2010) & (funding['Star
 # Get the Top Funded Orgs for Each Year
 
 # Sort by Year and Amount
-top_orgs_sorted = top_orgs.sort_values(['StartYear', 'NormalizedAmount'], ascending=[False, False]).reset_index(drop=True)
+top_orgs_sorted = top_orgs.sort_values(['StartYear', 'NormalizedAmount'], ascending=[False, False]).reset_index(
+    drop=True)
 
 # Get the top x per year
-by_year = top_orgs_sorted.sort_values('NormalizedAmount', ascending=False).groupby('StartYear', as_index=False).head(top)
+by_year = top_orgs_sorted.sort_values('NormalizedAmount', ascending=False).groupby('StartYear', as_index=False).head(
+    top)
 
 # Sort
 by_year_sorted = by_year.sort_values(['StartYear', 'NormalizedAmount'], ascending=[False, False]).reset_index(drop=True)
 
 # Add Ranking (will only work for certian values of top)
-by_year_sorted['Ranking'] = list(range(1, top+1)) * int(round(by_year_sorted.shape[0]/top))
+by_year_sorted['Ranking'] = list(range(1, top + 1)) * int(round(by_year_sorted.shape[0] / top))
 
 # Rename
 by_year_sorted.columns = ['Name', 'Country', 'Start Year', 'Total Grants (USD)', 'Ranking']
@@ -67,32 +69,3 @@ by_year_sorted['Total Grants (USD)'] = by_year_sorted['Total Grants (USD)'].map(
 by_year_sorted = by_year_sorted[['Ranking', 'Name', 'Country', 'Start Year', 'Total Grants (USD)']]
 
 by_year_sorted.to_csv(MAIN_FOLDER + "analysis/resources/" + '2010_2015_rankings_detailed.csv', index=False)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

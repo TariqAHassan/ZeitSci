@@ -10,8 +10,8 @@ import os
 import numpy as np
 import pandas as pd
 from itertools import chain
-from supplementary_fns import fast_flatten
-import pubmed_parser_master.pubmed_parser as pp
+from analysis.supplementary_fns import fast_flatten
+import analysis.pubmed_parser_master.pubmed_parser as pp
 # from multiprocessing.dummy import Pool as ThreadPool
 from tqdm import tqdm
 
@@ -20,9 +20,7 @@ from tqdm import tqdm
 
 PATH = '/Users/tariq/Desktop/MedlineData'
 
-# ---------------------------------------------------------------------------------------------------- #
-
-xml_file_range = (440, np.inf) #440-all (812); 1999-2015. 372 files to process (11,160,000 articles)
+xml_file_range = (440, np.inf)  # 440-all (812); 1999-2015. 372 files to process (11,160,000 articles)
 files = [os.path.join(PATH, f) for f in os.listdir(PATH) if "xml.gz" in f.lower()]
 xml_files = [x for x in files if xml_file_range[0] <= float(x.split("/")[-1].split('.')[0][-4:]) <= xml_file_range[1]]
 
@@ -38,8 +36,10 @@ print("Pandas")
 df = pd.DataFrame(flattened_data).fillna(value=np.NaN)
 
 print("Save")
-df.to_pickle(PATH+'/MedlineCombinedPandas_Dates_' + "_".join(map(str, xml_file_range)) + '_.p')
-#47
+df.to_pickle(PATH + '/MedlineCombinedPandas_Dates_' + "_".join(map(str, xml_file_range)) + '_.p')
+
+
+# 47
 
 # frames = list()
 # for x in [i for i in os.listdir(PATH) if ".p" in i]:
@@ -53,6 +53,7 @@ def reincode(df, exclude):
         df[c] = df[c].str.decode('utf-8').str.encode('utf-8')
     return df
 
+
 print("--------------------" * 3)
 frames = list()
 for f in [PATH + "/" + i for i in os.listdir(PATH) if ".p" in i and 'Date' not in i]:
@@ -64,20 +65,20 @@ for f in [PATH + "/" + i for i in os.listdir(PATH) if ".p" in i and 'Date' not i
     temp_df['journal_iso'] = temp_df['journal_iso'].str.replace(".", "")
     # print(temp_df.info())
     frames.append(temp_df)
-    print("--------------------"*3)
+    print("--------------------" * 3)
     print("complete: " + str(f.split("/")[-1]))
-    print("--------------------"*3)
+    print("--------------------" * 3)
 
 print('Converting to dict')
 df_dict = dict.fromkeys(frames[0].columns.tolist(), [])
 for t in frames[0].columns.tolist():
-    print("--------------------"*3)
+    print("--------------------" * 3)
     print("extracting: " + str(t))
     extracted = (frame[t] for frame in frames)
     print("flattening: " + str(t))
     df_dict[t] = fast_flatten(extracted)
     print("Complete: " + str(t))
-    print("--------------------"*3)
+    print("--------------------" * 3)
 
 del frames
 
@@ -91,6 +92,7 @@ dates_dict = dict(zip(dates['pmid'], dates['pubdate']))
 # Update Dates
 df['pubdate'] = df['pmid'].progress_map(lambda k: dates_dict[k], na_action='ignore')
 
+
 # Format Dates
 def grant_formater(grant_dicts):
     funders = list()
@@ -99,53 +101,8 @@ def grant_formater(grant_dicts):
         funders.append("; ".join(funding_info))
     return " | ".join(funders)
 
+
 df['grants'] = df['grants'].progress_map(grant_formater, na_action='ignore')
 
 print("Saving as csv...")
 df.to_csv('2Pubmed2000_to_2015.csv', index=False, chunksize=10000)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
