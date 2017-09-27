@@ -6,21 +6,20 @@
     Python 3.5
 
 """
-# Import Modules
 import os
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from unidecode import unidecode
-from abstract_analysis import *
+from analysis.abstract_analysis import *
 
-from supplementary_fns import cln
-from funding_database_tools import titler
-from funding_database_tools import order_cols
-from funding_database_tools import MAIN_FOLDER
-from funding_database_tools import first_name_clean
-from aggregated_geo_info import master_geo_lookup
-from funding_database_tools import fdb_common_words
+from analysis.supplementary_fns import cln
+from analysis.funding_database_tools import titler
+from analysis.funding_database_tools import order_cols
+from analysis.funding_database_tools import MAIN_FOLDER
+from analysis.funding_database_tools import first_name_clean
+from analysis.aggregated_geo_info import master_geo_lookup
+from analysis.funding_database_tools import fdb_common_words
 
 # Data Pipline Checklist:
 #     Researcher                    X
@@ -98,7 +97,8 @@ for c in [i for i in uk_df.columns if i != 'awardpounds']:
 # ------------------------------------------------------------------------------------------------------------ #
 
 # Researcher
-uk_df['pifirstname'] = uk_df['pifirstname'].str.replace(",", "").str.replace(")", "").str.replace("(", "").replace("Dr.", "")
+uk_df['pifirstname'] = uk_df['pifirstname'].str.replace(",", "").str.replace(")", "").str.replace("(", "").replace(
+    "Dr.", "")
 
 # Clean first names
 uk_df['pifirstname'] = uk_df['pifirstname'].map(first_name_clean, na_action='ignore')
@@ -110,43 +110,46 @@ del uk_df['pifirstname']
 
 # Funder
 uk_df['fundingorgname'] = "UK_" + uk_df['fundingorgname']
-uk_df = uk_df.rename(columns={"fundingorgname" : "Funder"})
+uk_df = uk_df.rename(columns={"fundingorgname": "Funder"})
 
 # Start Date
-uk_df = uk_df.rename(columns={"startdate" : "StartDate"})
+uk_df = uk_df.rename(columns={"startdate": "StartDate"})
 
 # Grant Year
 uk_df['GrantYear'] = np.NaN
 
 # Amount
-uk_df = uk_df.rename(columns={"awardpounds" : "Amount"})
+uk_df = uk_df.rename(columns={"awardpounds": "Amount"})
 
 # FundCurrency
 uk_df['FundCurrency'] = "GBP"
 
+
 # ProjectTitle
 def uk_title_cln(input_str):
     clean = input_str.replace("\'", "").replace(" : ", ": ")
-    return clean[0].upper() +  clean[1:]
+    return clean[0].upper() + clean[1:]
+
 
 uk_df['title'] = uk_df['title'].map(titler, na_action='ignore').map(uk_title_cln)
-uk_df = uk_df.rename(columns={"title" : "ProjectTitle"})
+uk_df = uk_df.rename(columns={"title": "ProjectTitle"})
 
 # FunderBlock
 uk_df['FunderBlock'] = "United Kingdom"
 
 # OrganizationName
-uk_df = uk_df.rename(columns={"leadroname" : "OrganizationName"})
+uk_df = uk_df.rename(columns={"leadroname": "OrganizationName"})
 
 # OrganizationCity; TO DO: use the main database to populate this.
 uk_df['OrganizationCity'] = np.NaN
 
 # OrganizationState; TO DO: handle 'Outside UK'.
-uk_df = uk_df.rename(columns={"region" : "OrganizationState"})
+uk_df = uk_df.rename(columns={"region": "OrganizationState"})
 
 # Fix state for Oxford
 uk_df['OrganizationState'] = uk_df.apply(
-    lambda x: "South East" if "of Oxford".upper() in str(x['OrganizationName']).upper() else x['OrganizationState'], axis=1
+    lambda x: "South East" if "of Oxford".upper() in str(x['OrganizationName']).upper() else x['OrganizationState'],
+    axis=1
 )
 
 # OrganizationBlock
@@ -165,8 +168,9 @@ uk_df['Keywords'] = fdb_common_words(uk_df['ProjectTitle'], n=5, update_after=25
 
 # Special Cases
 special_cases_geo = {
-    "University of Oxford" : [51.7611, -1.2534]
+    "University of Oxford": [51.7611, -1.2534]
 }
+
 
 def uk_geo_lookup(organization, block):
     if organization in special_cases_geo:
@@ -189,24 +193,8 @@ uk_df = uk_df[order_cols].reset_index(drop=True)
 # UK Data Partially Stabilized #
 
 # Save
-uk_df.to_pickle(MAIN_FOLDER + "/Data/Governmental_Science_Funding/CompleteRegionDatabases/" + "UnitedKingdomFundingDatabase.p")
+uk_df.to_pickle(
+    MAIN_FOLDER + "/Data/Governmental_Science_Funding/CompleteRegionDatabases/" + "UnitedKingdomFundingDatabase.p")
 
 
 # Fix location for imperial (science and tech) -- also in EU script
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

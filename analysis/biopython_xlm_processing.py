@@ -4,15 +4,15 @@
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 """
-# Import Modules
 import re
 import numpy as np
 import pandas as pd
-from Bio import Entrez
+from Bio import Entrez  # pip3 install biopython
 from unidecode import unidecode
 from nltk.corpus import stopwords
-from abstract_analysis import common_words
-from abstract_analysis import word_vector_clean
+from analysis.abstract_analysis import common_words
+from analysis.abstract_analysis import word_vector_clean
+
 
 # To Do:
 # Make sure no non alphanumeric chars can end up
@@ -38,18 +38,18 @@ class BioPySummaryExtractor(object):
 
     """
 
-    def __init__(self, papers = None):
+    def __init__(self, papers=None):
 
         self.papers = papers
-        self.ordered_cols = [  "Title"
-                             , "Authors"
-                             , "Institution"
-                             , "Journal"
-                             , "Month"
-                             , "Year"
-                             , "Keywords"
-                             , "Abstract"
-                            ]
+        self.ordered_cols = ["Title"
+            , "Authors"
+            , "Institution"
+            , "Journal"
+            , "Month"
+            , "Year"
+            , "Keywords"
+            , "Abstract"
+                             ]
 
     # Extract the Authors
     def author_extractor(self, n):
@@ -79,7 +79,7 @@ class BioPySummaryExtractor(object):
                 institution = str(author_list[a]["AffiliationInfo"][0]['Affiliation'])
                 # Remove Emails, if present
                 # see http://stackoverflow.com/questions/17681670/extract-email-sub-strings-from-large-document
-                institution = re.sub(r'[\w\.-]+@[\w\.-]+', "",institution).replace("Electronic address:", "")
+                institution = re.sub(r'[\w\.-]+@[\w\.-]+', "", institution).replace("Electronic address:", "")
                 institution = institution.replace("e-mail:", "").replace("email:", "").lstrip().rstrip()
             except:
                 institution = ""
@@ -216,10 +216,10 @@ class BioPySummaryExtractor(object):
         try:
             abstract = self.papers[n]['MedlineCitation']['Article']['Abstract']['AbstractText']
         except:
-            return("")
+            return ("")
 
         if len(abstract) == 0:
-            return("")
+            return ("")
 
         full_abstract = ""
         for a in range(len(abstract)):
@@ -229,7 +229,7 @@ class BioPySummaryExtractor(object):
                 full_abstract += " " + str(abstract[a])
 
             # Normalize the unicode
-            #full_abstract = unidecode(str(abstract))
+            # full_abstract = unidecode(str(abstract))
             full_abstract = unidecode(str(abstract[0]))  # change to  unidecode((abstract[0]))
 
         return full_abstract
@@ -265,40 +265,20 @@ class BioPySummaryExtractor(object):
         abstract = self.abstract_extractor(n)
 
         # Create temp df
-        df_temp = pd.DataFrame(index = [n], columns = self.ordered_cols)
+        df_temp = pd.DataFrame(index=[n], columns=self.ordered_cols)
 
         # Perform an abstract analysis
         abstract_analysis = common_words(abstract)
 
         # Add dict to temp pandas df
         # Change to .loc
-        df_temp["Title"][n]         =   title
-        df_temp["Authors"][n]       =   np.array(authors)
-        df_temp["Institution"][n]   =   np.array(insts)
-        df_temp["Journal"][n]       =   journal_name
-        df_temp["Month"][n]         =   month
-        df_temp["Year"][n]          =   year
-        df_temp["Keywords"][n]      =   np.array(keywords)
-        df_temp["Abstract"][n]      =   abstract
+        df_temp["Title"][n] = title
+        df_temp["Authors"][n] = np.array(authors)
+        df_temp["Institution"][n] = np.array(insts)
+        df_temp["Journal"][n] = journal_name
+        df_temp["Month"][n] = month
+        df_temp["Year"][n] = year
+        df_temp["Keywords"][n] = np.array(keywords)
+        df_temp["Abstract"][n] = abstract
 
         return df_temp
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

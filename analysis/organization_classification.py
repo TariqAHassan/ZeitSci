@@ -11,70 +11,69 @@ from collections import defaultdict
 
 # Heuristics for Classifying Organizations ('!' means ends with)
 org_classes = {
-     'Educational': ['Univ ',
-                     'academy',
-                     'agency',
-                     'college',
-                     'ecole',
-                     'laboratory',
-                     'observatory',
-                     'polytechnic',
-                     'polyteknik',
-                     'school',
-                     'universit'],
-     'Governmental': ['Serv ',
-                      'Servs ',
-                      'Srvs ',
-                      ' national',
-                      'affairs',
-                      'bureau',
-                      'department',
-                      'federal',
-                      'services'],
-     'Individual': [' phd ',
-                    ' phd,',
-                    '! phd',
-                    'Dr.',
-                    'Prof. '
-                    "professor"
-                    'MD',
-                    'Miss.',
-                    'Mr.',
-                    'Mrs.'],
-     'Industry': [' Corp',
-                  '!Inc',
-                  '!Inc.',
-                  '!llc',
-                  '!llc.',
-                  '!ltd',
-                  '!ltd.',
-                  'Co. ',
-                  'R&D',
-                  'communications',
-                  'company',
-                  'consulting',
-                  'corporation',
-                  'incorporated',
-                  'limited',
-                  'radio',
-                  'solutions',
-                  'technologies',
-                  'television'],
-     'Institute': [' institut'],
-     'Medical': ['clinic',
-                 ' dental',
-                 'dentistry',
-                 'health',
-                 'hospital',
-                 'medical',
-                 'physiotherapy',
-                 'rehabilitation'],
-     'NGO': ['asociacion',
-             'association',
-             'foundation',
-             'charity']
+    'Educational': ['Univ ',
+                    'academy',
+                    'agency',
+                    'college',
+                    'ecole',
+                    'laboratory',
+                    'observatory',
+                    'polytechnic',
+                    'polyteknik',
+                    'school',
+                    'universit'],
+    'Governmental': ['Serv ',
+                     'Servs ',
+                     'Srvs ',
+                     ' national',
+                     'affairs',
+                     'bureau',
+                     'department',
+                     'federal',
+                     'services'],
+    'Individual': [' phd ',
+                   ' phd,',
+                   '! phd',
+                   'Dr.',
+                   'Prof. '
+                   "professor"
+                   'MD',
+                   'Miss.',
+                   'Mr.',
+                   'Mrs.'],
+    'Industry': [' Corp',
+                 '!Inc',
+                 '!Inc.',
+                 '!llc',
+                 '!llc.',
+                 '!ltd',
+                 '!ltd.',
+                 'Co. ',
+                 'R&D',
+                 'communications',
+                 'company',
+                 'consulting',
+                 'corporation',
+                 'incorporated',
+                 'limited',
+                 'radio',
+                 'solutions',
+                 'technologies',
+                 'television'],
+    'Institute': [' institut'],
+    'Medical': ['clinic',
+                ' dental',
+                'dentistry',
+                'health',
+                'hospital',
+                'medical',
+                'physiotherapy',
+                'rehabilitation'],
+    'NGO': ['asociacion',
+            'association',
+            'foundation',
+            'charity']
 }
-
 
 blocked_pairings = [
     ('Educational', 'Governmental'),
@@ -122,8 +121,8 @@ def individual_name(input_str):
         return []
     input_str_split = input_str.split(" ")
     if len(input_str_split) == 3 and \
-        all([j[0].isupper() for j in [input_str_split[0], input_str_split[-1]]]) and \
-        len(input_str_split[1].replace(".", "").strip()) == 1:
+            all([j[0].isupper() for j in [input_str_split[0], input_str_split[-1]]]) and \
+                    len(input_str_split[1].replace(".", "").strip()) == 1:
         return ["Individual"]
     else:
         return []
@@ -177,7 +176,7 @@ def organization_classifier(organization):
             for search_term in class_markers:
                 if check_against(search_term, organization):
                     candidate_classes[class_type] += [search_term]
-    
+
         # Resolve conflicts
         org_class_list = sorted(class_conflict_remover(dict(candidate_classes)))
 
@@ -185,40 +184,3 @@ def organization_classifier(organization):
         return np.NaN
 
     return "; ".join(org_class_list)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

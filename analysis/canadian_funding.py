@@ -1,31 +1,26 @@
-'''
+"""
 
     Canadian Funding
     ~~~~~~~~~~~~~~~~
 
     Python 3.5
 
-'''
-
-# ---------------- #
-#  Import Modules  #
-# ---------------- #
-
+"""
 import os
 import glob2
 import unicodedata
 import numpy as np
 import pandas as pd
-from abstract_analysis import *
+from analysis.abstract_analysis import *
 
-from funding_database_tools import MAIN_FOLDER
-from funding_database_tools import order_cols
-from funding_database_tools import comma_reverse
-from funding_database_tools import remove_accents
-from funding_database_tools import try_dict_lookup
-from funding_database_tools import fdb_common_words
-from funding_database_tools import df_combine
-from funding_database_tools import column_drop
+from analysis.funding_database_tools import MAIN_FOLDER
+from analysis.funding_database_tools import order_cols
+from analysis.funding_database_tools import comma_reverse
+from analysis.funding_database_tools import remove_accents
+from analysis.funding_database_tools import try_dict_lookup
+from analysis.funding_database_tools import fdb_common_words
+from analysis.funding_database_tools import df_combine
+from analysis.funding_database_tools import column_drop
 
 # Data Pipline Checklist:
 #     Researcher                    X
@@ -47,7 +42,7 @@ from funding_database_tools import column_drop
 # Legend:
 #     X = Complete
 #     V = Currently Void
-#     P = Partially Stabalized
+#     P = Partially Stabilized
 
 # ------------------------------------------------------------------------------------------------------------ #
 # Canada
@@ -62,7 +57,7 @@ os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/Canada/Funding_by_Reg
 
 # Import
 ca_data_file_names = list(set([i.replace("~$", "") for i in glob2.glob('*/*.xlsx')]))
-ca_df = df_combine(ca_data_file_names, skip=3, file_types='excel', file_name_add = True)
+ca_df = df_combine(ca_data_file_names, skip=3, file_types='excel', file_name_add=True)
 
 # Get State (Province) and University Information
 ca_df['state'] = ca_df.file_name.map(lambda x: x.split("/")[0].replace("_", " "))
@@ -78,7 +73,7 @@ ca_df = column_drop(ca_df, ["file_name", "award type", "program"])
 ca_df.columns = ['amount', 'year', 'researcher', 'title', 'state', 'university']
 
 # Drop NaNs
-ca_df = column_drop(ca_df, ["amount", "year", "researcher"], drop_type = "na")
+ca_df = column_drop(ca_df, ["amount", "year", "researcher"], drop_type="na")
 
 # Drop Rows with No Title
 ca_df = ca_df[~(ca_df.title.astype(str).str.contains("No title"))]
@@ -150,21 +145,21 @@ ca_df["FunderBlock"] = pd.Series("Canada", index=ca_df.index)
 ca_df["StartDate"] = ca_df['year'].map(lambda x: "01/01/" + str(x))
 
 # Rename Columns
-new_col_names = [  "Amount"
-                 , "GrantYear"
-                 , "Researcher"
-                 , "ProjectTitle"
-                 , "OrganizationState"
-                 , "OrganizationName"
-                 , "lng"
-                 , "lat"
-                 , "OrganizationCity"
-                 , "Keywords"
-                 , "FundCurrency"
-                 , "Funder"
-                 , "OrganizationBlock"
-                 , "FunderBlock"
-                 , "StartDate"]
+new_col_names = ["Amount"
+    , "GrantYear"
+    , "Researcher"
+    , "ProjectTitle"
+    , "OrganizationState"
+    , "OrganizationName"
+    , "lng"
+    , "lat"
+    , "OrganizationCity"
+    , "Keywords"
+    , "FundCurrency"
+    , "Funder"
+    , "OrganizationBlock"
+    , "FunderBlock"
+    , "StartDate"]
 
 # Rename columns
 ca_df.columns = new_col_names
@@ -181,54 +176,3 @@ ca_df = ca_df[order_cols]
 # Save
 os.chdir(MAIN_FOLDER + "/Data/Governmental_Science_Funding/CompleteRegionDatabases")
 ca_df.to_pickle("CanadianFundingDatabase.p")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

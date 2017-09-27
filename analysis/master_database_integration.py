@@ -6,7 +6,6 @@
     Python 3.5
 
 """
-
 import os
 import glob2
 import string
@@ -51,17 +50,18 @@ from funding_database_tools import MAIN_FOLDER
 # Read in Pubmed Data
 os.chdir(MAIN_FOLDER + "/Data/NCBI_DATA")
 pubmed = pd.read_csv("Pubmed2000_to_2015.csv"
-                          , dtype={'author': np.str, 'grants': np.str, 'keywords': np.str, 'journal': np.str,
-                                   'pmid': np.str, 'title': np.str, 'mesh_terms': np.str, 'pubdate': np.str,
-                                   'affiliation': np.str, 'journal_iso': np.str}
-                          , error_bad_lines=False
-                          , nrows=10000000)
+                     , dtype={'author': np.str, 'grants': np.str, 'keywords': np.str, 'journal': np.str,
+                              'pmid': np.str, 'title': np.str, 'mesh_terms': np.str, 'pubdate': np.str,
+                              'affiliation': np.str, 'journal_iso': np.str}
+                     , error_bad_lines=False
+                     , nrows=10000000)
 
 # Read in Funding Data
 funding = pd.read_pickle(MAIN_FOLDER + "/Data/MasterDatabase/" + 'MasterDatabaseRC2.p')
 
 # Start tqdm
 tqdm.pandas(desc="status")
+
 
 # ------------------------------------------------------------------------- #
 #                  Group by Researcher and OrganizationName                 #
@@ -78,45 +78,9 @@ def researcher_name_cln(researcher):
     else:
         return cleaned_name if cleaned_name != '' else np.NaN
 
+
 funding['ResearcherAbrev'] = funding['Researcher'].progress_map(researcher_name_cln, na_action='ignore')
 
 # ------------------------------------------------------------------------- #
 #                  Group by Researcher and OrganizationName                 #
 # ------------------------------------------------------------------------- #
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

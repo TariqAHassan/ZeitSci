@@ -40,14 +40,14 @@ tqdm.pandas(desc="status")
 
 # Columns to Use
 keyword_df_columns = ["Keywords",
-                       "Funder",
-                       "StartDate",
-                       "OrganizationName",
-                       "OrganizationCity",
-                       "OrganizationState",
-                       "OrganizationBlock",
-                       "NormalizedAmount"
-]
+                      "Funder",
+                      "StartDate",
+                      "OrganizationName",
+                      "OrganizationCity",
+                      "OrganizationState",
+                      "OrganizationBlock",
+                      "NormalizedAmount"
+                      ]
 
 # Convert keywords into a list
 funding['Keywords'] = funding['Keywords'].str.split("; ")
@@ -74,6 +74,7 @@ keyword_df = pd.DataFrame(keywords_dict, columns=keyword_df_columns)
 group_by_columns = [c for c in keyword_df_columns[:-1] if str(c) not in ['OrganizationState', 'OrganizationCity']]
 keyword_df_sum = keyword_df.groupby(group_by_columns)['NormalizedAmount'].sum().reset_index()
 
+
 def keyword_remove(s):
     """
     Not ideal
@@ -91,6 +92,7 @@ def keyword_remove(s):
     else:
         return False
 
+
 keyword_df_sum = keyword_df_sum[~keyword_df_sum['Keywords'].progress_map(keyword_remove)].reset_index(drop=True)
 
 # Sort by NormalizedAmount
@@ -106,7 +108,8 @@ keyword_df_sum.to_csv(export_path + "keywords_db3.csv", index=False, chunksize=5
 # keyword_df_sum = pd.read_csv(export_path + "keywords_db3.csv")
 
 # Drop dod until until a more complete record is obtained from the by NIH
-keyword_df_sum = keyword_df_sum[~keyword_df_sum['Funder'].progress_map(lambda x: True if "DOD" in str(x).upper() else False)].reset_index(drop=True)
+keyword_df_sum = keyword_df_sum[
+    ~keyword_df_sum['Funder'].progress_map(lambda x: True if "DOD" in str(x).upper() else False)].reset_index(drop=True)
 
 # ------------------------------------------------------------------------------------------------
 # Fix Organization Name
@@ -127,11 +130,14 @@ keyword_df_sum["OrganizationName"] = keyword_df_sum["OrganizationName"].progress
 # Add Year Column
 keyword_df_sum["Year"] = keyword_df_sum["StartDate"].progress_map(lambda x: x.split("/")[2], na_action="ignore")
 
+
 def amount_groupby(groupby, df=None):
     data_frame = keyword_df_sum if df is None else df
     gb = data_frame.groupby(groupby)["NormalizedAmount"].sum().reset_index()
-    by = ["NormalizedAmount"] if groupby == ["Keywords"] else [i for i in groupby if i != "Keywords"] + ["NormalizedAmount"]
+    by = ["NormalizedAmount"] if groupby == ["Keywords"] else [i for i in groupby if i != "Keywords"] + [
+        "NormalizedAmount"]
     return gb.sort_values(by=by, ascending=False).reset_index(drop=True)
+
 
 # ------------------------------------------------------------------------------------
 # Most Funded Terms by Funder
@@ -146,36 +152,40 @@ top_funded_funder = amount_groupby(groupby=["Keywords", "Funder", "Year"], df=to
 
 xs = top_funded_funder["Funder"].unique()
 
+
 def agency_name_simplify(x):
-    #return re.findall(r"\(([A-Za-z0-9_]+)\)", x)[0]
+    # return re.findall(r"\(([A-Za-z0-9_]+)\)", x)[0]
     return re.search('\((.*?)\)', funders_dict[x][0]).group(1)
+
 
 top_funded_funder["FunderFull"] = top_funded_funder["Funder"]
 top_funded_funder["Funder"] = top_funded_funder["Funder"].progress_map(agency_name_simplify, na_action="ignore")
 
 # Limit to top 250 keywords for each agency for each year between 2000 and 2015
-top_funded_funder = top_funded_funder.groupby(["Funder", "Year"]).head(top)\
-                                        .sort_values(["Year", "Funder"], ascending=[True, False]).reset_index(drop=True)
+top_funded_funder = top_funded_funder.groupby(["Funder", "Year"]).head(top) \
+    .sort_values(["Year", "Funder"], ascending=[True, False]).reset_index(drop=True)
 
 # ---------------------------
 # Aggregate by Year
 # ---------------------------
 
-top_funded_funder_year = top_funded_funder.groupby(["Keywords", "Year"])["NormalizedAmount"].sum()\
-             .reset_index().sort_values(["Year", "NormalizedAmount"], ascending=[True, False]).reset_index(drop=True)
+top_funded_funder_year = top_funded_funder.groupby(["Keywords", "Year"])["NormalizedAmount"].sum() \
+    .reset_index().sort_values(["Year", "NormalizedAmount"], ascending=[True, False]).reset_index(drop=True)
 
 # Normalize between 0 and 1
 year_min_max = [top_funded_funder_year["NormalizedAmount"].min(), top_funded_funder_year["NormalizedAmount"].max()]
 
+
 def normalize(x_i, min_max):
     return (x_i - min_max[0]) / (min_max[1] - min_max[0])
 
+
 # Normalize top_funded_funder_year -- between 0 and 1
 top_funded_funder_year["ScaledAmount"] = top_funded_funder_year["NormalizedAmount"].map(
-                                                    lambda x: normalize(x, year_min_max), na_action="ignore")
+    lambda x: normalize(x, year_min_max), na_action="ignore")
 
-top_funded_futop_funded_funder_year = top_funded_funder.groupby(["Keywords", "Year"])["NormalizedAmount"].sum()\
-             .reset_index().sort_values(["Year", "NormalizedAmount"], ascending=[True, False]).reset_index(drop=True)
+top_funded_futop_funded_funder_year = top_funded_funder.groupby(["Keywords", "Year"])["NormalizedAmount"].sum() \
+    .reset_index().sort_values(["Year", "NormalizedAmount"], ascending=[True, False]).reset_index(drop=True)
 
 # ---------------------------
 # Normalize
@@ -183,12 +193,15 @@ top_funded_futop_funded_funder_year = top_funded_funder.groupby(["Keywords", "Ye
 
 year_min_max = [top_funded_funder_year["NormalizedAmount"].min(), top_funded_funder_year["NormalizedAmount"].max()]
 
+
 def normalize(x_i, min_max):
     return (x_i - min_max[0]) / (min_max[1] - min_max[0])
 
+
 # Normalize top_funded_funder_year -- between 0 and 1
 top_funded_funder_year["ScaledAmount"] = top_funded_funder_year["NormalizedAmount"].map(
-                                                    lambda x: normalize(x, year_min_max), na_action="ignore")
+    lambda x: normalize(x, year_min_max), na_action="ignore")
+
 
 # Compute the proprtion each agency is driving funding for each keyword (considering only the top 3)
 def keyword_yearly_proportion(x):
@@ -197,7 +210,9 @@ def keyword_yearly_proportion(x):
 
     return x['NormalizedAmount'] / float(total)
 
+
 top_funded_funder['ProportionTotal'] = top_funded_funder.apply(lambda x: keyword_yearly_proportion(x), axis=1)
+
 
 # Compute the proportion for each keyword for each agency for each year.
 def keyword_agency_proportion(x):
@@ -205,6 +220,7 @@ def keyword_agency_proportion(x):
                                                   (top_funded_funder["Year"] == x["Year"])]
 
     return x['NormalizedAmount'] / total.sum()
+
 
 top_funded_funder['ProportionYearlyTop'] = top_funded_funder.apply(keyword_agency_proportion, axis=1)
 
@@ -255,20 +271,3 @@ top_funded_funder_year.to_csv(save_path + "funders_keywords_by_year.csv", index=
 
 # Save a funder_db
 funder_info_db(df=top_funded_funder, col="FunderFull").to_csv(save_path + "funder_db_keywords.csv", index=False)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

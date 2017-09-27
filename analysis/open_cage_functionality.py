@@ -1,16 +1,11 @@
-'''
+"""
 
-Interactions with the OpenCage API
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Interactions with the OpenCage API
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Python 3.5
+    Python 3.5
 
-'''
-
-# ---------------- #
-#  Import Modules  #
-# ---------------- #
-
+"""
 from time import sleep
 from random import uniform
 
@@ -26,7 +21,7 @@ class ZeitOpenCage(object):
 
     """
 
-    def __init__(self, api_key = None):
+    def __init__(self, api_key=None):
         """
 
         :param key: an OpenSci API key; defaults to None.
@@ -35,7 +30,7 @@ class ZeitOpenCage(object):
         if api_key == None:
             raise ValueError("An OpenCage API key must be supplied via api_key.")
 
-        self.geocoder = OpenCageGeocode(key = api_key)
+        self.geocoder = OpenCageGeocode(key=api_key)
 
     def parser(self, result, request):
         """
@@ -56,13 +51,13 @@ class ZeitOpenCage(object):
                 return (result[0]['geometry']['lng'], result[0]["geometry"]["lat"])
             if request == 'all':
                 loc_dict = {
-                          'Address'     :  result[0]['formatted']
-                        , 'Coordinates' : (result[0]['geometry']['lng'], result[0]["geometry"]["lat"])
-                        , 'Confidence'  :  result[0]['confidence']
+                    'Address': result[0]['formatted']
+                    , 'Coordinates': (result[0]['geometry']['lng'], result[0]["geometry"]["lat"])
+                    , 'Confidence': result[0]['confidence']
                 }
                 return loc_dict
 
-    def lookup(self, query, request = 'all', double_check = False, min_conf = 1, sleep_bounds = (1, 3)):
+    def lookup(self, query, request='all', double_check=False, min_conf=1, sleep_bounds=(1, 3)):
         """
 
         TO CHANGE: double_check --> validate_list, e.g., ['Harvard', 'University', 'United States of America']
@@ -90,29 +85,9 @@ class ZeitOpenCage(object):
 
         # Improve this check and/at least refactor the code...
         if double_check and "," in query and not \
-                    partial_list_match(parse_return['Address'].lower(), \
-                        [cln(i, 1).lstrip().rstrip().lower() for i in query.split(",")]) \
-                   and int(parse_return["Confidence"]) < min_conf:
+                partial_list_match(parse_return['Address'].lower(), \
+                                   [cln(i, 1).lstrip().rstrip().lower() for i in query.split(",")]) \
+                and int(parse_return["Confidence"]) < min_conf:
             return {}
 
         return parse_return
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
